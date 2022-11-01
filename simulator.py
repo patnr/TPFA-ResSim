@@ -6,7 +6,7 @@ def Pres(Grid,S,Fluid,q):
     # Compute K*lambda(S)
     Mw,Mo = RelPerm(S,Fluid);
     Mt = Mw+Mo;
-    Mt = Mt.reshape((Grid['Nx'],Grid['Ny'],Grid['Nz']))
+    Mt = Mt.reshape((Grid['Nx'],Grid['Ny'],Grid['Nz']), order="F")
     KM = Mt*Grid['K'];
     # Compute pressure and extract fluxes
     [P,V]=TPFA(Grid,KM,q);
@@ -94,7 +94,7 @@ def Upstream(Grid,S,Fluid,V,q,T):
     ZP=V['z'].clip(min=0); ZN=V['z'].clip(max=0); # influx and outflux, z-faces
     Vi = XP[:-1,:,:]+YP[:,:-1,:]+ZP[:,:,:-1]- \
          XN[ 1:,:,:]-YN[:, 1:,:]-ZN[:,:, 1:]; # each gridblock
-    pm = min(pv/(Vi.ravel(order="F")+fi.ravel(order="F"))); # estimate of influx
+    pm = min(pv/(Vi.ravel(order="F")+fi.ravel())); # estimate of influx
     cfl = ((1-Fluid['swc']-Fluid['sor'])/3)*pm; # CFL restriction
     Nts = int(np.ceil(T/cfl)); # number of local time steps
     dtx = (T/Nts)/pv; # local time steps
