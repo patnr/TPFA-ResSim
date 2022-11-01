@@ -20,12 +20,12 @@ def pressure_step(Grid, S, Fluid, q):
 # RelPerm() -- listing 6
 def RelPerm(s, Fluid, nargout_is_4=False):
     """Rel. permeabilities of oil and water."""
-    S = (s-Fluid['swc'])/(1-Fluid['swc']-Fluid['sor']) # Rescale saturations
-    Mw = S**2/Fluid['vw']                              # Water mobility
-    Mo = (1-S)**2/Fluid['vo']                          # Oil mobility
+    S = (s-Fluid.swc)/(1-Fluid.swc-Fluid.sor) # Rescale saturations
+    Mw = S**2/Fluid.vw                              # Water mobility
+    Mo = (1-S)**2/Fluid.vo                          # Oil mobility
     if nargout_is_4:
-        dMw = 2*S/Fluid['vw']/(1-Fluid['swc']-Fluid['sor'])
-        dMo = -2*(1-S)/Fluid['vo']/(1-Fluid['swc']-Fluid['sor'])
+        dMw = 2*S/Fluid.vw/(1-Fluid.swc-Fluid.sor)
+        dMo = -2*(1-S)/Fluid.vo/(1-Fluid.swc-Fluid.sor)
         return Mw, Mo, dMw, dMo
     else:
         return Mw, Mo
@@ -146,7 +146,7 @@ def saturation_step_upwind(Grid,S,Fluid,V,q,T):
 
     # Compute dt
     pm = min(pv/(Vi.ravel(order="F")+fi.ravel()))          # estimate of influx
-    cfl = ((1-Fluid['swc']-Fluid['sor'])/3)*pm             # CFL restriction
+    cfl = ((1-Fluid.swc-Fluid.sor)/3)*pm                   # CFL restriction
     Nts = int(np.ceil(T/cfl))                              # number of local time steps
     dtx = (T/Nts)/pv                                       # local time steps
     A = upwind_diff(Grid, V, q)                            # system matrix
@@ -192,9 +192,11 @@ if __name__ == "__main__":
     Q[0]  = +1
     Q[-1] = -1
     Q     = Q[:, None]
-    Fluid = {}
-    Fluid['vw']=1.0; Fluid['vo']=1.0; # Viscosities
-    Fluid['swc']=0.0; Fluid['sor']=0.0; # Irreducible saturations
+
+    Fluid = DotDict(
+        vw=1.0, vo=1.0,  # Viscosities
+        swc=0.0, sor=0.0,  # Irreducible saturations
+    )
 
     # nt=28 used in paper
     nt = 2
