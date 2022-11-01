@@ -1,0 +1,48 @@
+[tool.poetry]
+name = "TPFA-ResSim"
+version = "0.1.0"
+description = """Toy petroleum reservoir simulator using TPFA."""
+authors = ["patnr <patrick.n.raanes@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+packages = [{include = "simulator"}]
+
+[tool.poetry.dependencies]
+python = "~=3.7,<3.10"
+matplotlib = "~=3.3"
+scipy = "~=1.7"
+tqdm = "^4.64.1"
+struct-tools = "^0.2.7"
+mpl-tools = "^0.2.57"
+
+[tool.poetry.group.dev.dependencies]
+ipython = "*"
+pre-commit = "^2.20.0"
+pdbpp = "^0.10.3"
+pytest = "^7.1.3"
+flakeheaven = "*"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+
+#############
+#  Linting  #
+#############
+[tool.flakeheaven.plugins]
+pyflakes = ["+*",
+    "-F401", # imported but unused
+]
+pycodestyle = ["+*",
+    "-E24", "-W503", "-E123", "-E226", "-E704", "-E121", "-W504", "-E126",  # Defaults
+    "-E221", # Allow operator alignment
+    "-E251", # Allow operator alignment for dicts
+    "-E266", # Allow ## block comments
+    # "-E201", "-E202", "-E203", "-E241", "-E231", # leave arrays as printed
+    "-E201", "-E202", "-E241",                     # leave arrays as printed (less)
+    "-E302", # "-E301", dont put spaces between functions
+    "-E303", # Allow 2 blank lines w/o func/class delimiters
+    "-E305", # 2 blank lines after func/class
+    "-E731", # don't assign lambda
+]
