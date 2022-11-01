@@ -1,6 +1,7 @@
 """From [ref](http://folk.ntnu.no/andreas/papers/ResSimMatlab.pdf)"""
 import numpy as np
 from scipy import sparse
+from struct_tools import DotDict
 
 
 # Pres() -- listing 5
@@ -9,8 +10,8 @@ def pressure_step(Grid, S, Fluid, q):
     # Compute K*lambda(S)
     Mw, Mo = RelPerm(S, Fluid)
     Mt = Mw+Mo
-    Mt = Mt.reshape((Grid['Nx'], Grid['Ny'], Grid['Nz']), order="F")
-    KM = Mt*Grid['K']
+    Mt = Mt.reshape((Grid.Nx, Grid.Ny, Grid.Nz), order="F")
+    KM = Mt*Grid.K
     # Compute pressure and extract fluxes
     [P, V] = TPFA(Grid, KM, q)
     return P, V
@@ -38,14 +39,14 @@ def TPFA(Grid,K,q):
     """
 
     # Compute transmissibilities by harmonic averaging.
-    Nx=Grid['Nx']
-    Ny=Grid['Ny']
-    Nz=Grid['Nz']
+    Nx=Grid.Nx
+    Ny=Grid.Ny
+    Nz=Grid.Nz
     N=Nx*Ny*Nz
 
-    hx=Grid['hx']
-    hy=Grid['hy']
-    hz=Grid['hz']
+    hx=Grid.hx
+    hy=Grid.hy
+    hz=Grid.hz
 
     L = K**(-1)
 
@@ -81,7 +82,7 @@ def TPFA(Grid,K,q):
 
     A = sparse.spdiags(DiagVecs, DiagIndx, N, N)
     A = A.toarray()
-    A[0, 0] = A[0, 0]+np.sum(Grid['K'][:, 0, 0, 0])
+    A[0, 0] = A[0, 0]+np.sum(Grid.K[:, 0, 0, 0])
 
     # Solve linear system and extract interface fluxes.
     u = np.linalg.solve(A, q)
@@ -101,9 +102,9 @@ def TPFA(Grid,K,q):
 # GenA() -- listing 7
 def upwind_diff(Grid, V, q):
     """Upwind finite-volume scheme."""
-    Nx = Grid['Nx']
-    Ny = Grid['Ny']
-    Nz = Grid['Nz']
+    Nx = Grid.Nx
+    Ny = Grid.Ny
+    Nz = Grid.Nz
     N = Nx*Ny*Nz
     fp = q.clip(max=0).ravel()  # production
     # Flow fluxes, separated into direction (x-y) and sign
@@ -122,12 +123,12 @@ def upwind_diff(Grid, V, q):
 
 # Upstream() -- listing 8
 def saturation_step_upwind(Grid,S,Fluid,V,q,T):
-    Nx = Grid['Nx']
-    Ny = Grid['Ny']
-    Nz = Grid['Nz']                                        # number of grid points
+    Nx = Grid.Nx
+    Ny = Grid.Ny
+    Nz = Grid.Nz                                        # number of grid points
     N = Nx*Ny*Nz                                           # number of unknowns
     # pore volume=cell volume*porosity
-    pv = Grid['V']*Grid['por'].ravel(order="F")
+    pv = Grid.V*Grid.por.ravel(order="F")
 
     # Well inflow
     fi = q.clip(min=0)
@@ -160,36 +161,44 @@ def saturation_step_upwind(Grid,S,Fluid,V,q,T):
 
 if __name__ == "__main__":
     # Settings as in listing 9
+
+    # Domain settings
     Dx = 1
     Dy = 1
     Dz = 1
-    Grid = dict(
-        Nx = 64,
-        Ny = 64,
-        Nz = 1 ,
-    )
-    Grid['hx'] = Dx/Grid['Nx'] # Dimension in x-direction
-    Grid['hy'] = Dy/Grid['Ny'] # Dimension in y-direction
-    Grid['hz'] = Dz/Grid['Nz'] # Dimension in z-direction
-    N=Grid['Nx']*Grid['Ny']    # Total number of grid blocks
 
-    Grid['V'] = Grid['hx']*Grid['hy']*Grid['hz']                 # Cell volumes
-    Grid['K'] = np.ones((3, Grid['Nx'], Grid['Ny'], Grid['Nz'])) # Unit permeability
-    Grid['por'] = np.ones((Grid['Nx'], Grid['Ny'], Grid['Nz']))  # Unit porosity
+    # Grid settings
+    Grid = DotDict(
+        Dx=1,
+        Dy=1,
+        Dz=1,
+        Nx=64,
+        Ny=64,
+        Nz=1,
+    )
+    Grid.N = Grid.Nx * Grid.Ny * Grid.Nz
+
+    # Cell dims
+    Grid.hx  = Grid.Dx / Grid.Nx
+    Grid.hy  = Grid.Dy / Grid.Ny
+    Grid.hz  = Grid.Dz / Grid.Nz
+    Grid.V   = Grid.hx * Grid.hy * Grid.hz
+
+    Grid.K   = np.ones((3, Grid.Nx, Grid.Ny, Grid.Nz)) # Unit permeability
+    Grid.por = np.ones((Grid.Nx, Grid.Ny, Grid.Nz))    # Unit porosity
 
     # Source terms: production/injection
     Q     = np.zeros(Grid.N)
     Q[0]  = +1
     Q[-1] = -1
     Q     = Q[:, None]
-
     Fluid = {}
     Fluid['vw']=1.0; Fluid['vo']=1.0; # Viscosities
     Fluid['swc']=0.0; Fluid['sor']=0.0; # Irreducible saturations
 
     # nt=28 used in paper
     nt = 2
-    S=np.zeros(N)[:,None]; # Initial saturation
+    S=np.zeros(Grid.N)[:,None]; # Initial saturation
 
     dt = 0.7/nt
     for t in range(1,nt+1):
