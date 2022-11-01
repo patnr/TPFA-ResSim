@@ -30,6 +30,10 @@ build-backend = "poetry.core.masonry.api"
 #############
 #  Linting  #
 #############
+[tool.autopep8]
+max_line_length = 88
+ignore = "W6"
+
 [tool.flakeheaven.plugins]
 pyflakes = ["+*",
     "-F401", # imported but unused
