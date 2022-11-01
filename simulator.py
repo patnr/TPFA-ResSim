@@ -3,7 +3,9 @@ import numpy as np
 from scipy import sparse
 
 
-def Pres(Grid, S, Fluid, q):
+# Pres() -- listing 5
+def pressure_step(Grid, S, Fluid, q):
+    """TPFA finite-volume of Darcy: -nabla(K lambda(s) nabla(u)) = q."""
     # Compute K*lambda(S)
     Mw, Mo = RelPerm(S, Fluid)
     Mt = Mw+Mo
@@ -14,7 +16,9 @@ def Pres(Grid, S, Fluid, q):
     return P, V
 
 
+# RelPerm() -- listing 6
 def RelPerm(s, Fluid, nargout_is_4=False):
+    """Rel. permeabilities of oil and water."""
     S = (s-Fluid['swc'])/(1-Fluid['swc']-Fluid['sor']) # Rescale saturations
     Mw = S**2/Fluid['vw']                              # Water mobility
     Mo = (1-S)**2/Fluid['vo']                          # Oil mobility
@@ -26,7 +30,13 @@ def RelPerm(s, Fluid, nargout_is_4=False):
         return Mw, Mo
 
 
+# TPFA() -- Listing 1
 def TPFA(Grid,K,q):
+    """Two-point flux-approximation (TPFA) of Darcy:
+
+    diffusion w/ nonlinear coefficient K.
+    """
+
     # Compute transmissibilities by harmonic averaging.
     Nx=Grid['Nx']
     Ny=Grid['Ny']
@@ -88,7 +98,9 @@ def TPFA(Grid,K,q):
     return P, V
 
 
-def GenA(Grid, V, q):
+# GenA() -- listing 7
+def upwind_diff(Grid, V, q):
+    """Upwind finite-volume scheme."""
     Nx = Grid['Nx']
     Ny = Grid['Ny']
     Nz = Grid['Nz']
@@ -108,7 +120,8 @@ def GenA(Grid, V, q):
     return A
 
 
-def Upstream(Grid,S,Fluid,V,q,T):
+# Upstream() -- listing 8
+def saturation_step_upwind(Grid,S,Fluid,V,q,T):
     Nx = Grid['Nx']
     Ny = Grid['Ny']
     Nz = Grid['Nz']                                        # number of grid points
@@ -135,7 +148,7 @@ def Upstream(Grid,S,Fluid,V,q,T):
     cfl = ((1-Fluid['swc']-Fluid['sor'])/3)*pm             # CFL restriction
     Nts = int(np.ceil(T/cfl))                              # number of local time steps
     dtx = (T/Nts)/pv                                       # local time steps
-    A = GenA(Grid, V, q)                                   # system matrix
+    A = upwind_diff(Grid, V, q)                            # system matrix
     A = sparse.spdiags(dtx, 0, N, N)@A                     # A * dt/|Omega i|
     fi = q.clip(min=0).ravel()*dtx                         # injection
     for t in range(1, Nts+1):
@@ -180,8 +193,8 @@ if __name__ == "__main__":
 
     dt = 0.7/nt
     for t in range(1,nt+1):
-        [P,V]=Pres(Grid,S,Fluid,Q); # pressure solver
-        S=Upstream(Grid,S,Fluid,V,Q,dt); # saturation solver
+        [P, V] = pressure_step(Grid, S, Fluid, Q)
+        S = saturation_step_upwind(Grid, S, Fluid, V, Q, dt)
 
     # I have cross-checked the output of this code with that of the Matlab code,
     # and ensured that they produce the same values. Example locations/values:
