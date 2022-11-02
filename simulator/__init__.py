@@ -16,6 +16,7 @@ import numpy as np
 from scipy import sparse
 from scipy.sparse.linalg import spsolve
 from struct_tools import DotDict, NicePrint
+from tqdm.auto import tqdm as progbar
 
 
 class ResSim(NicePrint):
@@ -172,6 +173,34 @@ class ResSim(NicePrint):
             S = S + (A @ fw + fi * dtx)          # update saturation
         return S
 
+    def time_stepper(self, dt):
+        def integrate(S):
+            [P, V] = self.pressure_step(S)
+            S      = self.saturation_step_upwind(S, V, dt)
+            return S
+        return integrate
+
+
+def recurse(fun, nSteps, x0, pbar=True):
+    """Recursively apply `fun` `nSteps` times.
+
+    Note: `output[0] == x0`, hence `len(output) = nSteps + 1`.
+
+    BTW, "recurse" is a fancy programming term referring to a function calling itself.
+    Here we implement it simply by a for loop, passing previous output as next intput.
+    Indeed "recursive" is also an accurate description of causal (Markov) processes,
+    such as nature or its simulators, which build on themselves.
+    """
+    # Init
+    xx = np.zeros((nSteps+1,)+x0.shape)
+    xx[0] = x0
+
+    # Recurse
+    kk = np.arange(nSteps)
+    for k in (progbar(kk, "Simulation") if pbar else kk):
+        xx[k+1] = fun(xx[k])
+    return xx
+
 
 if __name__ == "__main__":
     model = ResSim(1, 1, 64, 64, np.zeros(64**2))
@@ -183,12 +212,10 @@ if __name__ == "__main__":
     S = np.zeros(model.M)  # Initial saturation
 
     dt = 0.7 / nSteps
-    for _ in range(nSteps):
-        [P, V] = model.pressure_step(S)
-        S = model.saturation_step_upwind(S, V, dt)
+    S = recurse(model.time_stepper(dt), nSteps, S)
 
     # I have cross-checked the output of this code with that of the Matlab code,
     # and ensured that they produce the same values. Example locations/values:
-    assert np.isclose(S[100] , 0.9429344998048418)
-    assert np.isclose(S[1300], 0.9135817175788589)
-    assert np.isclose(S[2900], 0.7155461308680394)
+    assert np.isclose(S[-1, 100] , 0.9429344998048418)
+    assert np.isclose(S[-1, 1300], 0.9135817175788589)
+    assert np.isclose(S[-1, 2900], 0.7155461308680394)
