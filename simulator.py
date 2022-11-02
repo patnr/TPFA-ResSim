@@ -6,15 +6,15 @@ from struct_tools import DotDict
 
 
 # Pres() -- listing 5
-def pressure_step(Grid, S, Fluid, q):
+def pressure_step(Gridded, S, Fluid, q):
     """TPFA finite-volume of Darcy: $$ -nabla(K lambda(s) nabla(u)) = q $$."""
     # Compute K*lambda(S)
     Mw, Mo = RelPerm(S, Fluid)
     Mt = Mw + Mo
-    Mt = Mt.reshape((Grid.Nx, Grid.Ny))
-    KM = Mt * Grid.K
+    Mt = Mt.reshape((Gridded.Nx, Gridded.Ny))
+    KM = Mt * Gridded.K
     # Compute pressure and extract fluxes
-    [P, V] = TPFA(Grid, KM, q)
+    [P, V] = TPFA(Gridded, KM, q)
     return P, V
 
 
@@ -33,18 +33,18 @@ def RelPerm(s, Fluid, nargout_is_4=False):
 
 
 # TPFA() -- Listing 1
-def TPFA(Grid,K,q):
+def TPFA(Gridded,K,q):
     """Two-point flux-approximation (TPFA) of Darcy:
 
     diffusion w/ nonlinear coefficient K.
     """
     # Compute transmissibilities by harmonic averaging.
     L = K**(-1)
-    TX = np.zeros((Grid.Nx + 1, Grid.Ny))
-    TY = np.zeros((Grid.Nx, Grid.Ny + 1))
+    TX = np.zeros((Gridded.Nx + 1, Gridded.Ny))
+    TY = np.zeros((Gridded.Nx, Gridded.Ny + 1))
 
-    TX[1:-1, :] = 2 * Grid.hy / Grid.hx / (L[0, :-1, :] + L[0, 1:, :])
-    TY[:, 1:-1] = 2 * Grid.hx / Grid.hy / (L[1, :, :-1] + L[1, :, 1:])
+    TX[1:-1, :] = 2 * Gridded.hy / Gridded.hx / (L[0, :-1, :] + L[0, 1:, :])
+    TY[:, 1:-1] = 2 * Gridded.hx / Gridded.hy / (L[1, :, :-1] + L[1, :, 1:])
 
     # Assemble TPFA discretization matrix.
     x1 = TX[:-1, :].ravel()
@@ -54,10 +54,10 @@ def TPFA(Grid,K,q):
 
     # Setup linear system
     DiagVecs = [-x2, -y2, y1 + y2 + x1 + x2, -y1, -x1]
-    DiagIndx = [-Grid.Ny, -1, 0, 1, Grid.Ny]
-    DiagVecs[2][0] += np.sum(Grid.K[:, 0, 0])  # Ensure SPD ...
+    DiagIndx = [-Gridded.Ny, -1, 0, 1, Gridded.Ny]
+    DiagVecs[2][0] += np.sum(Gridded.K[:, 0, 0])  # Ensure SPD ...
     # ... the DoF is thanks to working w/ a *potential*, ref article p. 13
-    A = sparse.spdiags(DiagVecs, DiagIndx, Grid.N, Grid.N)
+    A = sparse.spdiags(DiagVecs, DiagIndx, Gridded.N, Gridded.N)
 
     # Solve
     # u = np.linalg.solve(A.A, q) # direct dense solver
@@ -70,10 +70,10 @@ def TPFA(Grid,K,q):
     # when the band offsets large, i.e. higher-dimensional problems.
 
     # Extract fluxes
-    P = u.reshape((Grid.Nx, Grid.Ny))
+    P = u.reshape((Gridded.Nx, Gridded.Ny))
     V = DotDict(
-        x=np.zeros((Grid.Nx+1, Grid.Ny)),
-        y=np.zeros((Grid.Nx, Grid.Ny+1)),
+        x=np.zeros((Gridded.Nx+1, Gridded.Ny)),
+        y=np.zeros((Gridded.Nx, Gridded.Ny+1)),
     )
     V.x[1:-1,:] = (P[:-1,:] - P[1:,:]) * TX[1:-1,:]
     V.y[:,1:-1] = (P[:,:-1] - P[:,1:]) * TY[:,1:-1]
@@ -81,7 +81,7 @@ def TPFA(Grid,K,q):
 
 
 # GenA() -- listing 7
-def upwind_diff(Grid, V, q):
+def upwind_diff(Gridded, V, q):
     """Upwind finite-volume scheme."""
     fp = q.clip(max=0)  # production
     # Flow fluxes, separated into direction (x-y) and sign
@@ -90,8 +90,8 @@ def upwind_diff(Grid, V, q):
     x2 = V.x.clip(min=0)[1:, :] .ravel()
     y2 = V.y.clip(min=0)[:, 1:] .ravel()
     DiagVecs = [x2, y2, fp + y1 - y2 + x1 - x2, -y1, -x1]
-    DiagIndx = [-Grid.Ny, -1, 0, 1, Grid.Ny]
-    A = sparse.spdiags(DiagVecs, DiagIndx, Grid.N, Grid.N)
+    DiagIndx = [-Gridded.Ny, -1, 0, 1, Gridded.Ny]
+    A = sparse.spdiags(DiagVecs, DiagIndx, Gridded.N, Gridded.N)
     return A
 
 
@@ -112,18 +112,18 @@ def estimate_CFL(pv, Fluid, V, fi):
 
 
 # Upstream() -- listing 8
-def saturation_step_upwind(Grid, S, Fluid, V, q, T):
+def saturation_step_upwind(Gridded, S, Fluid, V, q, T):
     """Explicit upwind finite-volume discretisation of CoM."""
     # Compute dt
-    pv = Grid.h2 * Grid.por.ravel()  # Pore volume = cell volume * porosity
+    pv = Gridded.h2 * Gridded.por.ravel()  # Pore volume = cell volume * porosity
     fi = q.clip(min=0)               # Well inflow
     cfl = estimate_CFL(pv, Fluid, V, fi)
     Nts = int(np.ceil(T / cfl))      # num. (local) time steps
     dtx = (T / Nts) / pv             # (local) time steps
 
     # Discretized transport operator
-    A = upwind_diff(Grid, V, q)                     # system matrix
-    A = sparse.spdiags(dtx, 0, Grid.N, Grid.N) @ A  # A * dt/|Omega i|
+    A = upwind_diff(Gridded, V, q)                     # system matrix
+    A = sparse.spdiags(dtx, 0, Gridded.N, Gridded.N) @ A  # A * dt/|Omega i|
 
     for _ in range(Nts):
         mw, mo = RelPerm(S, Fluid)   # compute mobilities
@@ -133,25 +133,25 @@ def saturation_step_upwind(Grid, S, Fluid, V, q, T):
 
 
 if __name__ == "__main__":
-    # Grid settings
-    Grid = DotDict(
+    # Gridded settings
+    Gridded = DotDict(
         Lx=1,
         Ly=1,
         Nx=64,
         Ny=64,
     )
-    Grid.N = Grid.Nx * Grid.Ny
+    Gridded.N = Gridded.Nx * Gridded.Ny
 
     # Cell dims
-    Grid.hx  = Grid.Lx / Grid.Nx
-    Grid.hy  = Grid.Ly / Grid.Ny
-    Grid.h2  = Grid.hx * Grid.hy
+    Gridded.hx  = Gridded.Lx / Gridded.Nx
+    Gridded.hy  = Gridded.Ly / Gridded.Ny
+    Gridded.h2  = Gridded.hx * Gridded.hy
 
-    Grid.K   = np.ones((2, Grid.Nx, Grid.Ny)) # Unit permeability
-    Grid.por = np.ones((Grid.Nx, Grid.Ny))    # Unit porosity
+    Gridded.K   = np.ones((2, Gridded.Nx, Gridded.Ny)) # Unit permeability
+    Gridded.por = np.ones((Gridded.Nx, Gridded.Ny))    # Unit porosity
 
     # Source terms: production/injection
-    Q     = np.zeros(Grid.N)
+    Q     = np.zeros(Gridded.N)
     Q[20] = +1
     Q[-1] = -1
 
@@ -162,12 +162,12 @@ if __name__ == "__main__":
 
     # nSteps=28 used in paper
     nSteps = 2
-    S = np.zeros(Grid.N)  # Initial saturation
+    S = np.zeros(Gridded.N)  # Initial saturation
 
     dt = 0.7 / nSteps
     for _ in range(nSteps):
-        [P, V] = pressure_step(Grid, S, Fluid, Q)
-        S = saturation_step_upwind(Grid, S, Fluid, V, Q, dt)
+        [P, V] = pressure_step(Gridded, S, Fluid, Q)
+        S = saturation_step_upwind(Gridded, S, Fluid, V, Q, dt)
 
     # I have cross-checked the output of this code with that of the Matlab code,
     # and ensured that they produce the same values. Example locations/values:
