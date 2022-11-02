@@ -152,7 +152,7 @@ def saturation_step_upwind(Grid,S,Fluid,V,q,T):
     A = upwind_diff(Grid, V, q)                            # system matrix
     A = sparse.spdiags(dtx, 0, N, N)@A                     # A * dt/|Omega i|
     fi = q.clip(min=0)*dtx                                 # injection
-    for t in range(1, Nts+1):
+    for _ in range(Nts):
         mw, mo = RelPerm(S, Fluid)                         # compute mobilities
         fw = mw/(mw+mo)                                    # compute fractional flow
         S = S+(A@fw+fi)                                    # update saturation
@@ -197,12 +197,12 @@ if __name__ == "__main__":
         swc=0.0, sor=0.0,  # Irreducible saturations
     )
 
-    # nt=28 used in paper
-    nt = 2
+    # nSteps=28 used in paper
+    nSteps = 2
     S = np.zeros(Grid.N)  # Initial saturation
 
-    dt = 0.7/nt
-    for t in range(1,nt+1):
+    dt = 0.7 / nSteps
+    for _ in range(nSteps):
         [P, V] = pressure_step(Grid, S, Fluid, Q)
         S = saturation_step_upwind(Grid, S, Fluid, V, Q, dt)
 
