@@ -19,7 +19,7 @@ from scipy.sparse.linalg import spsolve
 from struct_tools import DotDict, NicePrint
 from tqdm.auto import tqdm as progbar
 
-from .grid import Grid2D
+from simulator.grid import Grid2D
 
 
 class ResSim(NicePrint, Grid2D):
