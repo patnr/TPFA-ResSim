@@ -115,11 +115,11 @@ def estimate_CFL(pv, Fluid, V, fi):
 def saturation_step_upwind(Grid, S, Fluid, V, q, T):
     """Explicit upwind finite-volume discretisation of CoM."""
     # Compute dt
-    pv = Grid.V * Grid.por.ravel()  # Pore volume = cell volume * porosity
-    fi = q.clip(min=0)              # Well inflow
+    pv = Grid.h2 * Grid.por.ravel()  # Pore volume = cell volume * porosity
+    fi = q.clip(min=0)               # Well inflow
     cfl = estimate_CFL(pv, Fluid, V, fi)
-    Nts = int(np.ceil(T / cfl))     # num. (local) time steps
-    dtx = (T / Nts) / pv            # (local) time steps
+    Nts = int(np.ceil(T / cfl))      # num. (local) time steps
+    dtx = (T / Nts) / pv             # (local) time steps
 
     # Discretized transport operator
     A = upwind_diff(Grid, V, q)                     # system matrix
@@ -145,7 +145,7 @@ if __name__ == "__main__":
     # Cell dims
     Grid.hx  = Grid.Dx / Grid.Nx
     Grid.hy  = Grid.Dy / Grid.Ny
-    Grid.V   = Grid.hx * Grid.hy
+    Grid.h2  = Grid.hx * Grid.hy
 
     Grid.K   = np.ones((2, Grid.Nx, Grid.Ny)) # Unit permeability
     Grid.por = np.ones((Grid.Nx, Grid.Ny))    # Unit porosity
