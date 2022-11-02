@@ -45,6 +45,57 @@ class ResSim(NicePrint, Grid2D):
             swc=0.0, sor=0.0,  # Irreducible saturations
         )
 
+    def config_wells(self, inj, prod, remap=True):
+        """Define `self.Q`, the source/sink field, i.e. injection/production wells.
+
+        It is defined by the given list of injectors (`inj`) and producers (`prod`).
+        In both lists, each entry should be a tuple: `x/Lx, y/Ly, |rate|`.
+
+        Note:
+        - The rates are scaled so as to sum to +/- 1.
+          This is not stictly necessary. But it is necessary that their sum be 0,
+          otherwise the model will silently input deficit from SW corner.
+        - The specified well coordinates should be relative (betwen 0 and 1).
+          They get co-located with grid nodes (not distributed over nearby ones).
+
+          The well co-location does not happen if `remap` is `False`,
+          which should be used in automatic, iterative optimisation,
+          which changes well rates, but does not want to change anything else.
+        """
+
+        def remap_and_collocate(ww):
+            """Scale rel -> abs coords. Place wells on nodes."""
+            # Ensure array
+            ww = np.array(ww, float)
+            # Remap
+            ww[:, 0] *= self.Lx
+            ww[:, 1] *= self.Ly
+            # Collocate
+            for i in range(len(ww)):
+                x, y, q = ww[i]
+                ww[i, :2] = self.ind2xy(self.xy2ind(x, y))
+            return ww
+
+        if remap:
+            inj  = remap_and_collocate(inj)
+            prod = remap_and_collocate(prod)
+
+        inj [:, 2] /= inj [:, 2].sum()  # noqa
+        prod[:, 2] /= prod[:, 2].sum()
+
+        # Insert in source FIELD
+        Q = np.zeros(self.M)
+        for x, y, q in inj:
+            Q[self.xy2ind(x, y)] += q
+        for x, y, q in prod:
+            Q[self.xy2ind(x, y)] -= q
+        assert np.isclose(Q.sum(), 0)
+
+        self.Q = Q
+        # Not used by model, but kept for reference:
+        self.injectors = inj
+        self.producers = prod
+
     # Pres() -- listing 5
     def pressure_step(self, S):
         """TPFA finite-volume of Darcy: $$ -nabla(K lambda(s) nabla(u)) = q $$."""
@@ -201,10 +252,9 @@ def recurse(fun, nSteps, x0, pbar=True):
 
 
 if __name__ == "__main__":
-    model = ResSim(1, 1, 64, 64)
-    model.Q = np.zeros(model.M)
-    model.Q[20] = +1
-    model.Q[-1] = -1
+    model = ResSim(Lx=1, Ly=1, Nx=64, Ny=64)
+    model.config_wells([[0, .32, 1]], [[1, 1, -1]])
+    water_sat0 = np.zeros(model.M)
 
     # nSteps=28 used in paper
     nSteps = 2
