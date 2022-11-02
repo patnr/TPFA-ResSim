@@ -106,7 +106,7 @@ def upwind_diff(Grid, V, q):
     Ny = Grid.Ny
     Nz = Grid.Nz
     N = Nx*Ny*Nz
-    fp = q.clip(max=0).ravel()  # production
+    fp = q.clip(max=0)  # production
     # Flow fluxes, separated into direction (x-y) and sign
     XN=V['x'].clip(max=0); x1=XN[:-1, :, :].ravel(order="F")
     YN=V['y'].clip(max=0); y1=YN[:,:-1,:]  .ravel(order="F")
@@ -145,17 +145,17 @@ def saturation_step_upwind(Grid,S,Fluid,V,q,T):
          XN[ 1:,:,:]-YN[:, 1:,:]-ZN[:,:, 1:]  # each gridblock
 
     # Compute dt
-    pm = min(pv/(Vi.ravel(order="F")+fi.ravel()))          # estimate of influx
+    pm = min(pv/(Vi.ravel(order="F")+fi))                  # estimate of influx
     cfl = ((1-Fluid.swc-Fluid.sor)/3)*pm                   # CFL restriction
     Nts = int(np.ceil(T/cfl))                              # number of local time steps
     dtx = (T/Nts)/pv                                       # local time steps
     A = upwind_diff(Grid, V, q)                            # system matrix
     A = sparse.spdiags(dtx, 0, N, N)@A                     # A * dt/|Omega i|
-    fi = q.clip(min=0).ravel()*dtx                         # injection
+    fi = q.clip(min=0)*dtx                                 # injection
     for t in range(1, Nts+1):
         mw, mo = RelPerm(S, Fluid)                         # compute mobilities
         fw = mw/(mw+mo)                                    # compute fractional flow
-        S = S+(A@fw+fi[:, None])                           # update saturation
+        S = S+(A@fw+fi)                                    # update saturation
     return S
 
 
@@ -191,7 +191,6 @@ if __name__ == "__main__":
     Q     = np.zeros(Grid.N)
     Q[0]  = +1
     Q[-1] = -1
-    Q     = Q[:, None]
 
     Fluid = DotDict(
         vw=1.0, vo=1.0,  # Viscosities
@@ -200,7 +199,7 @@ if __name__ == "__main__":
 
     # nt=28 used in paper
     nt = 2
-    S=np.zeros(Grid.N)[:,None]; # Initial saturation
+    S = np.zeros(Grid.N)  # Initial saturation
 
     dt = 0.7/nt
     for t in range(1,nt+1):
