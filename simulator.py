@@ -1,6 +1,7 @@
 """From [ref](http://folk.ntnu.no/andreas/papers/ResSimMatlab.pdf)"""
 import numpy as np
 from scipy import sparse
+from scipy.sparse.linalg import spsolve
 from struct_tools import DotDict
 
 
@@ -69,10 +70,16 @@ def TPFA(Grid,K,q):
     DiagVecs[2][0] += np.sum(Grid.K[:,0,0])
 
     A = sparse.spdiags(DiagVecs, DiagIndx, N, N)
-    A = A.toarray()
 
-    # Solve linear system and extract interface fluxes.
-    u = np.linalg.solve(A, q)
+    # Solve
+    # u = np.linalg.solve(A.A, q) # direct dense solver
+    u = spsolve(A.tocsr(), q)     # direct sparse solver
+    # u, _info = cg(A, q)         # conjugate gradient
+    # Could also try scipy.linalg.solveh_banded which, according to
+    # https://scicomp.stackexchange.com/a/30074 uses the Thomas algorithm,
+    # as recommended by Aziz and Settari ("Petro. Res. simulation").
+    # NB: stackexchange also mentions that solve_banded does not work well
+    # when the band offsets large, i.e. higher-dimensional problems.
     P = u.reshape((Nx, Ny))
 
     V = {}
