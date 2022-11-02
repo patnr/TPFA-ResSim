@@ -10,7 +10,7 @@ def pressure_step(Grid, S, Fluid, q):
     # Compute K*lambda(S)
     Mw, Mo = RelPerm(S, Fluid)
     Mt = Mw+Mo
-    Mt = Mt.reshape((Grid.Nx, Grid.Ny), order="F")
+    Mt = Mt.reshape((Grid.Nx, Grid.Ny))
     KM = Mt*Grid.K
     # Compute pressure and extract fluxes
     [P, V] = TPFA(Grid, KM, q)
@@ -58,14 +58,14 @@ def TPFA(Grid,K,q):
     TY[:,1:-1] = ty/(L[1,:,:-1] + L[1,:,1:])
 
     # Assemble TPFA discretization matrix.
-    x1 = TX[:-1,:].ravel(order="F")
-    x2 = TX[1:,:].ravel(order="F")
+    x1 = TX[:-1,:].ravel()
+    x2 = TX[1:,:].ravel()
 
-    y1 = TY[:,:-1].ravel(order="F")
-    y2 = TY[:,1:].ravel(order="F")
+    y1 = TY[:,:-1].ravel()
+    y2 = TY[:,1:].ravel()
 
-    DiagVecs = [-y2, -x2, x1+x2+y1+y2, -x1, -y1]
-    DiagIndx = [-Nx,  -1,         0  ,   1,  Nx]
+    DiagVecs = [-x2, -y2, y1+y2+x1+x2, -y1, -x1]
+    DiagIndx = [-Ny,  -1,         0  ,   1,  Ny]
     DiagVecs[2][0] += np.sum(Grid.K[:,0,0])
 
     A = sparse.spdiags(DiagVecs, DiagIndx, N, N)
@@ -73,7 +73,7 @@ def TPFA(Grid,K,q):
 
     # Solve linear system and extract interface fluxes.
     u = np.linalg.solve(A, q)
-    P = u.reshape((Nx, Ny), order="F")
+    P = u.reshape((Nx, Ny))
 
     V = {}
     V = DotDict(
@@ -94,12 +94,12 @@ def upwind_diff(Grid, V, q):
     N = Nx*Ny
     fp = q.clip(max=0)  # production
     # Flow fluxes, separated into direction (x-y) and sign
-    XN=V.x.clip(max=0); x1=XN[:-1,:].ravel(order="F") # separate flux into
-    YN=V.y.clip(max=0); y1=YN[:,:-1].ravel(order="F") # - flow in positive coordinate
-    XP=V.x.clip(min=0); x2=XP[1:,:] .ravel(order="F") # - flow in negative coordinate
-    YP=V.y.clip(min=0); y2=YP[:,1:] .ravel(order="F") #   direction (XN,YN)
-    DiagVecs=[    y2, x2, fp+x1-x2+y1-y2, -x1, -y1] # diagonal vectors
-    DiagIndx=[  -Nx , -1,        0      ,  1 ,  Nx] # diagonal index
+    XN=V.x.clip(max=0); x1=XN[:-1,:].ravel() # separate flux into
+    YN=V.y.clip(max=0); y1=YN[:,:-1].ravel() # - flow in positive coordinate
+    XP=V.x.clip(min=0); x2=XP[1:,:] .ravel() # - flow in negative coordinate
+    YP=V.y.clip(min=0); y2=YP[:,1:] .ravel() #   direction (XN,YN)
+    DiagVecs=[    x2, y2, fp+y1-y2+x1-x2, -y1, -x1] # diagonal vectors
+    DiagIndx=[  -Ny , -1,        0      ,  1 ,  Ny] # diagonal index
     # matrix with upwind FV stencil
     A=sparse.spdiags(DiagVecs,DiagIndx,N,N)
     return A
@@ -111,7 +111,7 @@ def saturation_step_upwind(Grid,S,Fluid,V,q,T):
     Ny = Grid.Ny
     N = Nx*Ny
     # pore volume=cell volume*porosity
-    pv = Grid.V*Grid.por.ravel(order="F")
+    pv = Grid.V*Grid.por.ravel()
 
     # Well inflow
     fi = q.clip(min=0)
@@ -124,7 +124,7 @@ def saturation_step_upwind(Grid,S,Fluid,V,q,T):
     Vi = XP[:-1, :] + YP[:, :-1] - XN[1:, :] - YN[:, 1:]
 
     # Compute dt
-    pm = min(pv/(Vi.ravel(order="F")+fi))                  # estimate of influx
+    pm = min(pv/(Vi.ravel()+fi))                           # estimate of influx
     cfl = ((1-Fluid.swc-Fluid.sor)/3)*pm                   # CFL restriction
     Nts = int(np.ceil(T/cfl))                              # number of local time steps
     dtx = (T/Nts)/pv                                       # local time steps
