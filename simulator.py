@@ -135,16 +135,16 @@ def saturation_step_upwind(Grid, S, Fluid, V, q, T):
 if __name__ == "__main__":
     # Grid settings
     Grid = DotDict(
-        Dx=1,
-        Dy=1,
+        Lx=1,
+        Ly=1,
         Nx=64,
         Ny=64,
     )
     Grid.N = Grid.Nx * Grid.Ny
 
     # Cell dims
-    Grid.hx  = Grid.Dx / Grid.Nx
-    Grid.hy  = Grid.Dy / Grid.Ny
+    Grid.hx  = Grid.Lx / Grid.Nx
+    Grid.hy  = Grid.Ly / Grid.Ny
     Grid.h2  = Grid.hx * Grid.hy
 
     Grid.K   = np.ones((2, Grid.Nx, Grid.Ny)) # Unit permeability
