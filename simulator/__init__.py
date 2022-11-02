@@ -1,12 +1,12 @@
-"""The simulator code.
+"""Main simulator code.
 
-Implemented with OOP so as to facilitate multiple realisations, by
-ensuring that the parameter values of one instance do not influence
-another instance.  Depending on thread-safety settings, this might not
-be necessary, but is usually cleaner when estimating anything other
-than the model's input/output (i.e. the state variables).
+Implemented with OOP so as to facilitate multiple realisations, by ensuring
+that the parameter values of one instance do not influence another instance.
+Depending on thread-safety, this might not be necessary, but is usually cleaner
+when estimating anything other than the model's input/output (i.e. the state
+variables).
 
-Note: Index ordering/labels: `x` is 1st coord., `y` is 2nd. Also see `grid.py`.
+Note: Index ordering/labels: `x` is 1st coord., `y` is 2nd. See `grid.py` for more info.
 """
 # TODO
 # - Protect Nx, Ny, shape, etc?
@@ -19,14 +19,25 @@ from scipy.sparse.linalg import spsolve
 from struct_tools import DotDict, NicePrint
 from tqdm.auto import tqdm as progbar
 
-from grid import Grid2D
+from .grid import Grid2D
 
 
 class ResSim(NicePrint, Grid2D):
     """Reservoir simulator.
 
     Example:
-    >>> model = ResSim(Lx=1, Ly=1, Nx=32, Ny=32)
+    >>> model = ResSim(Lx=1, Ly=1, Nx=64, Ny=64)
+    >>> model.config_wells(inj =[[0, .32, 1]],
+    ...                    prod=[[1, 1, -1]])
+    >>> water_sat0 = np.zeros(model.M)
+    >>> dt = .35
+    >>> nSteps = 2
+    >>> S = recurse(model.time_stepper(dt), nSteps, water_sat0, pbar=False)
+
+    This produces the following values (which are used for automatic testing):
+    >>> location_inds = [100, 1300, 2900]
+    >>> S[-1, location_inds]
+    array([0.9429345 , 0.91358172, 0.71554613])
     """
     @wraps(Grid2D.__init__)
     def __init__(self, *args, **kwargs):
@@ -252,19 +263,4 @@ def recurse(fun, nSteps, x0, pbar=True):
 
 
 if __name__ == "__main__":
-    model = ResSim(Lx=1, Ly=1, Nx=64, Ny=64)
-    model.config_wells([[0, .32, 1]], [[1, 1, -1]])
-    water_sat0 = np.zeros(model.M)
-
-    # nSteps=28 used in paper
-    nSteps = 2
-    S = np.zeros(model.M)  # Initial saturation
-
-    dt = 0.7 / nSteps
-    S = recurse(model.time_stepper(dt), nSteps, S)
-
-    # I have cross-checked the output of this code with that of the Matlab code,
-    # and ensured that they produce the same values. Example locations/values:
-    assert np.isclose(S[-1, 100] , 0.9429344998048418)
-    assert np.isclose(S[-1, 1300], 0.9135817175788589)
-    assert np.isclose(S[-1, 2900], 0.7155461308680394)
+    pass
