@@ -139,8 +139,6 @@ def saturation_step_upwind(Grid,S,Fluid,V,q,T):
 
 
 if __name__ == "__main__":
-    # Settings as in listing 9
-
     # Grid settings
     Grid = DotDict(
         Dx=1,
@@ -160,7 +158,7 @@ if __name__ == "__main__":
 
     # Source terms: production/injection
     Q     = np.zeros(Grid.N)
-    Q[0]  = +1
+    Q[20] = +1
     Q[-1] = -1
 
     Fluid = DotDict(
@@ -179,6 +177,6 @@ if __name__ == "__main__":
 
     # I have cross-checked the output of this code with that of the Matlab code,
     # and ensured that they produce the same values. Example locations/values:
-    assert np.isclose(S[20]  , 0.94726344036)
-    assert np.isclose(S[1300], 0.90674468214)
-    assert np.isclose(S[2900], 0.794624098299)
+    assert np.isclose(S[100] , 0.9429344998048418)
+    assert np.isclose(S[1300], 0.9135817175788589)
+    assert np.isclose(S[2900], 0.7155461308680394)
