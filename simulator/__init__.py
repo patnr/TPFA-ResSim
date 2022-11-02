@@ -6,11 +6,12 @@ another instance.  Depending on thread-safety settings, this might not
 be necessary, but is usually cleaner when estimating anything other
 than the model's input/output (i.e. the state variables).
 
-Note: Index ordering/labels: `x` is 1st coord., `y` is 2nd.
-See `grid.py` for more info.
+Note: Index ordering/labels: `x` is 1st coord., `y` is 2nd. Also see `grid.py`.
 """
 # TODO
 # - Protect Nx, Ny, shape, etc?
+
+from functools import wraps
 
 import numpy as np
 from scipy import sparse
@@ -18,25 +19,22 @@ from scipy.sparse.linalg import spsolve
 from struct_tools import DotDict, NicePrint
 from tqdm.auto import tqdm as progbar
 
+from grid import Grid2D
 
-class ResSim(NicePrint):
+
+class ResSim(NicePrint, Grid2D):
     """Reservoir simulator.
 
     Example:
     >>> model = ResSim(Lx=1, Ly=1, Nx=32, Ny=32)
     """
-    def __init__(self, *args):
-        self.Lx, self.Ly, self.Nx, self.Ny, self.Q = args
+    @wraps(Grid2D.__init__)
+    def __init__(self, *args, **kwargs):
 
-        self.shape = self.Nx, self.Ny
-        self.grid  = self.shape + (self.Lx, self.Ly)
-        self.M     = np.prod(self.shape)
+        # Init grid
+        super().__init__(*args, **kwargs)
 
-        # Resolution
-        self.hx, self.hy = self.Lx/self.Nx, self.Ly/self.Ny
-        self.h2 = self.hx * self.hy
-
-        # self properties
+        # Gridded properties
         self.Gridded = DotDict(
             K  =np.ones((2, *self.shape)),  # permeability in x&y dirs.
             por=np.ones(self.shape),        # porosity
@@ -203,7 +201,8 @@ def recurse(fun, nSteps, x0, pbar=True):
 
 
 if __name__ == "__main__":
-    model = ResSim(1, 1, 64, 64, np.zeros(64**2))
+    model = ResSim(1, 1, 64, 64)
+    model.Q = np.zeros(model.M)
     model.Q[20] = +1
     model.Q[-1] = -1
 
