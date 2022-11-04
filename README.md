@@ -21,6 +21,31 @@ Main changes:
 - `55ce7325`: Facilities for working on the grid.
 - `e0d12b06`: Convenient well arranger (ensures total sink + source = 0).
 
+## Installation
+
+Note that you should probably use a python virtual environment.
+Feel free to use `conda`, `venv`, `virtualenv`, etc...
+
+### Normal use
+
+`pip install git+https://github.com/patnr/TPFA-ResSim.git`
+
+*NB*: This will install it somewhere "hidden" among your other python packages,
+and so isn't great if you want to play around with the model.
+For that, install as described below.
+
+### For development
+
+Clone this repo, `cd` into it, then to `pip install -e .`
+
+Alternatively, *if you really want to*, you could get [poetry](https://python-poetry.org/)
+and then do `poetry install` which will also install some extra tools,
+and the very same dev.\ environment that I used.
+
+#### Examples
+
+The `tests/` also serve as examples.
+
 ## Used in
 
 - [History matching tutorial](https://github.com/patnr/HistoryMatching)
