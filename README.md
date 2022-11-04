@@ -20,3 +20,7 @@ Main changes:
 - `f33c571a`: OOP
 - `55ce7325`: Facilities for working on the grid.
 - `e0d12b06`: Convenient well arranger (ensures total sink + source = 0).
+
+## Used in
+
+- [History matching tutorial](https://github.com/patnr/HistoryMatching)
