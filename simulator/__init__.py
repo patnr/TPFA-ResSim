@@ -130,6 +130,7 @@ class ResSim(NicePrint, Grid2D):
         Mw = S**2 / Fluid.vw                               # Water mobility
         Mo = (1 - S)**2 / Fluid.vo                         # Oil mobility
         if nargout_is_4:
+            # Only used for implicit solver, which we don't implement
             dMw = 2 * S / Fluid.vw / (1 - Fluid.swc - Fluid.sor)
             dMo = -2 * (1 - S) / Fluid.vo / (1 - Fluid.swc - Fluid.sor)
             return Mw, Mo, dMw, dMo
