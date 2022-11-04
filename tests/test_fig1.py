@@ -32,7 +32,8 @@ ax = axs[0, 0]
 ax.set(title="Pressure", aspect="equal")
 cc = ax.contourf(P.reshape(model.shape).T, levels=17, cmap="jet")
 ax.contour(P.reshape(model.shape).T, levels=17)
-fig.colorbar(cc, axs[1, 0], orientation="horizontal")
+cb = fig.colorbar(cc, axs[1, 0], orientation="horizontal")
+cb.ax.tick_params(labelsize=8)
 
 ## Panels 1 and 2
 model = ResSim(Lx=1, Ly=1, Nx=32, Ny=32)
@@ -53,4 +54,7 @@ ax = axs[0, 2]
 ax.set(title="Pressure", aspect="equal")
 cc = ax.contourf(P.reshape(model.shape).T, levels=17, cmap="jet")
 ax.contour(P.reshape(model.shape).T, levels=17)
-fig.colorbar(cc, axs[1, 2], orientation="horizontal")
+cb = fig.colorbar(cc, axs[1, 2], orientation="horizontal")
+cb.ax.tick_params(labelsize=8)
+
+fig.tight_layout()

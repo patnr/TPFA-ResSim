@@ -1,4 +1,4 @@
-# Reservoir simulator
+![Screenshot](collage.jpg)
 
 A 2D, two-phase, black-oil, immiscible, incompressible
 reservoir simulator
@@ -24,6 +24,7 @@ Main changes:
 ## Installation
 
 Note that you should probably use a python virtual environment.
+
 Feel free to use `conda`, `venv`, `virtualenv`, etc...
 
 ### Normal use
