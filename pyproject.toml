@@ -50,3 +50,10 @@ pycodestyle = ["+*",
     "-E305", # 2 blank lines after func/class
     "-E731", # don't assign lambda
 ]
+
+#############
+#  Testing  #
+#############
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "tests --doctest-modules simulator"
