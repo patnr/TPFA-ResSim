@@ -82,3 +82,12 @@ def test_compare_final_output():
         9.1089927e-20,
     ])
     assert np.all(np.isclose(SS[-1, ::100], matlab_sim_output))
+
+
+## Animation
+if __name__ == "__main__":
+    from simulator import plotting
+    plotting.model = model
+    plotting.coord_type = "absolute"
+    prod = [model.xy2ind(x, y) for (x, y, _) in model.producers]
+    animation = plotting.anim(None, SS, SS[1:, prod])
