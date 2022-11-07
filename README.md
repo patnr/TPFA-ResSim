@@ -1,5 +1,3 @@
-![Screenshot](collage.jpg)
-
 A 2D, two-phase, black-oil, immiscible, incompressible
 reservoir simulator
 using TPFA (two-point flux approximation)
@@ -10,8 +8,12 @@ from NTNU/Sintef by Jørg E. Aarnes, Tore Gimse, and Knut–Andreas Lie.
 Translated to Python by Patrick N. Raanes.
 
 The Python code produces the same output as the Matlab version
-(up to errors from the linear solvers).
-Main changes:
+(up to errors from the linear solvers and randomness),
+illustrated here (with the original "jet" colour maps):
+
+![Screenshot](collage.jpg)
+
+Still, some changes have been made. The main ones are:
 
 - `83293bcb`: Converted from 3D to 2D for simplicity.
 - `27208d5d`: Index ordering is C-major (numpy standard), not F-major.
@@ -23,11 +25,10 @@ Main changes:
 
 ## Installation
 
-Note that you should probably use a python virtual environment.
+Prerequisites: Python `>= 3.7` with a
+virtual environment from `conda` or `venv` or `virtualenv`, etc...
 
-Feel free to use `conda`, `venv`, `virtualenv`, etc...
-
-### Normal use
+### Either: As package
 
 `pip install git+https://github.com/patnr/TPFA-ResSim.git`
 
@@ -35,7 +36,7 @@ Feel free to use `conda`, `venv`, `virtualenv`, etc...
 and so isn't great if you want to play around with the model.
 For that, install as described below.
 
-### For development
+### OR: For development
 
 Clone this repo, `cd` into it, then to `pip install -e .`
 
