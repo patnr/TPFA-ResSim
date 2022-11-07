@@ -1,7 +1,7 @@
 A 2D, two-phase, black-oil, immiscible, incompressible
 reservoir simulator
 using TPFA (two-point flux approximation)
-and explicit time stepping.
+Both explicit and implicit time steppers are available.
 
 Based on [Matlab codes](http://folk.ntnu.no/andreas/papers/ResSimMatlab.pdf)
 from NTNU/Sintef by Jørg E. Aarnes, Tore Gimse, and Knut–Andreas Lie.  
@@ -13,7 +13,7 @@ illustrated here (with the original "jet" colour maps):
 
 ![Screenshot](collage.jpg)
 
-Still, some changes have been made. The main ones are:
+Still, some changes have been made. The *main* ones are:
 
 - `83293bcb`: Converted from 3D to 2D for simplicity.
 - `27208d5d`: Index ordering is C-major (numpy standard), not F-major.
@@ -22,6 +22,7 @@ Still, some changes have been made. The main ones are:
 - `f33c571a`: OOP
 - `55ce7325`: Facilities for working on the grid.
 - `e0d12b06`: Convenient well arranger (ensures total sink + source = 0).
+- `27fb9f18`: Add implicit time stepper
 
 ## Installation
 
