@@ -225,57 +225,52 @@ class ResSim(NicePrint, Grid2D):
 
         # Discretized transport operator
         A = self.upwind_diff(V)                  # Finite-volume discretisation
-        A = self.spdiags(dtx, 0) @ A             # A * dt/|Omega i|
+        B = self.spdiags(dtx, 0) @ A             # A * dt/|Omega i|
 
         for _ in range(Nts):
-            mw, mo = self.RelPerm(S)             # compute mobilities
-            fw = mw / (mw + mo)                  # compute fractional flow
-            S = S + (A @ fw + fi * dtx)          # update saturation
+            Mw, Mo = self.RelPerm(S)             # compute mobilities
+            fw = Mw / (Mw + Mo)                  # compute fractional flow
+            S = S + (B@fw + fi*dtx)              # update saturation
         return S
 
     # NewtRaph() -- listing 10
-    # TODO: rename T to dt?
-    def saturation_step_implicit(self, S, V, T):
+    def saturation_step_implicit(self, S, V, dt, nNewtonMax=10, NtsLog2Max=10):
         """Implicit finite-volume discretisation of conservation of mass."""
         A = self.upwind_diff(V)  # FV discretized transport operator
-        conv = False
-        IT = 0
-        S00 = S
-        while not conv:
-            dt  = T/2**IT
+        S00 = S                  # Save input S
+
+        for NtsLog2 in range(0, NtsLog2Max):
+            Nts = 2**NtsLog2                          # Double the num. of sub-time-steps
             pv  = self.h2 * self.Gridded.por.ravel()  # Pore volume = cell.vol * por
-            dtx = dt/pv                               # timestep / pore volume
-            fi  = self.Q.clip(min=0) * dtx            # Well inflow
+            dtx = dt / Nts / pv                       # timestep / pore volume
+            fi  = self.Q.clip(min=0)                  # Well inflow
             B   = self.spdiags(dtx, 0) @ A            # A * dt/|Omega i|
 
-            I = 0  # noqa
-            while I < 2**IT:
-                S0 = S
-                dsn = 1
-                it = 0
-                I = I + 1  # noqa
+            for _ in range(Nts):
+                S0 = S  # S0 <-- S0+dS
+                for _ in range(nNewtonMax):
+                    [Mw, Mo, dMw, dMo] = self.RelPerm(S, derivs=True)  # mobilities
+                    df = dMw/(Mw+Mo) - Mw/(Mw+Mo)**2 * (dMw + dMo)     # df w/ds
+                    dG = sparse.eye(self.M) - B @ self.spdiags(df, 0)  # deriv of G
 
-                while (dsn > 1e-3) and (it < 10):
-                    [Mw, Mo, dMw, dMo] = self.RelPerm(S, derivs=True)
-                    df = dMw / (Mw + Mo) - Mw / (Mw + Mo)**2 * (dMw + dMo)
-                    dG = sparse.eye(self.M) - B @ self.spdiags(df, 0)
+                    fw = Mw / (Mw+Mo)              # fract. flow
+                    G  = S - S0 - (B@fw + fi*dtx)  # G(s)
+                    dS = spsolve(dG, G)            # compute dS
+                    S  = S - dS                    # update S
 
-                    fw = Mw / (Mw + Mo)
-                    G = S - S0 - (B @ fw + fi)
-                    ds = - spsolve(dG, G)
-                    S = S + ds
-                    dsn = np.sqrt(sum(ds**2))
-                    it = it + 1
-
-                # Check for CV
-                if dsn > 1e-3:
-                    I = 2**IT  # noqa
+                    if np.sqrt(sum(dS**2)) < 1e-3:
+                        # If converged: halt Newton iterations
+                        break
+                else:
+                    # If never converged: increase Nts, restart time loop
                     S = S00
-
-            if dsn < 1e-3:
-                conv = True
+                    break
             else:
-                IT = IT + 1
+                # If completed all time steps, halt
+                break
+        else:
+            # Failed (even with max Nts) to complete all time steps
+            print("Warning: did not converge")
 
         return S
 
