@@ -28,21 +28,21 @@ Still, some changes have been made. The main ones are:
 Prerequisites: Python `>= 3.7` with a
 virtual environment from `conda` or `venv` or `virtualenv`, etc...
 
-### Either: As package
+### *Either*: As dependency
 
 `pip install git+https://github.com/patnr/TPFA-ResSim.git`
 
 *NB*: This will install it somewhere "hidden" among your other python packages,
-and so isn't great if you want to play around with the model.
-For that, install as described below.
+intended for use but not modification.
+If you rather want want to play around with the model, install as follows.
 
-### OR: For development
+### *OR*: For development
 
-Clone this repo, `cd` into it, then to `pip install -e .`
+Clone this repo, `cd` into it, then do `pip install -e .`
 
 Alternatively, *if you really want to*, you could get [poetry](https://python-poetry.org/)
 and then do `poetry install` which will also install some extra tools,
-and the very same dev.\ environment that I used.
+and the very same dev-environment that I used.
 
 #### Examples
 
