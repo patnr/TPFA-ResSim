@@ -3,13 +3,14 @@ reservoir simulator
 using TPFA (two-point flux approximation).
 Both explicit and implicit time steppers are available.
 
-Based on [Matlab codes](http://folk.ntnu.no/andreas/papers/ResSimMatlab.pdf)
+Based on [Matlab codes (2007)](http://folk.ntnu.no/andreas/papers/ResSimMatlab.pdf)
 from NTNU/Sintef by Jørg E. Aarnes, Tore Gimse, and Knut–Andreas Lie.  
 Translated to Python by Patrick N. Raanes.
 
 The Python code produces the same output as the Matlab version
-(up to errors from the linear solvers and randomness),
-illustrated here (with the original "jet" colour maps):
+(up to errors from the linear solvers and randomness).
+This is verified by the `tests/`, which also serve as **examples**,
+producing the following illustrations (with the original "jet" colour maps).
 
 ![Screenshot](collage.jpg)
 
@@ -22,6 +23,13 @@ Still, some changes have been made. The *main* ones are:
 - `f33c571a`: OOP
 - `55ce7325`: Facilities for working on the grid.
 - `e0d12b06`: Convenient well arranger (ensures total sink + source = 0).
+
+## Used in
+
+Please let me know (or make a PR) if you use this in your work,
+and I will add it to this list.
+
+- [History matching tutorial](https://github.com/patnr/HistoryMatching)
 
 ## Installation
 
@@ -43,11 +51,3 @@ Clone this repo, `cd` into it, then do `pip install -e .`
 Alternatively, *if you really want to*, you could get [poetry](https://python-poetry.org/)
 and then do `poetry install` which will also install some extra tools,
 and the very same dev-environment that I used.
-
-#### Examples
-
-The `tests/` also serve as examples.
-
-## Used in
-
-- [History matching tutorial](https://github.com/patnr/HistoryMatching)
