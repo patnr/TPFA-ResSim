@@ -25,7 +25,13 @@ model = ResSim(Lx=1, Ly=1, Nx=64, Ny=64)
 model.config_wells(inj =[[0, 0, 1]],
                    prod=[[1, 1, -1]])
 
-water_sat0 = np.zeros(model.M)
+# Change fluid properties (default: 1, 1, 0, 0)
+# model.Fluid.vw  = 3e-4
+# model.Fluid.vo  = 3e-3
+# model.Fluid.swc = .2
+# model.Fluid.sor = .2
+
+water_sat0 = model.Fluid.swc * np.ones(model.M)
 nSteps = 28
 dt = 0.7/nSteps
 
@@ -44,7 +50,7 @@ def test_compare_final_output(imp):
 
 
 if __name__ == "__main__":
-    SS = recurse(model.time_stepper(dt), nSteps, water_sat0)
+    SS = recurse(model.time_stepper(dt, implicit=False), nSteps, water_sat0)
 
     ## Plot
     plt.ion()
