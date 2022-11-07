@@ -122,19 +122,26 @@ class ResSim(NicePrint, Grid2D):
     def spdiags(self, data, diags):
         return sparse.spdiags(data, diags, self.M, self.M)
 
+    def rescale_saturations(self, s):
+        Fluid = self.Fluid
+        return (s - Fluid.swc) / (1 - Fluid.swc - Fluid.sor)
+
     # RelPerm() -- listing 6
-    def RelPerm(self, s, derivs=False):
+    def RelPerm(self, s):
         """Rel. permeabilities of oil and water."""
         Fluid = self.Fluid
-        S = (s - Fluid.swc) / (1 - Fluid.swc - Fluid.sor)  # Rescale saturations
-        Mw = S**2 / Fluid.vw                               # Water mobility
-        Mo = (1 - S)**2 / Fluid.vo                         # Oil mobility
-        if derivs:
-            dMw = 2 * S / Fluid.vw / (1 - Fluid.swc - Fluid.sor)
-            dMo = -2 * (1 - S) / Fluid.vo / (1 - Fluid.swc - Fluid.sor)
-            return Mw, Mo, dMw, dMo
-        else:
-            return Mw, Mo
+        S = self.rescale_saturations(s)
+        Mw = S**2 / Fluid.vw        # Water mobility
+        Mo = (1 - S)**2 / Fluid.vo  # Oil mobility
+        return Mw, Mo
+
+    def dRelPerm(self, s):
+        """Derivative of `RelPerm`."""
+        Fluid = self.Fluid
+        S = self.rescale_saturations(s)
+        dMw = 2 * S / Fluid.vw / (1 - Fluid.swc - Fluid.sor)
+        dMo = -2 * (1 - S) / Fluid.vo / (1 - Fluid.swc - Fluid.sor)
+        return dMw, dMo
 
     # TPFA() -- Listing 1
     def TPFA(self, K):
@@ -249,7 +256,8 @@ class ResSim(NicePrint, Grid2D):
             for _ in range(Nts):
                 S0 = S  # S0 <-- S0+dS
                 for _ in range(nNewtonMax):
-                    [Mw, Mo, dMw, dMo] = self.RelPerm(S, derivs=True)  # mobilities
+                    Mw, Mo   = self.RelPerm(S)    # mobilities
+                    dMw, dMo = self.dRelPerm(S)   # their derivatives
                     df = dMw/(Mw+Mo) - Mw/(Mw+Mo)**2 * (dMw + dMo)     # df w/ds
                     dG = sparse.eye(self.M) - B @ self.spdiags(df, 0)  # deriv of G
 
