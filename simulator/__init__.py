@@ -122,20 +122,26 @@ class ResSim(NicePrint, Grid2D):
     def spdiags(self, data, diags):
         return sparse.spdiags(data, diags, self.M, self.M)
 
+    def rescale_saturations(self, s):
+        Fluid = self.Fluid
+        return (s - Fluid.swc) / (1 - Fluid.swc - Fluid.sor)
+
     # RelPerm() -- listing 6
-    def RelPerm(self, s, nargout_is_4=False):
+    def RelPerm(self, s):
         """Rel. permeabilities of oil and water."""
         Fluid = self.Fluid
-        S = (s - Fluid.swc) / (1 - Fluid.swc - Fluid.sor)  # Rescale saturations
-        Mw = S**2 / Fluid.vw                               # Water mobility
-        Mo = (1 - S)**2 / Fluid.vo                         # Oil mobility
-        if nargout_is_4:
-            # Only used for implicit solver, which we don't implement
-            dMw = 2 * S / Fluid.vw / (1 - Fluid.swc - Fluid.sor)
-            dMo = -2 * (1 - S) / Fluid.vo / (1 - Fluid.swc - Fluid.sor)
-            return Mw, Mo, dMw, dMo
-        else:
-            return Mw, Mo
+        S = self.rescale_saturations(s)
+        Mw = S**2 / Fluid.vw        # Water mobility
+        Mo = (1 - S)**2 / Fluid.vo  # Oil mobility
+        return Mw, Mo
+
+    def dRelPerm(self, s):
+        """Derivative of `RelPerm`."""
+        Fluid = self.Fluid
+        S = self.rescale_saturations(s)
+        dMw = 2 * S / Fluid.vw / (1 - Fluid.swc - Fluid.sor)
+        dMo = -2 * (1 - S) / Fluid.vo / (1 - Fluid.swc - Fluid.sor)
+        return dMw, dMo
 
     # TPFA() -- Listing 1
     def TPFA(self, K):
@@ -164,7 +170,7 @@ class ResSim(NicePrint, Grid2D):
         # ... the DoF is thanks to working w/ a *potential*, ref article p. 13
         A = self.spdiags(DiagVecs, DiagIndx)
 
-        # Solve
+        # Solve; compute A\q
         q = self.Q
         # u = np.linalg.solve(A.A, q) # direct dense solver
         u = spsolve(A.tocsr(), q)     # direct sparse solver
@@ -216,7 +222,7 @@ class ResSim(NicePrint, Grid2D):
 
     # Upstream() -- listing 8
     def saturation_step_upwind(self, S, V, dt):
-        """Explicit upwind finite-volume discretisation of CoM."""
+        """Explicit upwind finite-volume discretisation of conservation of mass."""
         # Compute dt
         pv = self.h2 * self.Gridded.por.ravel()  # Pore volume = cell volume * porosity
         fi = self.Q.clip(min=0)                  # Well inflow
@@ -225,19 +231,63 @@ class ResSim(NicePrint, Grid2D):
         dtx = (dt / Nts) / pv                    # (local) time steps
 
         # Discretized transport operator
-        A = self.upwind_diff(V)                  # system matrix
-        A = self.spdiags(dtx, 0) @ A             # A * dt/|Omega i|
+        A = self.upwind_diff(V)                  # Finite-volume discretisation
+        B = self.spdiags(dtx, 0) @ A             # A * dt/|Omega i|
 
         for _ in range(Nts):
-            mw, mo = self.RelPerm(S)             # compute mobilities
-            fw = mw / (mw + mo)                  # compute fractional flow
-            S = S + (A @ fw + fi * dtx)          # update saturation
+            Mw, Mo = self.RelPerm(S)             # compute mobilities
+            fw = Mw / (Mw + Mo)                  # compute fractional flow
+            S = S + (B@fw + fi*dtx)              # update saturation
         return S
 
-    def time_stepper(self, dt):
+    # NewtRaph() -- listing 10
+    def saturation_step_implicit(self, S, V, dt, nNewtonMax=10, NtsLog2Max=10):
+        """Implicit finite-volume discretisation of conservation of mass."""
+        A = self.upwind_diff(V)  # FV discretized transport operator
+
+        for NtsLog2 in range(0, NtsLog2Max):
+            Nts = 2**NtsLog2                          # Double the num. of sub-time-steps
+            pv  = self.h2 * self.Gridded.por.ravel()  # Pore volume = cell.vol * por
+            dtx = dt / Nts / pv                       # timestep / pore volume
+            fi  = self.Q.clip(min=0)                  # Well inflow
+            B   = self.spdiags(dtx, 0) @ A            # A * dt/|Omega i|
+
+            Sn = S
+            for _ in range(Nts):
+                Sp = Sn
+                for _ in range(nNewtonMax):
+                    Mw, Mo   = self.RelPerm(Sn)    # mobilities
+                    dMw, dMo = self.dRelPerm(Sn)   # their derivatives
+                    df = dMw/(Mw+Mo) - Mw/(Mw+Mo)**2 * (dMw + dMo)     # df w/ds
+                    dG = sparse.eye(self.M) - B @ self.spdiags(df, 0)  # deriv of G
+
+                    fw = Mw / (Mw+Mo)               # fract. flow
+                    G  = Sn - Sp - (B@fw + fi*dtx)  # G(s)
+                    dS = spsolve(dG, G)             # compute dS
+                    Sn = Sn - dS                    # update S
+
+                    if np.sqrt(sum(dS**2)) < 1e-3:
+                        # If converged: halt Newton iterations
+                        break
+                else:
+                    # If never converged: increase Nts, restart time loop
+                    break
+            else:
+                # If completed all time steps, halt
+                break
+        else:
+            # Failed (even with max Nts) to complete all time steps
+            print("Warning: did not converge")
+
+        return Sn
+
+    def time_stepper(self, dt, implicit=False):
         def integrate(S):
             [P, V] = self.pressure_step(S)
-            S      = self.saturation_step_upwind(S, V, dt)
+            if implicit:
+                S = self.saturation_step_implicit(S, V, dt)
+            else:
+                S = self.saturation_step_upwind(S, V, dt)
             return S
         return integrate
 

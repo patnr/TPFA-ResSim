@@ -7,7 +7,8 @@ A = GenA(Grid,V,q);                                      % system matrix
 conv=0; IT=0; S00=S;
 while conv==0;
     dt = T/2^IT;                                         % timestep
-    dtx = dt./(Grid.V(:)*Grid.por (:));                  % timestep / pore volume
+    pv = Grid.V(:).*Grid.por (:);                        % pore volume=cell volume*porosity
+    dtx = dt./pv;                                        % timestep / pore volume
     fi = max(q,0).*dtx;                                  % injection
     B=spdiags(dtx,0,N,N)*A;
 
@@ -28,9 +29,16 @@ while conv==0;
             it = it+1;                                   % number of N-R iterations
         end
 
-        if dsn>1e-3; I=2^IT; S=S00; end                  % check for convergence
+        % check for convergence
+        if dsn>1e-3;
+          I=2^IT;
+          S=S00;
+        end
     end
 
-    if dsn<1e-3; conv=1;                                 % check for convergence
-    else IT=IT+1; end                                    % if not converged, decrease
-end                                                      % timestep by factor 2
+    if dsn<1e-3;
+      conv=1;  % converged
+    else
+      IT=IT+1;  % decrease timestep by factor 2
+    end
+end
