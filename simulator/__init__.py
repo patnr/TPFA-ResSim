@@ -123,14 +123,13 @@ class ResSim(NicePrint, Grid2D):
         return sparse.spdiags(data, diags, self.M, self.M)
 
     # RelPerm() -- listing 6
-    def RelPerm(self, s, nargout_is_4=False):
+    def RelPerm(self, s, derivs=False):
         """Rel. permeabilities of oil and water."""
         Fluid = self.Fluid
         S = (s - Fluid.swc) / (1 - Fluid.swc - Fluid.sor)  # Rescale saturations
         Mw = S**2 / Fluid.vw                               # Water mobility
         Mo = (1 - S)**2 / Fluid.vo                         # Oil mobility
-        if nargout_is_4:
-            # Only used for implicit solver, which we don't implement
+        if derivs:
             dMw = 2 * S / Fluid.vw / (1 - Fluid.swc - Fluid.sor)
             dMo = -2 * (1 - S) / Fluid.vo / (1 - Fluid.swc - Fluid.sor)
             return Mw, Mo, dMw, dMo
@@ -164,7 +163,7 @@ class ResSim(NicePrint, Grid2D):
         # ... the DoF is thanks to working w/ a *potential*, ref article p. 13
         A = self.spdiags(DiagVecs, DiagIndx)
 
-        # Solve
+        # Solve; compute A\q
         q = self.Q
         # u = np.linalg.solve(A.A, q) # direct dense solver
         u = spsolve(A.tocsr(), q)     # direct sparse solver
@@ -216,7 +215,7 @@ class ResSim(NicePrint, Grid2D):
 
     # Upstream() -- listing 8
     def saturation_step_upwind(self, S, V, dt):
-        """Explicit upwind finite-volume discretisation of CoM."""
+        """Explicit upwind finite-volume discretisation of conservation of mass."""
         # Compute dt
         pv = self.h2 * self.Gridded.por.ravel()  # Pore volume = cell volume * porosity
         fi = self.Q.clip(min=0)                  # Well inflow
@@ -225,7 +224,7 @@ class ResSim(NicePrint, Grid2D):
         dtx = (dt / Nts) / pv                    # (local) time steps
 
         # Discretized transport operator
-        A = self.upwind_diff(V)                  # system matrix
+        A = self.upwind_diff(V)                  # Finite-volume discretisation
         A = self.spdiags(dtx, 0) @ A             # A * dt/|Omega i|
 
         for _ in range(Nts):
@@ -234,10 +233,59 @@ class ResSim(NicePrint, Grid2D):
             S = S + (A @ fw + fi * dtx)          # update saturation
         return S
 
-    def time_stepper(self, dt):
+    # NewtRaph() -- listing 10
+    # TODO: rename T to dt?
+    def saturation_step_implicit(self, S, V, T):
+        """Implicit finite-volume discretisation of conservation of mass."""
+        A = self.upwind_diff(V)  # FV discretized transport operator
+        conv = False
+        IT = 0
+        S00 = S
+        while not conv:
+            dt  = T/2**IT
+            pv  = self.h2 * self.Gridded.por.ravel()  # Pore volume = cell.vol * por
+            dtx = dt/pv                               # timestep / pore volume
+            fi  = self.Q.clip(min=0) * dtx            # Well inflow
+            B   = self.spdiags(dtx, 0) @ A            # A * dt/|Omega i|
+
+            I = 0  # noqa
+            while I < 2**IT:
+                S0 = S
+                dsn = 1
+                it = 0
+                I = I + 1  # noqa
+
+                while (dsn > 1e-3) and (it < 10):
+                    [Mw, Mo, dMw, dMo] = self.RelPerm(S, derivs=True)
+                    df = dMw / (Mw + Mo) - Mw / (Mw + Mo)**2 * (dMw + dMo)
+                    dG = sparse.eye(self.M) - B @ self.spdiags(df, 0)
+
+                    fw = Mw / (Mw + Mo)
+                    G = S - S0 - (B @ fw + fi)
+                    ds = - spsolve(dG, G)
+                    S = S + ds
+                    dsn = np.sqrt(sum(ds**2))
+                    it = it + 1
+
+                # Check for CV
+                if dsn > 1e-3:
+                    I = 2**IT  # noqa
+                    S = S00
+
+            if dsn < 1e-3:
+                conv = True
+            else:
+                IT = IT + 1
+
+        return S
+
+    def time_stepper(self, dt, implicit=False):
         def integrate(S):
             [P, V] = self.pressure_step(S)
-            S      = self.saturation_step_upwind(S, V, dt)
+            if implicit:
+                S = self.saturation_step_implicit(S, V, dt)
+            else:
+                S = self.saturation_step_upwind(S, V, dt)
             return S
         return integrate
 
