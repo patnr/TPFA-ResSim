@@ -244,7 +244,6 @@ class ResSim(NicePrint, Grid2D):
     def saturation_step_implicit(self, S, V, dt, nNewtonMax=10, NtsLog2Max=10):
         """Implicit finite-volume discretisation of conservation of mass."""
         A = self.upwind_diff(V)  # FV discretized transport operator
-        S00 = S                  # Save input S
 
         for NtsLog2 in range(0, NtsLog2Max):
             Nts = 2**NtsLog2                          # Double the num. of sub-time-steps
@@ -253,25 +252,25 @@ class ResSim(NicePrint, Grid2D):
             fi  = self.Q.clip(min=0)                  # Well inflow
             B   = self.spdiags(dtx, 0) @ A            # A * dt/|Omega i|
 
+            Sn = S
             for _ in range(Nts):
-                S0 = S  # S0 <-- S0+dS
+                Sp = Sn
                 for _ in range(nNewtonMax):
-                    Mw, Mo   = self.RelPerm(S)    # mobilities
-                    dMw, dMo = self.dRelPerm(S)   # their derivatives
+                    Mw, Mo   = self.RelPerm(Sn)    # mobilities
+                    dMw, dMo = self.dRelPerm(Sn)   # their derivatives
                     df = dMw/(Mw+Mo) - Mw/(Mw+Mo)**2 * (dMw + dMo)     # df w/ds
                     dG = sparse.eye(self.M) - B @ self.spdiags(df, 0)  # deriv of G
 
-                    fw = Mw / (Mw+Mo)              # fract. flow
-                    G  = S - S0 - (B@fw + fi*dtx)  # G(s)
-                    dS = spsolve(dG, G)            # compute dS
-                    S  = S - dS                    # update S
+                    fw = Mw / (Mw+Mo)               # fract. flow
+                    G  = Sn - Sp - (B@fw + fi*dtx)  # G(s)
+                    dS = spsolve(dG, G)             # compute dS
+                    Sn = Sn - dS                    # update S
 
                     if np.sqrt(sum(dS**2)) < 1e-3:
                         # If converged: halt Newton iterations
                         break
                 else:
                     # If never converged: increase Nts, restart time loop
-                    S = S00
                     break
             else:
                 # If completed all time steps, halt
@@ -280,7 +279,7 @@ class ResSim(NicePrint, Grid2D):
             # Failed (even with max Nts) to complete all time steps
             print("Warning: did not converge")
 
-        return S
+        return Sn
 
     def time_stepper(self, dt, implicit=False):
         def integrate(S):
