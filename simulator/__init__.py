@@ -199,8 +199,8 @@ class ResSim(NicePrint, Grid2D):
             x=np.zeros((self.Nx+1, self.Ny)),
             y=np.zeros((self.Nx, self.Ny+1)),
         )
-        V.x[1:-1,:] = (P[:-1,:] - P[1:,:]) * TX[1:-1,:]  # noqa
-        V.y[:,1:-1] = (P[:,:-1] - P[:,1:]) * TY[:,1:-1]  # noqa
+        V.x[1:-1, :] = (P[:-1, :] - P[1:, :]) * TX[1:-1, :]
+        V.y[:, 1:-1] = (P[:, :-1] - P[:, 1:]) * TY[:, 1:-1]
         return P, V
 
     # GenA() -- listing 7
