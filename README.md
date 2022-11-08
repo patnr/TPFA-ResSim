@@ -1,4 +1,4 @@
-[![GitHub CI](https://github.com/patnr/TPFA-ResSim/actions/workflows/test_via_poetry.yml/badge.svg)](https://github.com/patnr/TPFA-ResSim/actions)
+[![GitHub CI](https://github.com/patnr/TPFA-ResSim/actions/workflows/tests.yml/badge.svg)](https://github.com/patnr/TPFA-ResSim/actions)
 
 A 2D, two-phase, black-oil, immiscible, incompressible
 reservoir simulator
