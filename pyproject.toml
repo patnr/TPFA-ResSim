@@ -5,7 +5,7 @@ description = """Toy petroleum reservoir simulator using TPFA."""
 authors = ["patnr <patrick.n.raanes@gmail.com>"]
 license = "MIT"
 readme = "README.md"
-packages = [{include = "simulator"}]
+packages = [{include = "TPFA_ResSim"}]
 
 [tool.poetry.dependencies]
 python = "~=3.7,<3.10"
@@ -57,4 +57,4 @@ pycodestyle = ["+*",
 #############
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = "tests --doctest-modules simulator"
+addopts = "tests --doctest-modules TPFA_ResSim"

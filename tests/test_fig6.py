@@ -19,7 +19,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pytest
 
-from simulator import ResSim, recurse
+from TPFA_ResSim import ResSim, recurse
 
 model = ResSim(Lx=1, Ly=1, Nx=64, Ny=64)
 model.config_wells(inj =[[0, 0, 1]],
@@ -86,7 +86,7 @@ if __name__ == "__main__":
 
 
     ## Animation
-    from simulator import plotting
+    from TPFA_ResSim import plotting
     plotting.model = model
     plotting.coord_type = "absolute"
     prod = [model.xy2ind(x, y) for (x, y, _) in model.producers]
