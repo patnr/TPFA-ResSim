@@ -22,7 +22,7 @@ from dataclasses import dataclass
 import numpy as np
 
 
-@dataclass
+@dataclass(frozen=True)
 class Grid2D:
     """Defines a 2D rectangular grid.
 
@@ -30,7 +30,7 @@ class Grid2D:
     >>> grid = Grid2D(Lx=6, Ly=10, Nx=3, Ny=5)
 
     The nodes are centered in the cells:
-    >>> X, Y = grid.mesh()
+    >>> X, Y = grid.mesh
     >>> X
     array([[1., 1., 1., 1., 1.],
            [3., 3., 3., 3., 3.],
@@ -56,16 +56,32 @@ class Grid2D:
     Nx: int = 32
     Ny: int = 32
 
-    def __post_init__(self):
-        self.shape = self.Nx, self.Ny
-        self.grid  = self.shape + (self.Lx, self.Ly)
-        self.M     = np.prod(self.shape)
+    @property
+    def shape(self):
+        return self.Nx, self.Ny
 
-        # Resolution
-        self.hx, self.hy = self.Lx/self.Nx, self.Ly/self.Ny
-        self.h2 = self.hx*self.hy
+    @property
+    def grid(self):
+        return self.shape + (self.Lx, self.Ly)
 
-    def mesh(self, centered=True):
+    @property
+    def M(self):
+        return np.prod(self.shape)
+
+    @property
+    def hx(self):
+        return self.Lx/self.Nx
+
+    @property
+    def hy(self):
+        return self.Ly/self.Ny
+
+    @property
+    def h2(self):
+        return self.hx*self.hy
+
+    @property
+    def mesh(self):
         """Generate 2D coordinate grids."""
         xx = np.linspace(0, self.Lx, self.Nx, endpoint=False) + self.hx/2
         yy = np.linspace(0, self.Ly, self.Ny, endpoint=False) + self.hy/2

@@ -8,8 +8,6 @@ variables).
 
 Note: Index ordering/labels: `x` is 1st coord., `y` is 2nd. See `grid.py` for more info.
 """
-# TODO
-# - Protect Nx, Ny, shape, etc?
 
 from functools import wraps
 
