@@ -252,14 +252,14 @@ class ResSim(NicePrint, Grid2D):
         return S
 
     # NewtRaph() -- listing 10
-    def saturation_step_implicit(self, S, V, dt, nNewtonMax=10, nT_log2=10):
+    def saturation_step_implicit(self, S, V, dt, nNewtonMax=10, nTmax_log2=10):
         """Implicit finite-volume discretisation of conservation of mass."""
         A  = self.upwind_diff(V)                 # FV discretized transport operator
         pv = self.h2 * self.Gridded.por.ravel()  # Pore volume = cell.vol * por
         fi = self.Q.clip(min=0)                  # Well inflow
 
         # For each iter, halve the sub/local dt
-        for nT_log2 in range(0, nT_log2):
+        for nT_log2 in range(0, nTmax_log2):
             nT = 2**nT_log2
 
             # Scale A
