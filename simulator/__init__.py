@@ -235,16 +235,17 @@ class ResSim(NicePrint, Grid2D):
     # Upstream() -- listing 8
     def saturation_step_upwind(self, S, V, dt):
         """Explicit upwind finite-volume discretisation of conservation of mass."""
-        # Compute dt
+        A  = self.upwind_diff(V)                 # FV discretized transport operator
         pv = self.h2 * self.Gridded.por.ravel()  # Pore volume = cell volume * porosity
         fi = self.Q.clip(min=0)                  # Well inflow
-        cfl = self.estimate_CFL(pv, V, fi)
-        Nts = int(np.ceil(dt / cfl))             # num. (local) time steps
-        dtx = (dt / Nts) / pv                    # (local) time steps
 
-        # Discretized transport operator
-        A = self.upwind_diff(V)                  # Finite-volume discretisation
-        B = self.spdiags(dtx, 0) @ A             # A * dt/|Omega i|
+        # Compute sub/local-dt
+        cfl = self.estimate_CFL(pv, V, fi)
+        Nts = int(np.ceil(dt / cfl))
+
+        # Scale A
+        dtx = dt / Nts / pv                      # timestep / pore volume
+        B   = self.spdiags(dtx, 0) @ A           # A * dt/|Omega i|
 
         for _ in range(Nts):
             Mw, Mo = self.RelPerm(S)             # compute mobilities
@@ -255,14 +256,17 @@ class ResSim(NicePrint, Grid2D):
     # NewtRaph() -- listing 10
     def saturation_step_implicit(self, S, V, dt, nNewtonMax=10, NtsLog2Max=10):
         """Implicit finite-volume discretisation of conservation of mass."""
-        A = self.upwind_diff(V)  # FV discretized transport operator
+        A  = self.upwind_diff(V)                 # FV discretized transport operator
+        pv = self.h2 * self.Gridded.por.ravel()  # Pore volume = cell.vol * por
+        fi = self.Q.clip(min=0)                  # Well inflow
 
+        # Halve the sub/local-dt for each loop, until convergence
         for NtsLog2 in range(0, NtsLog2Max):
-            Nts = 2**NtsLog2                          # Double the num. of sub-time-steps
-            pv  = self.h2 * self.Gridded.por.ravel()  # Pore volume = cell.vol * por
-            dtx = dt / Nts / pv                       # timestep / pore volume
-            fi  = self.Q.clip(min=0)                  # Well inflow
-            B   = self.spdiags(dtx, 0) @ A            # A * dt/|Omega i|
+            Nts = 2**NtsLog2
+
+            # Scale A
+            dtx = dt / Nts / pv                  # timestep / pore volume
+            B   = self.spdiags(dtx, 0) @ A       # A * dt/|Omega i|
 
             Sn = S
             for _ in range(Nts):
