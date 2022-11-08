@@ -1,4 +1,4 @@
-"""Main simulator code.
+"""Main reservoir simulator code.
 
 Implemented with OOP so as to facilitate multiple realisations, by ensuring
 that the parameter values of one instance do not influence another instance.
@@ -24,6 +24,18 @@ from simulator.grid import Grid2D
 
 class ResSim(NicePrint, Grid2D):
     """Reservoir simulator.
+
+    Initialize with domain dimensions.
+
+    The attribute `ResSim.Gridded` contains the keys `K` and `por`
+    whose values get initialized by default to fields of 1.
+    The attribute `ResSim.Fluid` contains viscosities (`vw`, `vo`) with defaults 1,
+    and irreducible saturations (`swc`, `sor`) with defaults 0.
+    These parameters can be changed at any time.
+
+    Another attribute is `ResSim.Q`, which is the water source/sink field.
+    It can also be changed at any time, but this should be done via the convenience
+    function `config_wells`.
 
     Example:
     >>> model = ResSim(Lx=1, Ly=1, Nx=64, Ny=64)
@@ -109,8 +121,8 @@ class ResSim(NicePrint, Grid2D):
 
     # Pres() -- listing 5
     def pressure_step(self, S):
-        """TPFA finite-volume of Darcy: $$ -nabla(K lambda(s) nabla(u)) = q $$."""
-        # Compute K*lambda(S)
+        """Compute permeabilities then solve Darcy's equation for `[P, V]`."""
+        # Compute K*λ(S)
         Mw, Mo = self.RelPerm(S)
         Mt = Mw + Mo
         Mt = Mt.reshape(self.shape)
@@ -145,9 +157,9 @@ class ResSim(NicePrint, Grid2D):
 
     # TPFA() -- Listing 1
     def TPFA(self, K):
-        """Two-point flux-approximation (TPFA) of Darcy:
+        """Two-point flux-approximation (TPFA) of Darcy: $$ -∇(K ∇u) = q $$
 
-        diffusion w/ nonlinear coefficient K.
+        i.e. steady-state diffusion w/ nonlinear coefficient, `K`.
         """
         # Compute transmissibilities by harmonic averaging.
         L = K**(-1)
@@ -282,6 +294,13 @@ class ResSim(NicePrint, Grid2D):
         return Sn
 
     def time_stepper(self, dt, implicit=False):
+        """Get ODE solver (integrator) for model.
+
+        Whatever time step `dt` is given, both schemes will use smaller steps internally.
+
+        - `explicit`: computes sub-`dt` based on CFL esitmate.
+        - `implicit`: reduces sub-`dt` until convergence is achieved.
+        """
         def integrate(S):
             [P, V] = self.pressure_step(S)
             if implicit:
