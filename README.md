@@ -36,18 +36,30 @@ and I will add it to this list.
 Prerequisites: Python `>= 3.7` with a
 virtual environment from `conda` or `venv` or `virtualenv`, etc...
 
-### *Either*: As dependency
+#### *Either*: As dependency
 
 `pip install git+https://github.com/patnr/TPFA-ResSim.git`
 
-*NB*: This will install it somewhere "hidden" among your other python packages,
-intended for use but not modification.
-If you rather want want to play around with the model, install as follows.
+*NB*: This will install it somewhere "hidden" among your other python packages.
+Thus, it will be easy to import, but hard to modify.
+If you want to play around with the model, install for development:
 
-### *OR*: For development
+#### *OR*: For development
 
-Clone this repo, `cd` into it, then do `pip install -e .`
+Clone (or download and unzip) this repo, `cd` into it, then do `pip install -e .`
 
-Alternatively, *if you really want to*, you could get [poetry](https://python-poetry.org/)
-and then do `poetry install` which will also install some extra tools,
-and the very same dev-environment that I used.
+## Contributions
+
+Get [poetry](https://python-poetry.org/) and do `poetry install`,
+which will give you a new venv with very same dev-environment that I used,
+after which you can run the tests with `pytest` (no args),
+and linting with `flakeheaven lint`.
+
+#### Suggestions (ToDo)
+
+- Typing: I don't know anything about it, so contributions are most welcome.
+  Must be compatible with Python 3.7 (Colab's version).
+- Compressibility: Without compressibility the pressure field propagates
+  information infinitely fast, which is a little boring.
+  It must be carefully considered whether implementing compressibility
+  would make the model too complex for its intended use.
