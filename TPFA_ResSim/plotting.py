@@ -5,16 +5,20 @@ import numpy as np
 from mpl_tools import place, place_ax
 from mpl_tools.misc import axprops
 
-# The "self"
-# Why not explicit OOP?
-# - unnecessary indent
-# - not every realisation of the model needs a copy of this
 model = None
+"""The "self".
 
-# Axes limits
-coord_type = "relative"   # ==> (0, 1)  x (0, 1)
-# coord_type = "absolute" # ==> (0, Lx) x (0, Ly)
-# coord_type = "index"    # ==> (0, Ny) x (0, Ny)
+Why not explicit OOP?
+- unnecessary indent
+- not every realisation of the model needs a copy of this
+"""
+
+coord_type = "relative"
+"""Define scaling of `field` axes.
+- "relative": `(0, 1)  x (0, 1)`
+- "absolute": `(0, Lx) x (0, Ly)`
+- "index"   : `(0, Ny) x (0, Ny)`
+"""
 
 # Colormap for saturation
 lin_cm = mpl.colors.LinearSegmentedColormap.from_list
@@ -26,7 +30,6 @@ cm_ow = lin_cm("", [(0, "#1d9e97"), (.3, "#b2e0dc"), (1, "#f48974")])
 # cMiddle = .3*ccnvrt(cWater) + .7*ccnvrt(cOil)
 # cm_ow = lin_cm("", [cWater, cMiddle, cOil])
 
-# Defaults
 styles = dict(
     default = dict(
         title  = "",
@@ -46,12 +49,13 @@ styles = dict(
         cticks = np.linspace(0, 1, 6),
     ),
 )
+"""Default `field` plot styling values."""
 
 
 def field(ax, Z, style="default", wells=False, argmax=False, colorbar=False, **kwargs):
-    """Contour-plot of the (flat) unravelled field `Z`. Conveniently applies defaults.
+    """Contour-plot of the (flat) unravelled field `Z`.
 
-    Styles may be overriden by `kwargs`.
+    Conveniently applies default `styles`, which may be overriden by `kwargs`.
     """
     # Get style parms, with "default" fallback.
     style = {**styles["default"], **styles[style]}
@@ -215,6 +219,7 @@ def production(ax, production, obs=None, legend_outside=True):
 # Note: See note in mpl_setup.py about properly displaying the animation.
 def anim(_perm, wsats, prod, title="",
          figsize=(2.0, .7), pause=200, animate=True, **kwargs):
+    """Animate the saturation and production time series."""
 
     # Create figure and axes
     title = "Animation" + ("-- " + title if title else "")

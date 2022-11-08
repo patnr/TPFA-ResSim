@@ -12,7 +12,6 @@ in what takes place **between** `np.ravel` and `np.reshape`
 Conveniently, it also means that `x` and `y` tend to occur in alphabetic order.
 Thus, in printing a matrix of a field, the `x` coordinate corresponds to the row index.
 By contrast, the plotting module depicts `x` from left to right, `y` from bottom to top.
-
 Implementing support for "F-style" (column-major) indexing is possible,
 but would imply an undue amount hassle.
 """
@@ -26,7 +25,7 @@ import numpy as np
 class Grid2D:
     """Defines a 2D rectangular grid.
 
-    Example (2 `x` nodes, 5 `y` nodes):
+    Example (2 x-nodes, 5 y-nodes):
     >>> grid = Grid2D(Lx=6, Ly=10, Nx=3, Ny=5)
 
     The nodes are centered in the cells:
@@ -37,10 +36,11 @@ class Grid2D:
            [5., 5., 5., 5., 5.]])
 
     You can compute cell boundaries (i.e. non-central nodes) by adding or subtracting
-    `self.hx/2` and `self.hy/2` (i.e. you will miss either boundary at 0 or `Lx/Ly`).
+    `hx`/2 and `hy`/2 (i.e. you will miss either boundary at 0 or `Lx` or `Ly`).
 
-    Note: `xy2sub` and `xy2ind` round to nearest cell center (they are not injective).
-    The alternative would be to return some kind of distribution/interpolation weights.
+    .. warning:: `xy2sub` and `xy2ind` round to nearest cell center
+        (they are not injective).  The alternative would be to return some kind
+        of distribution/interpolation weights.
 
     Test of round-trip capability of grid mapping computations:
     >>> ij = (0, 4)
@@ -52,32 +52,42 @@ class Grid2D:
     """
 
     Lx: float = 1.0
+    """Physical x-length of domain."""
     Ly: float = 1.0
+    """Physical y-length of domain."""
     Nx: int = 32
+    """Number of grid cells (and their centres) in x dir."""
     Ny: int = 32
+    """Number of grid cells (and their centres) in y dir."""
 
     @property
     def shape(self):
+        """`(Nx, Ny)`"""
         return self.Nx, self.Ny
 
     @property
     def grid(self):
+        """`(*shape, Nx, Ny)`"""
         return self.shape + (self.Lx, self.Ly)
 
     @property
     def M(self):
+        """`Nx` * `Ny`"""
         return np.prod(self.shape)
 
     @property
     def hx(self):
+        """x-length of cells"""
         return self.Lx/self.Nx
 
     @property
     def hy(self):
+        """y-length of cells"""
         return self.Ly/self.Ny
 
     @property
     def h2(self):
+        """`hx` * `hy`"""
         return self.hx*self.hy
 
     @property
@@ -126,9 +136,9 @@ class Grid2D:
     def sub2xy_stretched(self, ix, iy):
         """Like `self.xy2sub`, but stretched.
 
-        NB: Puts `i=0` at `x=0`, and `i=Nx-1` at `Lx`.
-        This is wrong, and is only intended for use with `plotting.field()`,
-        which also stretches the grid (because it does not use `origin="lower"`).
+        .. warning:: Puts `i=0` at `x=0`, and `i=Nx-1` at `Lx`.
+            This is wrong, and is only intended for use with `TPFA_ResSim.plotting.field`,
+            which also stretches the grid (because it does not use `origin="lower"`).
         """
         x = np.asarray(ix) * self.Lx/(self.Nx-1)
         y = np.asarray(iy) * self.Ly/(self.Ny-1)
