@@ -239,37 +239,37 @@ class ResSim(NicePrint, Grid2D):
         pv = self.h2 * self.Gridded.por.ravel()  # Pore volume = cell volume * porosity
         fi = self.Q.clip(min=0)                  # Well inflow
 
-        # Compute sub/local-dt
+        # Compute sub/local dt
         cfl = self.estimate_CFL(pv, V, fi)
-        Nts = int(np.ceil(dt / cfl))
+        nT = int(np.ceil(dt / cfl))
 
         # Scale A
-        dtx = dt / Nts / pv                      # timestep / pore volume
+        dtx = dt / nT / pv                       # timestep / pore volume
         B   = self.spdiags(dtx, 0) @ A           # A * dt/|Omega i|
 
-        for _ in range(Nts):
+        for _ in range(nT):
             Mw, Mo = self.RelPerm(S)             # compute mobilities
             fw = Mw / (Mw + Mo)                  # compute fractional flow
             S = S + (B@fw + fi*dtx)              # update saturation
         return S
 
     # NewtRaph() -- listing 10
-    def saturation_step_implicit(self, S, V, dt, nNewtonMax=10, NtsLog2Max=10):
+    def saturation_step_implicit(self, S, V, dt, nNewtonMax=10, nT_log2=10):
         """Implicit finite-volume discretisation of conservation of mass."""
         A  = self.upwind_diff(V)                 # FV discretized transport operator
         pv = self.h2 * self.Gridded.por.ravel()  # Pore volume = cell.vol * por
         fi = self.Q.clip(min=0)                  # Well inflow
 
-        # Halve the sub/local-dt for each loop, until convergence
-        for NtsLog2 in range(0, NtsLog2Max):
-            Nts = 2**NtsLog2
+        # For each iter, halve the sub/local dt
+        for nT_log2 in range(0, nT_log2):
+            nT = 2**nT_log2
 
             # Scale A
-            dtx = dt / Nts / pv                  # timestep / pore volume
+            dtx = dt / nT / pv                   # timestep / pore volume
             B   = self.spdiags(dtx, 0) @ A       # A * dt/|Omega i|
 
             Sn = S
-            for _ in range(Nts):
+            for _ in range(nT):
                 Sp = Sn
                 for _ in range(nNewtonMax):
                     Mw, Mo   = self.RelPerm(Sn)    # mobilities
@@ -286,13 +286,13 @@ class ResSim(NicePrint, Grid2D):
                         # If converged: halt Newton iterations
                         break
                 else:
-                    # If never converged: increase Nts, restart time loop
+                    # If never converged: increase nT, restart time loop
                     break
             else:
                 # If completed all time steps, halt
                 break
         else:
-            # Failed (even with max Nts) to complete all time steps
+            # Failed (even with max nT) to complete all time steps
             print("Warning: did not converge")
 
         return Sn
