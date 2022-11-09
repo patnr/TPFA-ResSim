@@ -183,7 +183,6 @@ class ResSim(NicePrint, Grid2D):
         # Setup linear system
         DiagVecs = [-x2, -y2, y1 + y2 + x1 + x2, -y1, -x1]
         DiagIndx = [-self.Ny, -1, 0, 1, self.Ny]
-        breakpoint()
         DiagVecs[2][0] += np.sum(self.Gridded.K[:, 0, 0])  # ref article p. 13
         A = self._spdiags(DiagVecs, DiagIndx)
 
