@@ -1,13 +1,4 @@
-"""Main reservoir simulator code.
-
-Implemented with OOP so as to facilitate multiple realisations, by ensuring
-that the parameter values of one instance do not influence another instance.
-Depending on thread-safety, this might not be necessary, but is usually cleaner
-when estimating anything other than the model's input/output (i.e. the state
-variables).
-
-Note: Index ordering/labels: `x` is 1st coord., `y` is 2nd. See `grid.py` for more info.
-"""
+""".. include:: README.md"""
 
 from functools import wraps
 
@@ -21,19 +12,13 @@ from TPFA_ResSim.grid import Grid2D
 
 
 class ResSim(NicePrint, Grid2D):
-    """Reservoir simulator.
+    """Reservoir simulator class.
 
-    Initialize with domain dimensions.
-
-    The attribute `ResSim.Gridded` contains the keys `K` and `por`
-    whose values get initialized by default to fields of 1.
-    The attribute `ResSim.Fluid` contains viscosities (`vw`, `vo`) with defaults 1,
-    and irreducible saturations (`swc`, `sor`) with defaults 0.
-    These parameters can be changed at any time.
-
-    Another attribute is `ResSim.Q`, which is the water source/sink field.
-    It can also be changed at any time, but this should be done via the convenience
-    function `config_wells`.
+    Implemented with OOP so as to facilitate multiple realisations, by ensuring
+    that the parameter values of one instance do not influence another instance.
+    Depending on thread-safety, this might not be necessary, but is usually cleaner
+    when estimating anything other than the model's input/output (i.e. the state
+    variables).
 
     Example:
     >>> model = ResSim(Lx=1, Ly=1, Nx=64, Ny=64)
@@ -44,13 +29,31 @@ class ResSim(NicePrint, Grid2D):
     >>> nSteps = 2
     >>> S = recurse(model.time_stepper(dt), nSteps, water_sat0, pbar=False)
 
-    This produces the following values (which are used for automatic testing):
+    This produces the following values (used for automatic testing):
     >>> location_inds = [100, 1300, 2900]
     >>> S[-1, location_inds]
     array([0.9429345 , 0.91358172, 0.71554613])
     """
+    Gridded: DotDict
+    """Holds the parameter fields
+    - `K`: permeability; shape `(2, Nx, Ny)`)
+    - `por`: porosity; shape `(Nx, Ny)`)
+    """
+    Fluid: DotDict
+    """Holds the fluid parameters
+    - viscosities (`vw`, `vo`). Defaults: 1.
+    - irreducible saturations (`swc`, `sor`). Defaults: 0.
+    """
+    Q: np.ndarray
+    """The source/sink field. Set via `config_wells`."""
+
     @wraps(Grid2D.__init__)
     def __init__(self, *args, **kwargs):
+        """Constructor.
+
+        Initialize with domain dimensions, i.e. like `TPFA_ResSim.grid.Grid2D`.
+        The parameters in attributes `Gridded`, `Fluid`, `Q` can be changed at any time.
+        """
 
         # Init grid
         super().__init__(*args, **kwargs)
@@ -67,21 +70,22 @@ class ResSim(NicePrint, Grid2D):
         )
 
     def config_wells(self, inj, prod, remap=True):
-        """Define `self.Q`, the source/sink field, i.e. injection/production wells.
+        """Set `ResSim.Q` from list of injection/production wells.
 
         It is defined by the given list of injectors (`inj`) and producers (`prod`).
-        In both lists, each entry should be a tuple: `x/Lx, y/Ly, |rate|`.
+        In both lists, each entry should be a tuple: `(x/Lx, y/Ly, |rate|)`.
 
-        Note:
-        - The rates are scaled so as to sum to +/- 1.
-          This is not stictly necessary. But it is necessary that their sum be 0,
-          otherwise the model will silently input deficit from SW corner.
-        - The specified well coordinates should be relative (betwen 0 and 1).
-          They get co-located with grid nodes (not distributed over nearby ones).
+        .. note::
+            - The rates are scaled so as to sum to +/- 1.
+              This is not stictly necessary (TODO?).
+              But it is necessary that their sum be 0,
+              otherwise the model will silently input deficit from SW corner.
+            - The specified well coordinates should be relative (betwen 0 and 1).
+              They get co-located with grid nodes (not distributed over nearby ones).
 
-          The well co-location does not happen if `remap` is `False`,
-          which should be used in automatic, iterative optimisation,
-          which changes well rates, but does not want to change anything else.
+              The well co-location does not happen if `remap` is `False`,
+              which should be used in automatic, iterative optimisation,
+              which changes well rates, but does not want to change anything else.
         """
 
         def remap_and_collocate(ww):
@@ -119,7 +123,7 @@ class ResSim(NicePrint, Grid2D):
 
     # Pres() -- listing 5
     def pressure_step(self, S):
-        """Compute permeabilities then solve Darcy's equation for `[P, V]`."""
+        """Compute permeabilities then solve Darcy's equation. Returns `[P, V]`."""
         # Compute K*λ(S)
         Mw, Mo = self.RelPerm(S)
         Mt = Mw + Mo
@@ -129,41 +133,44 @@ class ResSim(NicePrint, Grid2D):
         [P, V] = self.TPFA(KM)
         return P, V
 
-    def spdiags(self, data, diags):
+    def _spdiags(self, data, diags):
         return sparse.spdiags(data, diags, self.M, self.M)
 
-    def rescale_saturations(self, s):
+    def rescale_sat(self, s):
+        """Account for irreducible saturations. Ref paper, p. 32."""
         Fluid = self.Fluid
         return (s - Fluid.swc) / (1 - Fluid.swc - Fluid.sor)
 
     # RelPerm() -- listing 6
     def RelPerm(self, s):
-        """Rel. permeabilities of oil and water."""
+        """Rel. permeabilities of oil and water. Return as mobilities (perm/viscocity)."""
         Fluid = self.Fluid
-        S = self.rescale_saturations(s)
+        S = self.rescale_sat(s)
         Mw = S**2 / Fluid.vw        # Water mobility
         Mo = (1 - S)**2 / Fluid.vo  # Oil mobility
         return Mw, Mo
 
     def dRelPerm(self, s):
-        """Derivative of `RelPerm`."""
+        """Derivatives of `RelPerm`."""
         Fluid = self.Fluid
-        S = self.rescale_saturations(s)
+        S = self.rescale_sat(s)
         dMw = 2 * S / Fluid.vw / (1 - Fluid.swc - Fluid.sor)
         dMo = -2 * (1 - S) / Fluid.vo / (1 - Fluid.swc - Fluid.sor)
         return dMw, dMo
 
     # TPFA() -- Listing 1
     def TPFA(self, K):
-        """Two-point flux-approximation (TPFA) of Darcy: $$ -∇(K ∇u) = q $$
+        """Two-point flux-approximation (TPFA) of Darcy: $ -∇(K ∇u) = q $
 
-        i.e. steady-state diffusion w/ nonlinear coefficient, `K`.
+        i.e. steady-state diffusion w/ nonlinear coefficient, $K$.
+
+        After solving for pressure `P`, extract the fluxes `V`
+        by finite differences.
         """
         # Compute transmissibilities by harmonic averaging.
         L = K**(-1)
         TX = np.zeros((self.Nx + 1, self.Ny))
         TY = np.zeros((self.Nx, self.Ny + 1))
-
         TX[1:-1, :] = 2 * self.hy / self.hx / (L[0, :-1, :] + L[0, 1:, :])
         TY[:, 1:-1] = 2 * self.hx / self.hy / (L[1, :, :-1] + L[1, :, 1:])
 
@@ -176,9 +183,9 @@ class ResSim(NicePrint, Grid2D):
         # Setup linear system
         DiagVecs = [-x2, -y2, y1 + y2 + x1 + x2, -y1, -x1]
         DiagIndx = [-self.Ny, -1, 0, 1, self.Ny]
-        DiagVecs[2][0] += np.sum(self.Gridded.K[:, 0, 0])  # Ensure SPD ...
-        # ... the DoF is thanks to working w/ a *potential*, ref article p. 13
-        A = self.spdiags(DiagVecs, DiagIndx)
+        breakpoint()
+        DiagVecs[2][0] += np.sum(self.Gridded.K[:, 0, 0])  # ref article p. 13
+        A = self._spdiags(DiagVecs, DiagIndx)
 
         # Solve; compute A\q
         q = self.Q
@@ -212,12 +219,12 @@ class ResSim(NicePrint, Grid2D):
         y2 = V.y.clip(min=0)[:, 1:] .ravel()
         DiagVecs = [x2, y2, fp + y1 - y2 + x1 - x2, -y1, -x1]
         DiagIndx = [-self.Ny, -1, 0, 1, self.Ny]
-        A = self.spdiags(DiagVecs, DiagIndx)
+        A = self._spdiags(DiagVecs, DiagIndx)
         return A
 
     # Extracted from Upstream()
     def estimate_CFL(self, pv, V, fi):
-        """Estimate CFL for use with saturation_step_upwind()."""
+        """Estimate CFL for use with `saturation_step_upwind`."""
         # In-/Out-flux x-/y- faces
         XP = V.x.clip(min=0)
         XN = V.x.clip(max=0)
@@ -232,7 +239,7 @@ class ResSim(NicePrint, Grid2D):
 
     # Upstream() -- listing 8
     def saturation_step_upwind(self, S, V, dt):
-        """Explicit upwind finite-volume discretisation of conservation of mass."""
+        """Explicit upwind FV discretisation of conserv. of mass (water sat.)."""
         A  = self.upwind_diff(V)                 # FV discretized transport operator
         pv = self.h2 * self.Gridded.por.ravel()  # Pore volume = cell volume * porosity
         fi = self.Q.clip(min=0)                  # Well inflow
@@ -243,7 +250,7 @@ class ResSim(NicePrint, Grid2D):
 
         # Scale A
         dtx = dt / nT / pv                       # timestep / pore volume
-        B   = self.spdiags(dtx, 0) @ A           # A * dt/|Omega i|
+        B   = self._spdiags(dtx, 0) @ A          # A * dt/|Omega i|
 
         for _ in range(nT):
             Mw, Mo = self.RelPerm(S)             # compute mobilities
@@ -253,7 +260,7 @@ class ResSim(NicePrint, Grid2D):
 
     # NewtRaph() -- listing 10
     def saturation_step_implicit(self, S, V, dt, nNewtonMax=10, nTmax_log2=10):
-        """Implicit finite-volume discretisation of conservation of mass."""
+        """Implicit FV discretisation of conserv. of mass (water sat.)."""
         A  = self.upwind_diff(V)                 # FV discretized transport operator
         pv = self.h2 * self.Gridded.por.ravel()  # Pore volume = cell.vol * por
         fi = self.Q.clip(min=0)                  # Well inflow
@@ -264,7 +271,7 @@ class ResSim(NicePrint, Grid2D):
 
             # Scale A
             dtx = dt / nT / pv                   # timestep / pore volume
-            B   = self.spdiags(dtx, 0) @ A       # A * dt/|Omega i|
+            B   = self._spdiags(dtx, 0) @ A      # A * dt/|Omega i|
 
             Sn = S
             for _ in range(nT):
@@ -272,8 +279,8 @@ class ResSim(NicePrint, Grid2D):
                 for _ in range(nNewtonMax):
                     Mw, Mo   = self.RelPerm(Sn)    # mobilities
                     dMw, dMo = self.dRelPerm(Sn)   # their derivatives
-                    df = dMw/(Mw+Mo) - Mw/(Mw+Mo)**2 * (dMw + dMo)     # df w/ds
-                    dG = sparse.eye(self.M) - B @ self.spdiags(df, 0)  # deriv of G
+                    df = dMw/(Mw+Mo) - Mw/(Mw+Mo)**2 * (dMw + dMo)      # df w/ds
+                    dG = sparse.eye(self.M) - B @ self._spdiags(df, 0)  # deriv of G
 
                     fw = Mw / (Mw+Mo)               # fract. flow
                     G  = Sn - Sp - (B@fw + fi*dtx)  # G(s)
@@ -316,12 +323,13 @@ class ResSim(NicePrint, Grid2D):
 def recurse(fun, nSteps, x0, pbar=True):
     """Recursively apply `fun` `nSteps` times.
 
-    Note: `output[0] == x0`, hence `len(output) = nSteps + 1`.
+    .. note:: `output[0] == x0`, hence `len(output) = nSteps + 1`.
 
-    BTW, "recurse" is a fancy programming term referring to a function calling itself.
-    Here we implement it simply by a for loop, passing previous output as next intput.
-    Indeed "recursive" is also an accurate description of causal (Markov) processes,
-    such as nature or its simulators, which build on themselves.
+    .. note::
+        "Recurse" is a fancy programming term referring to a function calling itself.
+        Here we implement it simply by a for loop, passing previous output as next intput.
+        Indeed "recursive" is also an accurate description of causal (Markov) processes,
+        such as nature or its simulators, which build on themselves.
     """
     # Init
     xx = np.zeros((nSteps+1,)+x0.shape)
@@ -332,7 +340,3 @@ def recurse(fun, nSteps, x0, pbar=True):
     for k in (progbar(kk, "Simulation") if pbar else kk):
         xx[k+1] = fun(xx[k])
     return xx
-
-
-if __name__ == "__main__":
-    pass
