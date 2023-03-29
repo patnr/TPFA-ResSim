@@ -239,7 +239,7 @@ def anim(_perm, wsats, prod, title="",
             for c in ax2.cc.collections:
                 try:
                     ax2.collections.remove(c)
-                except ValueError:
+                except (AttributeError, ValueError):
                     pass  # occurs when re-running script
             ax2.cc = field(ax2, wsats[iT], "oil", **kwargs)
 

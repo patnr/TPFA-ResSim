@@ -36,7 +36,7 @@ and I will add it to this list.
 
 ## Installation
 
-Prerequisites: Python `>= 3.7` with a
+Prerequisites: Python `>= 3.9` with a
 virtual environment from `conda` or `venv` or `virtualenv`, etc...
 
 #### *Either*: As dependency

@@ -8,10 +8,11 @@ readme = "README.md"
 packages = [{include = "TPFA_ResSim"}]
 
 [tool.poetry.dependencies]
-python = "~=3.7,<3.10"
-matplotlib = "~=3.2"
-scipy = "~=1.7"
-tqdm = "^4.64.1"
+# Try to keep compatible with Colab's environment, w/o needed many re-installs
+python = ">=3.9,<3.12"
+matplotlib = "~=3.7"
+scipy = "~=1.10"
+tqdm = "~=4.65"
 struct-tools = "^0.2.7"
 mpl-tools = "^0.2.57"
 
