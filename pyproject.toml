@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "TPFA-ResSim"
-version = "0.1.0"
+version = "0.1.1"
 description = """Toy petroleum reservoir simulator using TPFA."""
 authors = ["patnr <patrick.n.raanes@gmail.com>"]
 license = "MIT"

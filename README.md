@@ -25,7 +25,7 @@ Still, some changes have been made. The *main* ones are:
 - `cade3156`: Several linear solvers suggested.
 - `f33c571a`: OOP
 - `55ce7325`: Facilities for working on the grid.
-- `e0d12b06`: Convenient well arranger (ensures total sink + source = 0).
+- `e0d12b06`: Convenient well config (ensures total sink + source = 0).
 
 ## Used in
 

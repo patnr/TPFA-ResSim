@@ -69,44 +69,35 @@ class ResSim(NicePrint, Grid2D):
             swc=0.0, sor=0.0,  # Irreducible saturations
         )
 
-    def config_wells(self, inj, prod, remap=True):
-        """Set `ResSim.Q` from list of injection/production wells.
+    def config_wells(self, inj, prod):
+        """Sanitize injection/production wells and set `ResSim.Q`.
 
         It is defined by the given list of injectors (`inj`) and producers (`prod`).
-        In both lists, each entry should be a tuple: `(x/Lx, y/Ly, |rate|)`.
+        In both lists, each entry should be a tuple: `(x, y, |rate|)`.
 
         .. note::
             - The rates are scaled so as to sum to +/- 1.
               This is not stictly necessary (TODO?).
               But it is necessary that their sum be 0,
               otherwise the model will silently input deficit from SW corner.
-            - The specified well coordinates should be relative (betwen 0 and 1).
+            - The specified well coordinates should be absolute (betwen 0 and Lx or Ly).
               They get co-located with grid nodes (not distributed over nearby ones).
-
-              The well co-location does not happen if `remap` is `False`,
-              which should be used in automatic, iterative optimisation,
-              which changes well rates, but does not want to change anything else.
         """
 
-        def remap_and_collocate(ww):
-            """Scale rel -> abs coords. Place wells on nodes."""
-            # Ensure array
-            ww = np.array(ww, float)
-            # Remap
-            ww[:, 0] *= self.Lx
-            ww[:, 1] *= self.Ly
+        def sanitize(wells):
+            """Collocate on nodes. Ensure sums to 1."""
+            wells = np.array(wells, float)
             # Collocate
-            for i in range(len(ww)):
-                x, y, q = ww[i]
-                ww[i, :2] = self.ind2xy(self.xy2ind(x, y))
-            return ww
+            for i in range(len(wells)):
+                x, y, q = wells[i]
+                x, y = self.ind2xy(self.xy2ind(x, y))
+                wells[i, :2] = x, y
+            # Sum rates to 1
+            wells[:, 2] /= wells[:, 2].sum()
+            return wells
 
-        if remap:
-            inj  = remap_and_collocate(inj)
-            prod = remap_and_collocate(prod)
-
-        inj [:, 2] /= inj [:, 2].sum()  # noqa
-        prod[:, 2] /= prod[:, 2].sum()
+        inj  = sanitize(inj)
+        prod = sanitize(prod)
 
         # Insert in source FIELD
         Q = np.zeros(self.M)
