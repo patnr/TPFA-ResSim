@@ -14,12 +14,6 @@ from TPFA_ResSim.grid import Grid2D
 class ResSim(NicePrint, Grid2D):
     """Reservoir simulator class.
 
-    Implemented with OOP so as to facilitate multiple realisations, by ensuring
-    that the parameter values of one instance do not influence another instance.
-    Depending on thread-safety, this might not be necessary, but is usually cleaner
-    when estimating anything other than the model's input/output (i.e. the state
-    variables).
-
     Example:
     >>> model = ResSim(Lx=1, Ly=1, Nx=64, Ny=64)
     >>> model.config_wells(inj_xy=[[0, .32]], inj_rates=[[1]],
@@ -32,6 +26,10 @@ class ResSim(NicePrint, Grid2D):
     This produces the following values (used for automatic testing):
     >>> S[-1, [100, 1300, 2900]]
     array([0.9429345 , 0.91358172, 0.71554613])
+
+    Implemented with OOP (instead of passing around dicts) to facilitate ensemble runs
+    by ensuring that the parameter values of one instance do not influence another.
+    OOP also *seems* cleaner when estimating parameters.
     """
 
     Gridded: DotDict
