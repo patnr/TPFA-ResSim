@@ -67,7 +67,7 @@ class Grid2D:
 
     @property
     def grid(self):
-        """`(*shape, Nx, Ny)`"""
+        """`(*shape, Lx, Ly)`"""
         return self.shape + (self.Lx, self.Ly)
 
     @property
