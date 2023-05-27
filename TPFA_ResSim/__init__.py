@@ -6,7 +6,7 @@ import numpy as np
 from scipy import sparse
 from scipy.sparse.linalg import spsolve
 from struct_tools import DotDict, NicePrint
-from tqdm.auto import tqdm as progbar
+from tqdm.auto import tqdm
 
 from TPFA_ResSim.grid import Grid2D
 
@@ -310,7 +310,7 @@ class ResSim(NicePrint, Grid2D):
         return integrate
 
 
-def recurse(fun, nSteps, x0, pbar=True):
+def recurse(fun, nSteps, x0, pbar=True, leave=True):
     """Recursively apply `fun` `nSteps` times.
 
     .. note:: `output[0] == x0`, hence `len(output) = nSteps + 1`.
@@ -327,6 +327,8 @@ def recurse(fun, nSteps, x0, pbar=True):
 
     # Recurse
     kk = np.arange(nSteps)
-    for k in (progbar(kk, "Simulation") if pbar else kk):
+    if pbar:
+        kk = tqdm(kk, "Simulation", leave=leave, mininterval=1e-2)
+    for k in kk:
         xx[k+1] = fun(xx[k])
     return xx
