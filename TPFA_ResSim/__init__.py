@@ -18,7 +18,7 @@ class ResSim(NicePrint, Grid2D):
     >>> model = ResSim(Lx=1, Ly=1, Nx=64, Ny=64)
     >>> model.config_wells(inj_xy=[[0, .32]], inj_rates=[[1]],
     ...                    prod_xy=[[1, 1]], prod_rates=[[1]])
-    >>> water_sat0 = np.zeros(model.M)
+    >>> water_sat0 = np.zeros(model.Nxy)
     >>> dt = .35
     >>> nSteps = 2
     >>> S = recurse(model.time_stepper(dt), nSteps, water_sat0, pbar=False)
@@ -104,7 +104,7 @@ class ResSim(NicePrint, Grid2D):
 
     def _set_Q(self, k):
         """Define source/sink field at time `k` from wells."""
-        Q = np.zeros(self.M)
+        Q = np.zeros(self.Nxy)
         for xys, sign, rates in [(self.inj_xy, +1, self.inj_rates),
                                  (self.prod_xy, -1, self.prod_rates)]:
             if rates.shape[1] == 1:
@@ -130,7 +130,7 @@ class ResSim(NicePrint, Grid2D):
         return P, V
 
     def _spdiags(self, data, diags):
-        return sparse.spdiags(data, diags, self.M, self.M)
+        return sparse.spdiags(data, diags, self.Nxy, self.Nxy)
 
     def rescale_sat(self, s):
         """Account for irreducible saturations. Ref paper, p. 32."""
@@ -274,8 +274,8 @@ class ResSim(NicePrint, Grid2D):
                 for _ in range(nNewtonMax):
                     Mw, Mo   = self.RelPerm(Sn)    # mobilities
                     dMw, dMo = self.dRelPerm(Sn)   # their derivatives
-                    df = dMw/(Mw+Mo) - Mw/(Mw+Mo)**2 * (dMw + dMo)      # df w/ds
-                    dG = sparse.eye(self.M) - B @ self._spdiags(df, 0)  # deriv of G
+                    df = dMw/(Mw+Mo) - Mw/(Mw+Mo)**2 * (dMw + dMo)        # df w/ds
+                    dG = sparse.eye(self.Nxy) - B @ self._spdiags(df, 0)  # deriv of G
 
                     fw = Mw / (Mw+Mo)               # fract. flow
                     G  = Sn - Sp - (B@fw + fi*dtx)  # G(s)

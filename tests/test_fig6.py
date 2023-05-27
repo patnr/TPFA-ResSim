@@ -28,7 +28,7 @@ model = ResSim(Lx=1, Ly=1, Nx=64, Ny=64)
 # model.Fluid.swc = .2
 # model.Fluid.sor = .2
 
-water_sat0 = model.Fluid.swc * np.ones(model.M)
+water_sat0 = model.Fluid.swc * np.ones(model.Nxy)
 nSteps = 28
 dt = 0.7/nSteps
 

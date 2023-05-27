@@ -71,7 +71,7 @@ class Grid2D:
         return self.shape + (self.Lx, self.Ly)
 
     @property
-    def M(self):
+    def Nxy(self):
         """`Nx` * `Ny`"""
         return np.prod(self.shape)
 
