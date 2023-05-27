@@ -23,9 +23,10 @@ fig, axs = freshfig("Fig. 1", ncols=3, nrows=2, gridspec_kw={'height_ratios': (9
 
 ## Panel 0
 model = ResSim(Lx=1, Ly=1, Nx=8, Ny=8)
-model.config_wells(inj =[[0, 0, 1]],
-                   prod=[[1, 1, -1]])
+model.config_wells(inj_xy=[[0, 0]], inj_rates=[[1]],
+                   prod_xy=[[1, 1]], prod_rates=[[1]])
 
+model._set_Q(None)
 [P, V] = model.TPFA(model.Gridded.K)
 
 ax = axs[0, 0]
@@ -39,8 +40,8 @@ cb.ax.tick_params(labelsize=8)
 model = ResSim(Lx=1, Ly=1, Nx=32, Ny=32)
 logK = 5*smooth(smooth(rnd.randn(2, *model.shape)))
 model.Gridded.K = np.exp(logK)
-model.config_wells(inj =[[0, 0, 1]],
-                   prod=[[1, 1, -1]])
+model.config_wells(inj_xy=[[0, 0]], inj_rates=[[1]],
+                   prod_xy=[[1, 1]], prod_rates=[[1]])
 
 ax = axs[0, 1]
 ax.set(title="Porosity", aspect="equal")
@@ -48,6 +49,7 @@ ax.set(title="Porosity", aspect="equal")
 cc = ax.pcolormesh(logK.T[..., 0], edgecolors='k', linewidth=.01, cmap="jet")
 fig.colorbar(cc, axs[1, 1], orientation="horizontal")
 
+model._set_Q(None)
 [P, V] = model.TPFA(model.Gridded.K)
 
 ax = axs[0, 2]

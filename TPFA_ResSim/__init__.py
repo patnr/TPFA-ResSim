@@ -22,18 +22,18 @@ class ResSim(NicePrint, Grid2D):
 
     Example:
     >>> model = ResSim(Lx=1, Ly=1, Nx=64, Ny=64)
-    >>> model.config_wells(inj =[[0, .32, 1]],
-    ...                    prod=[[1, 1, -1]])
+    >>> model.config_wells(inj_xy=[[0, .32]], inj_rates=[[1]],
+    ...                    prod_xy=[[1, 1]], prod_rates=[[1]])
     >>> water_sat0 = np.zeros(model.M)
     >>> dt = .35
     >>> nSteps = 2
     >>> S = recurse(model.time_stepper(dt), nSteps, water_sat0, pbar=False)
 
     This produces the following values (used for automatic testing):
-    >>> location_inds = [100, 1300, 2900]
-    >>> S[-1, location_inds]
+    >>> S[-1, [100, 1300, 2900]]
     array([0.9429345 , 0.91358172, 0.71554613])
     """
+
     Gridded: DotDict
     """Holds the parameter fields
     - `K`: permeability; shape `(2, Nx, Ny)`)
@@ -69,48 +69,55 @@ class ResSim(NicePrint, Grid2D):
             swc=0.0, sor=0.0,  # Irreducible saturations
         )
 
-    def config_wells(self, inj, prod):
-        """Sanitize injection/production wells and set `ResSim.Q`.
+    def config_wells(self, inj_xy, inj_rates, prod_xy, prod_rates):
+        """Specify injection and production wells (which get used by dynamics via `ResSim.Q`).
 
-        It is defined by the given list of injectors (`inj`) and producers (`prod`).
-        In both lists, each entry should be a tuple: `(x, y, |rate|)`.
-
-        .. note::
-            - The rates are scaled so as to sum to +/- 1.
-              This is not stictly necessary (TODO?).
-              But it is necessary that their sum be 0,
-              otherwise the model will silently input deficit from SW corner.
-            - The specified well coordinates should be absolute (betwen 0 and Lx or Ly).
-              They get co-located with grid nodes (not distributed over nearby ones).
+        - `inj_xy`: array of shape `(n, 2)` of x- and y-coords for `n` injector wells.
+          Values should be betwen `0` and `Lx` or `Ly`.
+          The wells get co-located with grid nodes, not distributed over nearby ones
+          (our choice, not a mathematical necessity).
+        - `inj_rates`: array of shape `(n, nTime)` of water injection rates.
+          For constant-in-time rates, use shape `(n, 1)` (i.e. still `ndim==2`).
+        - Idem. for `prod_xy` and `prod_rates`.
+        - Both `inj_rates` and `prod_rates` are rates should be positive.
+          At each time index, the rates get summed to 0
+          (otherwise the model will silently input deficit from SW corner).
         """
 
-        def sanitize(wells):
-            """Collocate on nodes. Ensure sums to 1."""
+        # Locations
+        def collocate_with_node(wells):
             wells = np.array(wells, float)
-            # Collocate
-            for i in range(len(wells)):
-                x, y, q = wells[i]
-                x, y = self.ind2xy(self.xy2ind(x, y))
-                wells[i, :2] = x, y
-            # Sum rates to 1
-            wells[:, 2] /= wells[:, 2].sum()
+            assert wells.ndim == 2
+            for i, (x, y) in enumerate(wells):
+                wells[i] = self.ind2xy(self.xy2ind(x, y))
             return wells
+        self.inj_xy = collocate_with_node(inj_xy)
+        self.prod_xy = collocate_with_node(prod_xy)
 
-        inj  = sanitize(inj)
-        prod = sanitize(prod)
+        # Rates
+        inj_rates  = np.abs(np.array(inj_rates, float))
+        prod_rates = np.abs(np.array(prod_rates, float))
+        assert inj_rates.ndim  == 2
+        assert prod_rates.ndim == 2
+        diff = inj_rates.sum(0) - prod_rates.sum(0)
+        assert np.allclose(diff, 0)
+        self.inj_rates  = inj_rates
+        self.prod_rates = prod_rates
 
-        # Insert in source FIELD
+    def _set_Q(self, k):
+        """Define source/sink field at time `k` from wells."""
         Q = np.zeros(self.M)
-        for x, y, q in inj:
-            Q[self.xy2ind(x, y)] += q
-        for x, y, q in prod:
-            Q[self.xy2ind(x, y)] -= q
+        for xys, sign, rates in [(self.inj_xy, +1, self.inj_rates),
+                                 (self.prod_xy, -1, self.prod_rates)]:
+            if rates.shape[1] == 1:
+                rates = rates[:, 0]
+            else:
+                rates = rates[:, k]
+            for xy, q in zip(xys, rates):
+                # Use += in case of superimposed wells (e.g. by optimzt)
+                Q[self.xy2ind(*xy)] += sign * q
         assert np.isclose(Q.sum(), 0)
-
         self.Q = Q
-        # Not used by model, but kept for reference:
-        self.injectors = inj
-        self.producers = prod
 
     # Pres() -- listing 5
     def pressure_step(self, S):
@@ -300,7 +307,8 @@ class ResSim(NicePrint, Grid2D):
         - `explicit`: computes sub-`dt` based on CFL esitmate.
         - `implicit`: reduces sub-`dt` until convergence is achieved.
         """
-        def integrate(S):
+        def integrate(S, k):
+            self._set_Q(k)
             [P, V] = self.pressure_step(S)
             if implicit:
                 S = self.saturation_step_implicit(S, V, dt)
@@ -330,5 +338,5 @@ def recurse(fun, nSteps, x0, pbar=True, leave=True):
     if pbar:
         kk = tqdm(kk, "Simulation", leave=leave, mininterval=1e-2)
     for k in kk:
-        xx[k+1] = fun(xx[k])
+        xx[k+1] = fun(xx[k], k)
     return xx

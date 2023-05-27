@@ -116,12 +116,12 @@ def field(ax, Z, style="default", wells=False,
     # Add well markers
     if wells:
         if wells == "color":
-            wells = {"color": [f"C{i}" for i in range(len(model.producers))]}
+            wells = {"color": [f"C{i}" for i in range(len(model.prod_xy))]}
         elif wells in [True, 1]:
             wells = {}
-        well_scatter(ax, model.producers, False, **wells)
+        well_scatter(ax, model.prod_xy, False, **wells)
         wells.pop("color", None)
-        well_scatter(ax, model.injectors, True, **wells)
+        well_scatter(ax, model.inj_xy, True, **wells)
 
     # Add argmax marker
     if argmax:
@@ -143,7 +143,7 @@ def field(ax, Z, style="default", wells=False,
 def well_scatter(ax, ww, inj=True, text=None, color=None, size=1):
     """Scatter-plot the wells of `ww` onto a `field`."""
     # Well coordinates, stretched for plotting (ref plotting.fields)
-    ww = model.sub2xy_stretched(*model.xy2sub(*ww.T[:2])).T
+    ww = model.sub2xy_stretched(*model.xy2sub(*ww.T)).T
     # NB: make sure ww array data is not overwritten (avoid in-place)
     if   "rel" in coord_type: s = 1/model.Lx, 1/model.Ly                   # noqa
     elif "abs" in coord_type: s = 1, 1                                     # noqa
@@ -167,17 +167,17 @@ def well_scatter(ax, ww, inj=True, text=None, color=None, size=1):
         c = color
 
     # Markers
-    # sh = ax.plot(*ww.T[:2], m+c, ms=16, mec="k", clip_on=False)
-    sh = ax.scatter(*ww.T[:2], s=(size * 26)**2, c=c, marker=m, ec=ec,
+    # sh = ax.plot(*ww.T, m+c, ms=16, mec="k", clip_on=False)
+    sh = ax.scatter(*ww.T, s=(size * 26)**2, c=c, marker=m, ec=ec,
                     clip_on=False,
                     zorder=1.5,  # required on Jupypter
                     )
 
     # Text labels
     if text is not False:
-        if not inj:
-            ww.T[1] -= 0.01
         for i, w in enumerate(ww):
+            if not inj:
+                w[1] -= 0.01
             ax.text(*w[:2], i if text is None else text,
                     color=d, fontsize=size*12, ha="center", va="center")
 
