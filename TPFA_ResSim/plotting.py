@@ -52,21 +52,19 @@ styles = dict(
 """Default `field` plot styling values."""
 
 
-def field(ax, Z, style="default", wells=False, argmax=False, colorbar=False, **kwargs):
+def field(ax, Z, style="default", wells=False,
+          argmax=False, colorbar=False, labels=True, **kwargs):
     """Contour-plot of the (flat) unravelled field `Z`.
 
     Conveniently applies default `styles`, which may be overriden by `kwargs`.
     """
     # Get style parms, with "default" fallback.
     style = {**styles["default"], **styles[style]}
-    # Pop styles from kwargs
+    # Pop styles from kwargs. Remainder of kwargs goes to countourf
+    ax.set(**axprops(kwargs))
     for key in style:
         if key in kwargs:
             style[key] = kwargs.pop(key)
-    # Pop axis styles from kwargs
-    ax.set(**axprops(kwargs))
-    # Pop
-    labels = kwargs.pop("labels", True)
 
     # Plotting with extent=(0, Lx, 0, Ly), rather than merely changing ticks
     # has the advantage that set_aspect("equal") yields correct axes size,
@@ -118,11 +116,12 @@ def field(ax, Z, style="default", wells=False, argmax=False, colorbar=False, **k
     # Add well markers
     if wells:
         if wells == "color":
-            c = [f"C{i}" for i in range(len(model.producers))]
-        else:
-            c = None
-        well_scatter(ax, model.injectors)
-        well_scatter(ax, model.producers, False, color=c)
+            wells = {"color": [f"C{i}" for i in range(len(model.producers))]}
+        elif wells in [True, 1]:
+            wells = {}
+        well_scatter(ax, model.producers, False, **wells)
+        wells.pop("color", None)
+        well_scatter(ax, model.injectors, True, **wells)
 
     # Add argmax marker
     if argmax:
@@ -141,7 +140,7 @@ def field(ax, Z, style="default", wells=False, argmax=False, colorbar=False, **k
     return collections
 
 
-def well_scatter(ax, ww, inj=True, text=None, color=None):
+def well_scatter(ax, ww, inj=True, text=None, color=None, size=1):
     """Scatter-plot the wells of `ww` onto a `field`."""
     # Well coordinates, stretched for plotting (ref plotting.fields)
     ww = model.sub2xy_stretched(*model.xy2sub(*ww.T[:2])).T
@@ -169,7 +168,7 @@ def well_scatter(ax, ww, inj=True, text=None, color=None):
 
     # Markers
     # sh = ax.plot(*ww.T[:2], m+c, ms=16, mec="k", clip_on=False)
-    sh = ax.scatter(*ww.T[:2], s=26**2, c=c, marker=m, ec=ec,
+    sh = ax.scatter(*ww.T[:2], s=(size * 26)**2, c=c, marker=m, ec=ec,
                     clip_on=False,
                     zorder=1.5,  # required on Jupypter
                     )
@@ -180,7 +179,7 @@ def well_scatter(ax, ww, inj=True, text=None, color=None):
             ww.T[1] -= 0.01
         for i, w in enumerate(ww):
             ax.text(*w[:2], i if text is None else text,
-                    color=d, fontsize="large", ha="center", va="center")
+                    color=d, fontsize=size*12, ha="center", va="center")
 
     return sh
 
