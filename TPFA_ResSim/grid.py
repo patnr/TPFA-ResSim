@@ -66,9 +66,9 @@ class Grid2D:
         return self.Nx, self.Ny
 
     @property
-    def grid(self):
-        """`(*shape, Lx, Ly)`"""
-        return self.shape + (self.Lx, self.Ly)
+    def domain(self):
+        """`(0, 0, Lx, Ly)`"""
+        return ((0, 0), (self.Lx, self.Ly))
 
     @property
     def Nxy(self):
