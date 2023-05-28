@@ -126,8 +126,10 @@ def field(ax, Z, style="default", wells=False,
     # Add argmax marker
     if argmax:
         idx = Z.T.argmax()  # reverse above transpose
-        ax.plot(*model.ind2xy_stretched(idx), "y*", ms=15, label="max", zorder=98)
-        ax.plot(*model.ind2xy_stretched(idx), "k*", ms=4 , label="max", zorder=99)  # noqa
+        xy = model.ind2xy_stretched(idx)
+        for c, ms in zip(['b', 'r', 'y'],
+                         [10, 6, 3]):
+            ax.plot(*xy, "o", c=c, ms=ms, label="max", zorder=98)
 
     # Add colorbar
     if colorbar:
