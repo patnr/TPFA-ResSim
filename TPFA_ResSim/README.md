@@ -135,11 +135,12 @@ since the pressure equation itself does not contain a time derivative
 (with $s$ fixed, equation (1) is a nearly-elliptic
 boundary value problem for the pressure, $p$).
 
-The spatial discretization is carried out by finite volumes (FV).
-For the pressure equation, it is known as two-point flux approximation (TPFA),
-using only two points two approximate the transmissibility and fluxes at the
-interfaces; simple, but used widely (nearly default) in oil industry, due to
-its robustness and efficiency.
+The spatial discretization is carried out by finite volumes (FV),
+which is similar to finite differences (FD),
+but arguably easier to formulate for non-structured (irregular) grids.
+For the pressure equation, using only two points two approximate the transmissibility
+and fluxes at the interfaces is called it is called two-point flux approximation (TPFA);
+simple, but used widely (nearly default) in oil industry, due to its robustness and efficiency.
 Consider the equation
 $$- \nabla \cdot \lambda \nabla u = q \,, \tag{8}$$
 where replacing $\lambda \leftarrow \mathbf{K} \lambda(s)$ reproduces eqn. (1),
