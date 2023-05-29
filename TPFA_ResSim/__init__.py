@@ -107,10 +107,13 @@ class ResSim(NicePrint, Grid2D):
         Q = np.zeros(self.Nxy)
         for xys, sign, rates in [(self.inj_xy, +1, self.inj_rates),
                                  (self.prod_xy, -1, self.prod_rates)]:
+
             if rates.shape[1] == 1:
                 rates = rates[:, 0]
             else:
                 rates = rates[:, k]
+            assert len(rates) == len(xys)
+
             for xy, q in zip(xys, rates):
                 # Use += in case of superimposed wells (e.g. by optimzt)
                 Q[self.xy2ind(*xy)] += sign * q
