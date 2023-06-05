@@ -109,10 +109,14 @@ class Grid2D:
 
     def xy2sub(self, x, y):
         """Convert physical coordinate tuple to `(ix, iy)`, ix ∈ {0, ..., Nx-1}."""
-        # Clip to allow for case x==Lx (arguably, Lx [but not 0!] is out-of-domain).
-        # Warning: don't simply subtract 1e-8; causes issue if x==0.
-        x = np.asarray(x).clip(max=self.Lx-1e-8)
-        y = np.asarray(y).clip(max=self.Ly-1e-8)
+        x = np.asarray(x)
+        y = np.asarray(y)
+        # Don't silence errors! Validation is useful in optimisation (e.g.)
+        assert np.all(x <= self.Lx)
+        assert np.all(y <= self.Ly)
+        # Set upper border values to slightly interior
+        x = x.clip(max=self.Lx-1e-8)
+        y = y.clip(max=self.Ly-1e-8)
         ix = np.floor(x / self.Lx * self.Nx).astype(int)
         iy = np.floor(y / self.Ly * self.Ny).astype(int)
         return np.asarray([ix, iy])
