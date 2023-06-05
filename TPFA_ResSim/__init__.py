@@ -95,10 +95,10 @@ class ResSim(NicePrint, Grid2D):
         # Rates
         inj_rates  = np.abs(np.array(inj_rates, float))
         prod_rates = np.abs(np.array(prod_rates, float))
-        assert inj_rates.ndim  == 2
-        assert prod_rates.ndim == 2
+        assert inj_rates.ndim  == 2, "Bad injection specification"
+        assert prod_rates.ndim == 2, "Bad production specification"
         diff = inj_rates.sum(0) - prod_rates.sum(0)
-        assert np.allclose(diff, 0)
+        assert np.allclose(diff, 0), "Inj - Prod does not sum to 0"
         self.inj_rates  = inj_rates
         self.prod_rates = prod_rates
 
@@ -112,7 +112,7 @@ class ResSim(NicePrint, Grid2D):
                 rates = rates[:, 0]
             else:
                 rates = rates[:, k]
-            assert len(rates) == len(xys)
+            assert len(rates) == len(xys), "Mismatch in rate specification"
 
             for xy, q in zip(xys, rates):
                 # Use += in case of superimposed wells (e.g. by optimzt)
