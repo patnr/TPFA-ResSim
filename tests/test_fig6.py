@@ -116,8 +116,5 @@ if __name__ == "__main__":
 
 
     ## Animation
-    from TPFA_ResSim import plotting
-    plotting.model = model
-    plotting.coord_type = "absolute"
     prod = [model.xy2ind(*xy) for xy in model.prod_xy]
-    animation = plotting.anim(None, SS, SS[1:, prod])
+    animation = model.anim(None, SS, SS[1:, prod])

@@ -9,9 +9,10 @@ from struct_tools import DotDict, NicePrint
 from tqdm.auto import tqdm
 
 from TPFA_ResSim.grid import Grid2D
+from TPFA_ResSim.plotting import Plot2D
 
 
-class ResSim(NicePrint, Grid2D):
+class ResSim(NicePrint, Grid2D, Plot2D):
     """Reservoir simulator class.
 
     Example:

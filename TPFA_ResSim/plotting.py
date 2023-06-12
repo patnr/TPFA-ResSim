@@ -5,16 +5,8 @@ import numpy as np
 from mpl_tools import place, place_ax
 from mpl_tools.misc import axprops
 
-model = None
-"""The "self".
-
-Why not explicit OOP?
-- unnecessary indent
-- not every realisation of the model needs a copy of this
-"""
-
 coord_type = "relative"
-"""Define scaling of `field` axes.
+"""Define scaling of `Plot2D.plt_field` axes.
 - "relative": `(0, 1)  x (0, 1)`
 - "absolute": `(0, Lx) x (0, Ly)`
 - "index"   : `(0, Ny) x (0, Ny)`
@@ -49,214 +41,216 @@ styles = dict(
         cticks = np.linspace(0, 1, 6),
     ),
 )
-"""Default `field` plot styling values."""
+"""Default `Plot2D.plt_field` plot styling values."""
 
 
-def field(ax, Z, style="default", wells=False,
-          argmax=False, colorbar=False, labels=True, **kwargs):
-    """Contour-plot of the (flat) unravelled field `Z`.
+class Plot2D:
+    """Plots specialized for 2D fields."""
 
-    Conveniently applies default `styles`, which may be overriden by `kwargs`.
-    """
-    # Get style parms, with "default" fallback.
-    style = {**styles["default"], **styles[style]}
-    # Pop styles from kwargs. Remainder of kwargs goes to countourf
-    ax.set(**axprops(kwargs))
-    for key in style:
-        if key in kwargs:
-            style[key] = kwargs.pop(key)
+    def plt_field(self, ax, Z, style="default", wells=False,
+                  argmax=False, colorbar=False, labels=True, **kwargs):
+        """Contour-plot of the (flat) unravelled field `Z`.
 
-    # Plotting with extent=(0, Lx, 0, Ly), rather than merely changing ticks
-    # has the advantage that set_aspect("equal") yields correct axes size,
-    # and that mouse hovering (with interactive backends) reports correct pos.
-    # Disadvantage: well_scatter must also account for coord_type.
-    if "rel" in coord_type:
-        Lx, Ly = 1, 1
-    elif "abs" in coord_type:
-        Lx, Ly = model.Lx, model.Ly
-    elif "ind" in coord_type:
-        Lx, Ly = model.Nx, model.Ny
-    else:
-        raise ValueError(f"Unsupported coord_type: {coord_type}")
+        Conveniently applies default `styles`, which may be overriden by `kwargs`.
+        """
+        # Get style parms, with "default" fallback.
+        style = {**styles["default"], **styles[style]}
+        # Pop styles from kwargs. Remainder of kwargs goes to countourf
+        ax.set(**axprops(kwargs))
+        for key in style:
+            if key in kwargs:
+                style[key] = kwargs.pop(key)
 
-    # Need to transpose coz model assumes shape (Nx, Ny),
-    # and contour() uses the same orientation as array printing.
-    Z = style["transf"](Z)
-    Z = Z.reshape(model.shape).T
-
-    # Did we bother to specify set_over/set_under/set_bad ?
-    has_out_of_range = getattr(style["cmap"], "_rgba_over", None) is not None
-
-    # ax.imshow(Z[::-1])
-    collections = ax.contourf(
-        Z, style["levels"], cmap=style["cmap"], **kwargs,
-        extend="both" if has_out_of_range else "neither",
-        origin=None, extent=(0, Lx, 0, Ly),
-        # NB: this artificially stretches the field
-        # (the values are placed at edges rather than gridcell centres).
-        )
-
-    # Contourf does not plot (at all) the bad regions. "Fake it" by facecolor
-    if has_out_of_range:
-        ax.set_facecolor(getattr(style["cmap"], "_rgba_bad", "w"))
-
-    # Axis lims
-    ax.set_xlim((0, Lx))
-    ax.set_ylim((0, Ly))
-    ax.set_aspect("equal")
-    # Axis labels
-    if labels:
-        if "abs" in coord_type:
-            ax.set_xlabel("x")
-            ax.set_ylabel("y")
+        # Plotting with extent=(0, Lx, 0, Ly), rather than merely changing ticks
+        # has the advantage that set_aspect("equal") yields correct axes size,
+        # and that mouse hovering (with interactive backends) reports correct pos.
+        # Disadvantage: well_scatter must also account for coord_type.
+        if "rel" in coord_type:
+            Lx, Ly = 1, 1
+        elif "abs" in coord_type:
+            Lx, Ly = self.Lx, self.Ly
+        elif "ind" in coord_type:
+            Lx, Ly = self.Nx, self.Ny
         else:
-            ax.set_xlabel(f"x ({coord_type})")
-            ax.set_ylabel(f"y ({coord_type})")
+            raise ValueError(f"Unsupported coord_type: {coord_type}")
 
-    # Add well markers
-    if wells:
-        if wells == "color":
-            wells = {"color": [f"C{i}" for i in range(len(model.prod_xy))]}
-        elif wells in [True, 1]:
-            wells = {}
-        well_scatter(ax, model.prod_xy, False, **wells)
-        wells.pop("color", None)
-        well_scatter(ax, model.inj_xy, True, **wells)
+        # Need to transpose coz self assumes shape (Nx, Ny),
+        # and contour() uses the same orientation as array printing.
+        Z = style["transf"](Z)
+        Z = Z.reshape(self.shape).T
 
-    # Add argmax marker
-    if argmax:
-        idx = Z.T.argmax()  # reverse above transpose
-        xy = model.ind2xy_stretched(idx)
-        for c, ms in zip(['b', 'r', 'y'],
-                         [10, 6, 3]):
-            ax.plot(*xy, "o", c=c, ms=ms, label="max", zorder=98)
+        # Did we bother to specify set_over/set_under/set_bad ?
+        has_out_of_range = getattr(style["cmap"], "_rgba_over", None) is not None
 
-    # Add colorbar
-    if colorbar:
-        if isinstance(colorbar, type(ax)):
-            cax = dict(cax=colorbar)
+        # ax.imshow(Z[::-1])
+        collections = ax.contourf(
+            Z, style["levels"], cmap=style["cmap"], **kwargs,
+            extend="both" if has_out_of_range else "neither",
+            origin=None, extent=(0, Lx, 0, Ly),
+            # NB: this artificially stretches the field
+            # (the values are placed at edges rather than gridcell centres).
+            )
+
+        # Contourf does not plot (at all) the bad regions. "Fake it" by facecolor
+        if has_out_of_range:
+            ax.set_facecolor(getattr(style["cmap"], "_rgba_bad", "w"))
+
+        # Axis lims
+        ax.set_xlim((0, Lx))
+        ax.set_ylim((0, Ly))
+        ax.set_aspect("equal")
+        # Axis labels
+        if labels:
+            if "abs" in coord_type:
+                ax.set_xlabel("x")
+                ax.set_ylabel("y")
+            else:
+                ax.set_xlabel(f"x ({coord_type})")
+                ax.set_ylabel(f"y ({coord_type})")
+
+        # Add well markers
+        if wells:
+            if wells == "color":
+                wells = {"color": [f"C{i}" for i in range(len(self.prod_xy))]}
+            elif wells in [True, 1]:
+                wells = {}
+            self.well_scatter(ax, self.prod_xy, False, **wells)
+            wells.pop("color", None)
+            self.well_scatter(ax, self.inj_xy, True, **wells)
+
+        # Add argmax marker
+        if argmax:
+            idx = Z.T.argmax()  # reverse above transpose
+            xy = self.ind2xy_stretched(idx)
+            for c, ms in zip(['b', 'r', 'y'],
+                             [10, 6, 3]):
+                ax.plot(*xy, "o", c=c, ms=ms, label="max", zorder=98)
+
+        # Add colorbar
+        if colorbar:
+            if isinstance(colorbar, type(ax)):
+                cax = dict(cax=colorbar)
+            else:
+                cax = dict(ax=ax, shrink=.8)
+            ax.figure.colorbar(collections, **cax, ticks=style["cticks"])
+
+        return collections
+
+
+    def well_scatter(self, ax, ww, inj=True, text=None, color=None, size=1):
+        """Scatter-plot the wells of `ww` onto a `Plot2D.plt_field`."""
+        # Well coordinates, stretched for plotting (ref plotting.plt_fields)
+        ww = self.sub2xy_stretched(*self.xy2sub(*ww.T)).T
+        # NB: make sure ww array data is not overwritten (avoid in-place)
+        if   "rel" in coord_type: s = 1/self.Lx, 1/self.Ly                     # noqa
+        elif "abs" in coord_type: s = 1, 1                                     # noqa
+        elif "ind" in coord_type: s = self.Nx/self.Lx, self.Ny/self.Ly         # noqa
+        else: raise ValueError("Unsupported coordinate type: %s" % coord_type) # noqa
+        ww = ww * s
+
+        # Style
+        if inj:
+            c  = "w"
+            ec = "gray"
+            d  = "k"
+            m  = "v"
         else:
-            cax = dict(ax=ax, shrink=.8)
-        ax.figure.colorbar(collections, **cax, ticks=style["cticks"])
+            c  = "k"
+            ec = "gray"
+            d  = "w"
+            m  = "^"
 
-    return collections
+        if color:
+            c = color
 
+        # Markers
+        sh = ax.plot(*ww.T, 'r.', ms=3, clip_on=False)
+        sh = ax.scatter(*ww.T, s=(size * 26)**2, c=c, marker=m, ec=ec,
+                        clip_on=False,
+                        zorder=1.5,  # required on Jupypter
+                        )
 
-def well_scatter(ax, ww, inj=True, text=None, color=None, size=1):
-    """Scatter-plot the wells of `ww` onto a `field`."""
-    # Well coordinates, stretched for plotting (ref plotting.fields)
-    ww = model.sub2xy_stretched(*model.xy2sub(*ww.T)).T
-    # NB: make sure ww array data is not overwritten (avoid in-place)
-    if   "rel" in coord_type: s = 1/model.Lx, 1/model.Ly                   # noqa
-    elif "abs" in coord_type: s = 1, 1                                     # noqa
-    elif "ind" in coord_type: s = model.Nx/model.Lx, model.Ny/model.Ly     # noqa
-    else: raise ValueError("Unsupported coordinate type: %s" % coord_type) # noqa
-    ww = ww * s
+        # Text labels
+        if text is not False:
+            for i, w in enumerate(ww):
+                if not inj:
+                    w[1] -= 0.01
+                ax.text(*w[:2], i if text is None else text,
+                        color=d, fontsize=size*12, ha="center", va="center")
 
-    # Style
-    if inj:
-        c  = "w"
-        ec = "gray"
-        d  = "k"
-        m  = "v"
-    else:
-        c  = "k"
-        ec = "gray"
-        d  = "w"
-        m  = "^"
+        return sh
 
-    if color:
-        c = color
+    def plt_production(self, ax, production, obs=None, legend_outside=True):
+        """Production time series. Multiple wells in 1 axes => not ensemble compat."""
+        hh = []
+        tt = 1+np.arange(len(production))
+        for i, p in enumerate(1-production.T):
+            hh += ax.plot(tt, p, "-", label=i)
 
-    # Markers
-    # sh = ax.plot(*ww.T, m+c, ms=16, mec="k", clip_on=False)
-    sh = ax.scatter(*ww.T, s=(size * 26)**2, c=c, marker=m, ec=ec,
-                    clip_on=False,
-                    zorder=1.5,  # required on Jupypter
-                    )
+        if obs is not None:
+            for i, y in enumerate(1-obs.T):
+                ax.plot(tt, y, "*", c=hh[i].get_color())
 
-    # Text labels
-    if text is not False:
-        for i, w in enumerate(ww):
-            if not inj:
-                w[1] -= 0.01
-            ax.text(*w[:2], i if text is None else text,
-                    color=d, fontsize=size*12, ha="center", va="center")
+        # Add legend
+        place_ax.adjust_position(ax, w=-0.05)
+        if legend_outside:
+            kws = dict(
+                  bbox_to_anchor=(1, 1),
+                  loc="upper left",
+                  ncol=1+len(production.T)//10,
+            )
+        else:
+            kws = dict(loc="lower left")
+        ax.legend(title="Well #.", **kws)
 
-    return sh
+        ax.set_ylabel("Production (saturations)")
+        ax.set_xlabel("Time index")
+        # ax.set_ylim(-0.01, 1.01)
+        ax.axhline(0, c="xkcd:light grey", ls="--", zorder=1.8)
+        ax.axhline(1, c="xkcd:light grey", ls="--", zorder=1.8)
+        return hh
 
+    # Note: See note in mpl_setup.py about properly displaying the animation.
+    def anim(self, _perm, wsats, prod, title="",
+             figsize=(2.0, .7), pause=200, animate=True, **kwargs):
+        """Animate the saturation and production time series."""
 
-def production(ax, production, obs=None, legend_outside=True):
-    """Production time series. Multiple wells in 1 axes => not ensemble compat."""
-    hh = []
-    tt = 1+np.arange(len(production))
-    for i, p in enumerate(1-production.T):
-        hh += ax.plot(tt, p, "-", label=i)
+        # Create figure and axes
+        title = "Animation" + ("-- " + title if title else "")
+        fig, (ax1, ax2) = place.freshfig(title, ncols=2, figsize=figsize, rel=True)
+        fig.suptitle(title)  # coz animation never (any backend) displays title
+        # Saturations
+        ax2.cc = self.plt_field(ax2, wsats[-1], "oil", wells="color",
+                                colorbar=True, **kwargs)
+        # Production
+        hh = self.plt_production(ax1, prod, legend_outside=False)
 
-    if obs is not None:
-        for i, y in enumerate(1-obs.T):
-            ax.plot(tt, y, "*", c=hh[i].get_color())
+        if animate:
+            from matplotlib import animation
+            tt = np.arange(len(wsats))
 
-    # Add legend
-    place_ax.adjust_position(ax, w=-0.05)
-    if legend_outside:
-        kws = dict(
-              bbox_to_anchor=(1, 1),
-              loc="upper left",
-              ncol=1+len(production.T)//10,
-        )
-    else:
-        kws = dict(loc="lower left")
-    ax.legend(title="Well #.", **kws)
+            def update_fig(iT):
+                # Update field
+                for c in ax2.cc.collections:
+                    try:
+                        ax2.collections.remove(c)
+                    except (AttributeError, ValueError):
+                        pass  # occurs when re-running script
+                ax2.cc = self.plt_field(ax2, wsats[iT], "oil", **kwargs)
 
-    ax.set_ylabel("Production (saturations)")
-    ax.set_xlabel("Time index")
-    # ax.set_ylim(-0.01, 1.01)
-    ax.axhline(0, c="xkcd:light grey", ls="--", zorder=1.8)
-    ax.axhline(1, c="xkcd:light grey", ls="--", zorder=1.8)
-    return hh
+                # Update production lines
+                if iT >= 1:
+                    for h, p in zip(hh, prod.T):
+                        h.set_data(tt[1:1+iT], 1 - p[:iT])
 
+            ani = animation.FuncAnimation(
+                fig, update_fig, len(tt), blit=False, interval=pause,
+                # Prevent busy/idle indicator constantly flashing, despite %%capture
+                # and even manually clearing the output of the calling cell.
+                repeat=False,  # flashing stops once the (unshown) animation finishes.
+                # An alternative solution is to do this in the next cell:
+                # animation.event_source.stop()
+                # but it does not work if using "run all", even with time.sleep(1).
+            )
 
-# Note: See note in mpl_setup.py about properly displaying the animation.
-def anim(_perm, wsats, prod, title="",
-         figsize=(2.0, .7), pause=200, animate=True, **kwargs):
-    """Animate the saturation and production time series."""
-
-    # Create figure and axes
-    title = "Animation" + ("-- " + title if title else "")
-    fig, (ax1, ax2) = place.freshfig(title, ncols=2, figsize=figsize, rel=True)
-    fig.suptitle(title)  # coz animation never (any backend) displays title
-    # Saturations
-    ax2.cc = field(ax2, wsats[-1], "oil", wells="color", colorbar=True, **kwargs)
-    # Production
-    hh = production(ax1, prod, legend_outside=False)
-
-    if animate:
-        from matplotlib import animation
-        tt = np.arange(len(wsats))
-
-        def update_fig(iT):
-            # Update field
-            for c in ax2.cc.collections:
-                try:
-                    ax2.collections.remove(c)
-                except (AttributeError, ValueError):
-                    pass  # occurs when re-running script
-            ax2.cc = field(ax2, wsats[iT], "oil", **kwargs)
-
-            # Update production lines
-            if iT >= 1:
-                for h, p in zip(hh, prod.T):
-                    h.set_data(tt[1:1+iT], 1 - p[:iT])
-
-        ani = animation.FuncAnimation(
-            fig, update_fig, len(tt), blit=False, interval=pause,
-            # Prevent busy/idle indicator constantly flashing, despite %%capture
-            # and even manually clearing the output of the calling cell.
-            repeat=False,  # flashing stops once the (unshown) animation finishes.
-            # An alternative solution is to do this in the next cell:
-            # animation.event_source.stop()
-            # but it does not work if using "run all", even with time.sleep(1).
-        )
-
-        return ani
+            return ani
