@@ -245,6 +245,7 @@ class ResSim(NicePrint, Grid2D):
         # Compute sub/local dt
         cfl = self.estimate_CFL(pv, V, fi)
         nT = int(np.ceil(dt / cfl))
+        nT = max(1, nT)
 
         # Scale A
         dtx = dt / nT / pv                       # timestep / pore volume
