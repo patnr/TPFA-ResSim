@@ -5,7 +5,7 @@ import numpy as np
 from mpl_tools import place, place_ax
 from mpl_tools.misc import axprops
 
-coord_type = "relative"
+coord_type = "absolute"
 """Define scaling of `Plot2D.plt_field` axes.
 - "relative": `(0, 1)  x (0, 1)`
 - "absolute": `(0, Lx) x (0, Ly)`
