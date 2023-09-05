@@ -104,7 +104,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         self.prod_rates = prod_rates
 
     def _set_Q(self, k):
-        """Define source/sink field at time `k` from wells."""
+        """Define source/sink *field* (at time `k`) from well specifications."""
         Q = np.zeros(self.Nxy)
         for xys, sign, rates in [(self.inj_xy, +1, self.inj_rates),
                                  (self.prod_xy, -1, self.prod_rates)]:
@@ -120,6 +120,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
                 Q[self.xy2ind(*xy)] += sign * q
         assert np.isclose(Q.sum(), 0)
         self.Q = Q
+        self._Q = Q
 
     # Pres() -- listing 5
     def pressure_step(self, S):
@@ -187,7 +188,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         A = self._spdiags(DiagVecs, DiagIndx)
 
         # Solve; compute A\q
-        q = self.Q
+        q = self._Q
         # u = np.linalg.solve(A.A, q) # direct dense solver
         u = spsolve(A.tocsr(), q)     # direct sparse solver
         # u, _info = cg(A, q)         # conjugate gradient
@@ -210,7 +211,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     # GenA() -- listing 7
     def upwind_diff(self, V):
         """Upwind finite-volume scheme."""
-        fp = self.Q.clip(max=0)  # production
+        fp = self._Q.clip(max=0)  # production
         # Flow fluxes, separated into direction (x-y) and sign
         x1 = V.x.clip(max=0)[:-1, :].ravel()
         y1 = V.y.clip(max=0)[:, :-1].ravel()
@@ -241,7 +242,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         """Explicit upwind FV discretisation of conserv. of mass (water sat.)."""
         A  = self.upwind_diff(V)                 # FV discretized transport operator
         pv = self.h2 * self.Gridded.por.ravel()  # Pore volume = cell volume * porosity
-        fi = self.Q.clip(min=0)                  # Well inflow
+        fi = self._Q.clip(min=0)                 # Well inflow
 
         # Compute sub/local dt
         cfl = self.estimate_CFL(pv, V, fi)
@@ -263,7 +264,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         """Implicit FV discretisation of conserv. of mass (water sat.)."""
         A  = self.upwind_diff(V)                 # FV discretized transport operator
         pv = self.h2 * self.Gridded.por.ravel()  # Pore volume = cell.vol * por
-        fi = self.Q.clip(min=0)                  # Well inflow
+        fi = self._Q.clip(min=0)                 # Well inflow
 
         # For each iter, halve the sub/local dt
         for nT_log2 in range(0, nTmax_log2):
