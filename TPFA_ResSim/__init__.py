@@ -168,7 +168,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         by finite differences.
         """
         # Compute transmissibilities by harmonic averaging.
-        L = K**(-1)
+        L = 1/K
         TX = np.zeros((self.Nx + 1, self.Ny))
         TY = np.zeros((self.Nx, self.Ny + 1))
         TX[1:-1, :] = 2 * self.hy / self.hx / (L[0, :-1, :] + L[0, 1:, :])
