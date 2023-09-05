@@ -21,7 +21,7 @@ from dataclasses import dataclass
 import numpy as np
 
 
-@dataclass(frozen=True)
+@dataclass
 class Grid2D:
     """Defines a 2D rectangular grid.
 

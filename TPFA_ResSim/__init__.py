@@ -1,5 +1,6 @@
 """.. include:: README.md"""
 
+from dataclasses import dataclass
 import numpy as np
 from scipy import sparse
 from scipy.sparse.linalg import spsolve
@@ -10,6 +11,7 @@ from TPFA_ResSim.grid import Grid2D
 from TPFA_ResSim.plotting import Plot2D
 
 
+@dataclass
 class ResSim(NicePrint, Grid2D, Plot2D):
     """Reservoir simulator class.
 
@@ -32,88 +34,61 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     >>> S[-1, [100, 1300, 2900]]
     array([0.9429345 , 0.91358172, 0.71554613])
     """
-    def __init__(self, **kwargs):
-        """Write keyword arguments to `self`."""
+    # Dont use dataclass repr
+    __repr__ = NicePrint.__repr__
+    __str__ = NicePrint.__str__
 
-        # Init super
-        super().__init__(**{k: kwargs.pop(k) for k in list(kwargs)
-                            if k in ["Lx", "Ly", "Nx", "Ny"]})
+    def __post_init__(self):
+        defaults = dict(K=np.ones((2, *self.shape)),
+                        por=np.ones(self.shape))
+        for k, v in defaults.items():
+            if getattr(self, k) is None:
+                setattr(self, k, v)
 
-        # Add defaults
-        defaults = dict(K=np.ones((2, *self.shape)), por=np.ones(self.shape),
-                        vw=1., vo=1., swc=0., sor=0.)
-        kwargs = dict(defaults, **kwargs)
+    def __setattr__(self, key, val):
+        # Well positions -- collocate at some node
+        if key in ["inj_xy", "prod_xy"] and val is not None:
+            val = np.array(val, float)
+            for i, (x, y) in enumerate(val):
+                val[i] = self.ind2xy(self.xy2ind(x, y))
+        # Well rates
+        if key in ["inj_rates", "prod_rates"] and val is not None:
+            val = np.array(val, float)
+        # Set
+        super().__setattr__(key, val)
 
-        # Write
-        for k in list(kwargs):
-            setattr(self, k, kwargs.pop(k))
-
-
-    K: np.ndarray
+    vw: float = 1.
+    """Viscosity for water."""
+    vo: float = 1.
+    """Viscosity for oil."""
+    swc: float = 0.
+    """Irreducible saturation, water."""
+    sor: float = 0.
+    """Irreducible saturation, oil."""
+    K: np.ndarray = None
     """Permeabilities (in x and y directions). Array of shape `(2, Nx, Ny)`)."""
-    por: np.ndarray
+    por: np.ndarray = None
     """Porosity; Array of shape `(Nx, Ny)`)."""
-    vw: float
-    """Viscosity for water. Defaults: 1."""
-    vo: float
-    """Viscosity for oil. Defaults: 1."""
-    swc: float
-    """Irreducible saturation, water. Default: 0"""
-    sor: float
-    """Irreducible saturation, oil. Default: 0"""
 
-    @property
-    def inj_xy(self):
-        """Array of shape `(n, 2)` of x- and y-coords for `n` injector wells.
+    inj_xy: np.ndarray = None
+    """Array of shape `(n, 2)` of x- and y-coords for `n` injector wells.
 
-        Values should be betwen `0` and `Lx` or `Ly`.
+    Values should be betwen `0` and `Lx` or `Ly`.
 
-        .. warning:: The wells get co-located with grid nodes, not distributed over nearby ones.
-            This is a design choice, not a mathematical necessity.
-        """
-        return self._inj_xy
+    .. warning:: The wells get co-located with grid nodes, not distributed over nearby ones.
+        This is a design choice, not a mathematical necessity.
+    """
+    prod_xy: np.ndarray = None
+    """Like `inj_xy`, but for producing wells."""
+    inj_rates: np.ndarray = None
+    """Array of shape `(n, nTime)` -- or `(n, 1)` if constant-in-time.
 
-    @property
-    def prod_xy(self):
-        """Like `inj_xy`, but for producing wells."""
-        return self._prod_xy
-
-    def _collocate_at_node(self, xys):
-        xys = np.array(xys, float)
-        for i, (x, y) in enumerate(xys):
-            xys[i] = self.ind2xy(self.xy2ind(x, y))
-        return xys
-
-    @inj_xy.setter
-    def inj_xy(self, value):
-        self._inj_xy = self._collocate_at_node(value)
-
-    @prod_xy.setter
-    def prod_xy(self, value):
-        self._prod_xy = self._collocate_at_node(value)
-
-    @property
-    def inj_rates(self):
-        """Array of shape `(n, nTime)` -- or `(n, 1)` if constant-in-time.
-
-        .. note:: Both `inj_rates` and `prod_rates` are rates should be positive.
-            At each time index, it is asserted that the rates sum to 0,
-            otherwise the model would silently input deficit from SW corner.
-        """
-        return self._inj_rates
-    @property
-    def prod_rates(self):
-        """Like `prod_rates`, but for producing wells."""
-        return self._prod_rates
-
-    @inj_rates.setter
-    def inj_rates(self, value):
-        self._inj_rates = np.array(value, float)
-
-    @prod_rates.setter
-    def prod_rates(self, value):
-        self._prod_rates = np.array(value, float)
-
+    .. note:: Both `inj_rates` and `prod_rates` are rates should be positive.
+        At each time index, it is asserted that the rates sum to 0,
+        otherwise the model would silently input deficit from SW corner.
+    """
+    prod_rates: np.ndarray = None
+    """Like `prod_rates`, but for producing wells."""
 
     def _set_Q(self, k):
         """Define source/sink *field* (at time `k`) from well specifications."""
