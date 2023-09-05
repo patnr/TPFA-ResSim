@@ -35,34 +35,32 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     def __init__(self, **kwargs):
         """Write keyword arguments to `self`."""
 
-        # Init grid
+        # Init super
         super().__init__(**{k: kwargs.pop(k) for k in list(kwargs)
                             if k in ["Lx", "Ly", "Nx", "Ny"]})
 
-        for k, v in kwargs.items():
-            setattr(self, k, v)
+        # Add defaults
+        defaults = dict(K=np.ones((2, *self.shape)), por=np.ones(self.shape),
+                        vw=1., vo=1., swc=0., sor=0.)
+        kwargs = dict(defaults, **kwargs)
 
-        # Gridded properties
-        self.Gridded = DotDict(
-            K  =np.ones((2, *self.shape)),  # permeability in x&y dirs.
-            por=np.ones(self.shape),        # porosity
-        )
+        # Write
+        for k in list(kwargs):
+            setattr(self, k, kwargs.pop(k))
 
-        self.Fluid = DotDict(
-            vw=1.0,   vo=1.0,  # Viscosities
-            swc=0.0, sor=0.0,  # Irreducible saturations
-        )
 
-    Gridded: DotDict
-    """Holds the parameter fields
-    - `K`: permeability; shape `(2, Nx, Ny)`)
-    - `por`: porosity; shape `(Nx, Ny)`)
-    """
-    Fluid: DotDict
-    """Holds the fluid parameters
-    - viscosities (`vw`, `vo`). Defaults: 1.
-    - irreducible saturations (`swc`, `sor`). Defaults: 0.
-    """
+    K: np.ndarray
+    """Permeabilities (in x and y directions). Array of shape `(2, Nx, Ny)`)."""
+    por: np.ndarray
+    """Porosity; Array of shape `(Nx, Ny)`)."""
+    vw: float
+    """Viscosity for water. Defaults: 1."""
+    vo: float
+    """Viscosity for oil. Defaults: 1."""
+    swc: float
+    """Irreducible saturation, water. Default: 0"""
+    sor: float
+    """Irreducible saturation, oil. Default: 0"""
 
     @property
     def inj_xy(self):
@@ -142,7 +140,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         Mw, Mo = self.RelPerm(S)
         Mt = Mw + Mo
         Mt = Mt.reshape(self.shape)
-        KM = Mt * self.Gridded.K
+        KM = Mt * self.K
         # Compute pressure and extract fluxes
         [P, V] = self.TPFA(KM)
         return P, V
@@ -152,24 +150,21 @@ class ResSim(NicePrint, Grid2D, Plot2D):
 
     def rescale_sat(self, s):
         """Account for irreducible saturations. Ref paper, p. 32."""
-        Fluid = self.Fluid
-        return (s - Fluid.swc) / (1 - Fluid.swc - Fluid.sor)
+        return (s - self.swc) / (1 - self.swc - self.sor)
 
     # RelPerm() -- listing 6
     def RelPerm(self, s):
         """Rel. permeabilities of oil and water. Return as mobilities (perm/viscocity)."""
-        Fluid = self.Fluid
         S = self.rescale_sat(s)
-        Mw = S**2 / Fluid.vw        # Water mobility
-        Mo = (1 - S)**2 / Fluid.vo  # Oil mobility
+        Mw = S**2 / self.vw        # Water mobility
+        Mo = (1 - S)**2 / self.vo  # Oil mobility
         return Mw, Mo
 
     def dRelPerm(self, s):
         """Derivatives of `RelPerm`."""
-        Fluid = self.Fluid
         S = self.rescale_sat(s)
-        dMw = 2 * S / Fluid.vw / (1 - Fluid.swc - Fluid.sor)
-        dMo = -2 * (1 - S) / Fluid.vo / (1 - Fluid.swc - Fluid.sor)
+        dMw = 2 * S / self.vw / (1 - self.swc - self.sor)
+        dMo = -2 * (1 - S) / self.vo / (1 - self.swc - self.sor)
         return dMw, dMo
 
     # TPFA() -- Listing 1
@@ -197,7 +192,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         # Setup linear system
         DiagVecs = [-x2, -y2, y1 + y2 + x1 + x2, -y1, -x1]
         DiagIndx = [-self.Ny, -1, 0, 1, self.Ny]
-        DiagVecs[2][0] += np.sum(self.Gridded.K[:, 0, 0])  # ref article p. 13
+        DiagVecs[2][0] += np.sum(self.K[:, 0, 0])  # ref article p. 13
         A = self._spdiags(DiagVecs, DiagIndx)
 
         # Solve; compute A\q
@@ -246,7 +241,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         Vi = XP[:-1, :] + YP[:, :-1] - XN[1:, :] - YN[:, 1:]
 
         pm  = min(pv / (Vi.ravel() + fi))  # estimate of influx
-        sat = self.Fluid.swc + self.Fluid.sor
+        sat = self.swc + self.sor
         cfl = ((1 - sat) / 3) * pm  # NB: 3-->2 since no z-dim ?
         return cfl
 
@@ -254,7 +249,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     def saturation_step_upwind(self, S, V, dt):
         """Explicit upwind FV discretisation of conserv. of mass (water sat.)."""
         A  = self.upwind_diff(V)                 # FV discretized transport operator
-        pv = self.h2 * self.Gridded.por.ravel()  # Pore volume = cell volume * porosity
+        pv = self.h2 * self.por.ravel()          # Pore volume = cell volume * porosity
         fi = self._Q.clip(min=0)                 # Well inflow
 
         # Compute sub/local dt
@@ -276,7 +271,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     def saturation_step_implicit(self, S, V, dt, nNewtonMax=10, nTmax_log2=10):
         """Implicit FV discretisation of conserv. of mass (water sat.)."""
         A  = self.upwind_diff(V)                 # FV discretized transport operator
-        pv = self.h2 * self.Gridded.por.ravel()  # Pore volume = cell.vol * por
+        pv = self.h2 * self.por.ravel()          # Pore volume = cell.vol * por
         fi = self._Q.clip(min=0)                 # Well inflow
 
         # For each iter, halve the sub/local dt

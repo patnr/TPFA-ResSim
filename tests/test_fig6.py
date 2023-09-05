@@ -23,12 +23,12 @@ from TPFA_ResSim import ResSim, recurse
 
 model = ResSim(Lx=1, Ly=1, Nx=64, Ny=64)
 # Change fluid properties (default: 1, 1, 0, 0)
-# model.Fluid.vw  = 3e-4
-# model.Fluid.vo  = 3e-3
-# model.Fluid.swc = .2
-# model.Fluid.sor = .2
+# model.vw  = 3e-4
+# model.vo  = 3e-3
+# model.swc = .2
+# model.sor = .2
 
-water_sat0 = model.Fluid.swc * np.ones(model.Nxy)
+water_sat0 = model.swc * np.ones(model.Nxy)
 nSteps = 28
 dt = 0.7/nSteps
 
