@@ -38,9 +38,9 @@ class Grid2D:
     You can compute cell boundaries (i.e. non-central nodes) by adding or subtracting
     `hx`/2 and `hy`/2 (i.e. you will miss either boundary at 0 or `Lx` or `Ly`).
 
-    .. warning:: `xy2sub` and `xy2ind` round to nearest cell center
-        (they are not injective).  The alternative would be to return some kind
-        of distribution/interpolation weights.
+    .. warning:: `xy2sub` and `xy2ind` *round* to nearest cell center (they are not injective).
+        The alternative would be to return some kind
+        of interpolation weights distributing `(x, y)` over multiple nodes.
 
     Test of round-trip capability of grid mapping computations:
     >>> ij = (0, 4)
