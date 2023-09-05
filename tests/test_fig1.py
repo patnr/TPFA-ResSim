@@ -22,9 +22,9 @@ plt.ion()
 fig, axs = freshfig("Fig. 1", ncols=3, nrows=2, gridspec_kw={'height_ratios': (9, 1)})
 
 ## Panel 0
-model = ResSim(Lx=1, Ly=1, Nx=8, Ny=8)
-model.config_wells(inj_xy=[[0, 0]], inj_rates=[[1]],
-                   prod_xy=[[1, 1]], prod_rates=[[1]])
+model = ResSim(Lx=1, Ly=1, Nx=8, Ny=8,
+               inj_xy=[[0, 0]], inj_rates=[[1]],
+               prod_xy=[[1, 1]], prod_rates=[[1]])
 
 model._set_Q(None)
 [P, V] = model.TPFA(model.Gridded.K)
@@ -37,11 +37,11 @@ cb = fig.colorbar(cc, axs[1, 0], orientation="horizontal")
 cb.ax.tick_params(labelsize=8)
 
 ## Panels 1 and 2
-model = ResSim(Lx=1, Ly=1, Nx=32, Ny=32)
+model = ResSim(Lx=1, Ly=1, Nx=32, Ny=32,
+               inj_xy=[[0, 0]], inj_rates=[[1]],
+               prod_xy=[[1, 1]], prod_rates=[[1]])
 logK = 5*smooth(smooth(rnd.randn(2, *model.shape)))
 model.Gridded.K = np.exp(logK)
-model.config_wells(inj_xy=[[0, 0]], inj_rates=[[1]],
-                   prod_xy=[[1, 1]], prod_rates=[[1]])
 
 ax = axs[0, 1]
 ax.set(title="Porosity", aspect="equal")

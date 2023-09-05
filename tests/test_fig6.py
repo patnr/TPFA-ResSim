@@ -35,8 +35,10 @@ dt = 0.7/nSteps
 ## Tests for pytest
 @pytest.mark.parametrize("imp", [True, False])
 def test_compare_matlab(imp):
-    model.config_wells(inj_xy=[[0, 0]], inj_rates=[[1]],
-                       prod_xy=[[1, 1]], prod_rates=[[1]])
+    model.inj_xy=[[0, 0]]
+    model.prod_xy=[[1, 1]]
+    model.inj_rates=[[1]]
+    model.prod_rates=[[1]]
 
     SS = recurse(model.time_stepper(dt, implicit=imp), nSteps, water_sat0)
 
@@ -52,8 +54,10 @@ def test_1():
     rate2 = .5*np.ones(nSteps)
     rate1[:10] = 1
     rate2[:10] = 0
-    model.config_wells(inj_xy=[[0, 0], [0, 1]], inj_rates=[rate1, rate2],
-                       prod_xy=[[1, 1]], prod_rates=[[1]])
+    model.inj_xy=[[0, 0], [0, 1]]
+    model.inj_rates=[rate1, rate2]
+    model.prod_xy=[[1, 1]]
+    model.prod_rates=[[1]]
 
     SS = recurse(model.time_stepper(dt), nSteps, water_sat0)
     reference = [0.9995, 0.8819, 0.8265, 0.8786, 0.7766, 0.7105, 0.1166]
@@ -61,8 +65,10 @@ def test_1():
 
 
 def test_2():
-    model.config_wells(inj_xy=[[0, 0]], inj_rates=[[2]],
-                       prod_xy=[[1, 1]], prod_rates=[[2]])
+    model.inj_xy=[[0, 0]]
+    model.inj_rates=[[2]]
+    model.prod_xy=[[1, 1]]
+    model.prod_rates=[[2]]
 
     SS = recurse(model.time_stepper(dt), nSteps, water_sat0)
     reference = [0.99983, 0.95525, 0.8614, 0.94477, 0.88827, 0.82546, 0.80773]
@@ -80,8 +86,10 @@ if __name__ == "__main__":
     rate2[:10] = 0
     rate1[10:] = 0
 
-    model.config_wells(inj_xy=[[0, 0], [0, 1]], inj_rates=[rate1, rate2],
-                       prod_xy=[[1, 1]], prod_rates=[[1]])
+    model.inj_xy=[[0, 0], [0, 1]]
+    model.inj_rates=[rate1, rate2]
+    model.prod_xy=[[1, 1]]
+    model.prod_rates=[[1]]
 
     SS = recurse(model.time_stepper(dt, implicit=False), nSteps, water_sat0)
 

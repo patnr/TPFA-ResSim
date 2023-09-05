@@ -1,7 +1,5 @@
 """.. include:: README.md"""
 
-from functools import wraps
-
 import numpy as np
 from scipy import sparse
 from scipy.sparse.linalg import spsolve
@@ -21,8 +19,10 @@ class ResSim(NicePrint, Grid2D, Plot2D):
 
     Example:
     >>> model = ResSim(Lx=1, Ly=1, Nx=64, Ny=64)
-    >>> model.config_wells(inj_xy=[[0, .32]], inj_rates=[[1]],
-    ...                    prod_xy=[[1, 1]], prod_rates=[[1]])
+    >>> model.inj_xy=[[0, .32]]
+    >>> model.inj_rates=[[1]]
+    >>> model.prod_rates=[[1]]
+    >>> model.prod_xy=[[1, 1]]
     >>> water_sat0 = np.zeros(model.Nxy)
     >>> dt = .35
     >>> nSteps = 2
@@ -32,30 +32,15 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     >>> S[-1, [100, 1300, 2900]]
     array([0.9429345 , 0.91358172, 0.71554613])
     """
-
-    Gridded: DotDict
-    """Holds the parameter fields
-    - `K`: permeability; shape `(2, Nx, Ny)`)
-    - `por`: porosity; shape `(Nx, Ny)`)
-    """
-    Fluid: DotDict
-    """Holds the fluid parameters
-    - viscosities (`vw`, `vo`). Defaults: 1.
-    - irreducible saturations (`swc`, `sor`). Defaults: 0.
-    """
-    Q: np.ndarray
-    """The source/sink field. Set via `config_wells`."""
-
-    @wraps(Grid2D.__init__)
-    def __init__(self, *args, **kwargs):
-        """Constructor.
-
-        Initialize with domain dimensions, i.e. like `TPFA_ResSim.grid.Grid2D`.
-        The parameters in attributes `Gridded`, `Fluid`, `Q` can be changed at any time.
-        """
+    def __init__(self, **kwargs):
+        """Write keyword arguments to `self`."""
 
         # Init grid
-        super().__init__(*args, **kwargs)
+        super().__init__(**{k: kwargs.pop(k) for k in list(kwargs)
+                            if k in ["Lx", "Ly", "Nx", "Ny"]})
+
+        for k, v in kwargs.items():
+            setattr(self, k, v)
 
         # Gridded properties
         self.Gridded = DotDict(
@@ -68,40 +53,69 @@ class ResSim(NicePrint, Grid2D, Plot2D):
             swc=0.0, sor=0.0,  # Irreducible saturations
         )
 
-    def config_wells(self, inj_xy, inj_rates, prod_xy, prod_rates):
-        """Specify injection and production wells (which get used by dynamics via `ResSim.Q`).
+    Gridded: DotDict
+    """Holds the parameter fields
+    - `K`: permeability; shape `(2, Nx, Ny)`)
+    - `por`: porosity; shape `(Nx, Ny)`)
+    """
+    Fluid: DotDict
+    """Holds the fluid parameters
+    - viscosities (`vw`, `vo`). Defaults: 1.
+    - irreducible saturations (`swc`, `sor`). Defaults: 0.
+    """
 
-        - `inj_xy`: array of shape `(n, 2)` of x- and y-coords for `n` injector wells.
-          Values should be betwen `0` and `Lx` or `Ly`.
-          The wells get co-located with grid nodes, not distributed over nearby ones
-          (our choice, not a mathematical necessity).
-        - `inj_rates`: array of shape `(n, nTime)` of water injection rates.
-          For constant-in-time rates, use shape `(n, 1)` (i.e. still `ndim==2`).
-        - Idem. for `prod_xy` and `prod_rates`.
-        - Both `inj_rates` and `prod_rates` are rates should be positive.
-          At each time index, the rates get summed to 0
-          (otherwise the model will silently input deficit from SW corner).
+    @property
+    def inj_xy(self):
+        """Array of shape `(n, 2)` of x- and y-coords for `n` injector wells.
+
+        Values should be betwen `0` and `Lx` or `Ly`.
+
+        .. warning:: The wells get co-located with grid nodes, not distributed over nearby ones.
+            This is a design choice, not a mathematical necessity.
         """
+        return self._inj_xy
 
-        # Locations
-        def collocate_with_node(wells):
-            wells = np.array(wells, float)
-            assert wells.ndim == 2
-            for i, (x, y) in enumerate(wells):
-                wells[i] = self.ind2xy(self.xy2ind(x, y))
-            return wells
-        self.inj_xy = collocate_with_node(inj_xy)
-        self.prod_xy = collocate_with_node(prod_xy)
+    @property
+    def prod_xy(self):
+        """Like `inj_xy`, but for producing wells."""
+        return self._prod_xy
 
-        # Rates
-        inj_rates  = np.abs(np.array(inj_rates, float))
-        prod_rates = np.abs(np.array(prod_rates, float))
-        assert inj_rates.ndim  == 2, "Bad injection specification"
-        assert prod_rates.ndim == 2, "Bad production specification"
-        diff = inj_rates.sum(0) - prod_rates.sum(0)
-        assert np.allclose(diff, 0), "Inj - Prod does not sum to 0"
-        self.inj_rates  = inj_rates
-        self.prod_rates = prod_rates
+    def _collocate_at_node(self, xys):
+        xys = np.array(xys, float)
+        for i, (x, y) in enumerate(xys):
+            xys[i] = self.ind2xy(self.xy2ind(x, y))
+        return xys
+
+    @inj_xy.setter
+    def inj_xy(self, value):
+        self._inj_xy = self._collocate_at_node(value)
+
+    @prod_xy.setter
+    def prod_xy(self, value):
+        self._prod_xy = self._collocate_at_node(value)
+
+    @property
+    def inj_rates(self):
+        """Array of shape `(n, nTime)` -- or `(n, 1)` if constant-in-time.
+
+        .. note:: Both `inj_rates` and `prod_rates` are rates should be positive.
+            At each time index, it is asserted that the rates sum to 0,
+            otherwise the model would silently input deficit from SW corner.
+        """
+        return self._inj_rates
+    @property
+    def prod_rates(self):
+        """Like `prod_rates`, but for producing wells."""
+        return self._prod_rates
+
+    @inj_rates.setter
+    def inj_rates(self, value):
+        self._inj_rates = np.array(value, float)
+
+    @prod_rates.setter
+    def prod_rates(self, value):
+        self._prod_rates = np.array(value, float)
+
 
     def _set_Q(self, k):
         """Define source/sink *field* (at time `k`) from well specifications."""
@@ -118,8 +132,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
             for xy, q in zip(xys, rates):
                 # Use += in case of superimposed wells (e.g. by optimzt)
                 Q[self.xy2ind(*xy)] += sign * q
-        assert np.isclose(Q.sum(), 0)
-        self.Q = Q
+        assert np.isclose(Q.sum(), 0), "Inj - Prod does not sum to 0"
         self._Q = Q
 
     # Pres() -- listing 5
