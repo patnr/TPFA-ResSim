@@ -75,8 +75,9 @@ class ResSim(NicePrint, Grid2D, Plot2D):
 
     Values should be betwen `0` and `Lx` or `Ly`.
 
-    .. warning:: The wells get co-located with grid nodes, not distributed over nearby ones.
+    .. warning:: The wells get co-located with grid nodes, ref `xy2sub`.
         This is a design choice, not a mathematical necessity.
+        An alternative would be to distribute them over nearby nodes.
     """
     prod_xy: np.ndarray = None
     """Like `inj_xy`, but for producing wells."""

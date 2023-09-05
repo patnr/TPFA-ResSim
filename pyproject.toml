@@ -54,6 +54,10 @@ pycodestyle = ["+*",
     "-E731", # don't assign lambda
 ]
 
+[tool.flakeheaven.exceptions."tests/test_fig6.py"]
+pycodestyle = ["-E225"]
+
+
 #############
 #  Testing  #
 #############

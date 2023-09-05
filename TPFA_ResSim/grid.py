@@ -38,10 +38,6 @@ class Grid2D:
     You can compute cell boundaries (i.e. non-central nodes) by adding or subtracting
     `hx`/2 and `hy`/2 (i.e. you will miss either boundary at 0 or `Lx` or `Ly`).
 
-    .. warning:: `xy2sub` and `xy2ind` *round* to nearest cell center (they are not injective).
-        The alternative would be to return some kind
-        of interpolation weights distributing `(x, y)` over multiple nodes.
-
     Test of round-trip capability of grid mapping computations:
     >>> ij = (0, 4)
     >>> grid.xy2sub(X[ij], Y[ij]) == ij
@@ -108,7 +104,13 @@ class Grid2D:
         return np.asarray([ix, iy])
 
     def xy2sub(self, x, y):
-        """Convert physical coordinate tuple to `(ix, iy)`, ix ∈ {0, ..., Nx-1}."""
+        """Convert physical coordinate tuple to `(ix, iy)`, ix ∈ {0, ..., Nx-1}.
+
+        .. warning:: `xy2sub` and `xy2ind` *round* to nearest cell center.
+            I.e. they are not injective.
+            The alternative would be to return some kind
+            of interpolation weights distributing `(x, y)` over multiple nodes.
+        """
         x = np.asarray(x)
         y = np.asarray(y)
         # Don't silence errors! Validation is useful in optimisation (e.g.)
