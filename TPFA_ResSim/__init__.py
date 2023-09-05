@@ -15,6 +15,10 @@ from TPFA_ResSim.plotting import Plot2D
 class ResSim(NicePrint, Grid2D, Plot2D):
     """Reservoir simulator class.
 
+    Implemented with OOP (instead of passing around dicts) to facilitate
+    bookkeeping of ensemble forecasting
+    (where parameter values of one instance should not influence another)
+
     Example:
     >>> model = ResSim(Lx=1, Ly=1, Nx=64, Ny=64)
     >>> model.config_wells(inj_xy=[[0, .32]], inj_rates=[[1]],
@@ -27,10 +31,6 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     This produces the following values (used for automatic testing):
     >>> S[-1, [100, 1300, 2900]]
     array([0.9429345 , 0.91358172, 0.71554613])
-
-    Implemented with OOP (instead of passing around dicts) to facilitate ensemble runs
-    by ensuring that the parameter values of one instance do not influence another.
-    OOP also *seems* cleaner when estimating parameters.
     """
 
     Gridded: DotDict
