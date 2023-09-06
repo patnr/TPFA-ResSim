@@ -32,6 +32,7 @@ styles = dict(
         # Note that providing vmin/vmax (and not a levels list) to mpl
         # yields prettier colobar ticks, but destorys the consistency
         # of the colorbars from one figure to another.
+        locator = None,
     ),
     oil = dict(
         title  = "Oil saturation",
@@ -51,7 +52,8 @@ class Plot2D:
                   argmax=False, colorbar=False, labels=True, **kwargs):
         """Contour-plot of the (flat) unravelled field `Z`.
 
-        Conveniently applies default `styles`, which may be overriden by `kwargs`.
+        Applies properties in `styles[style]`, with fallbacks from styles['defaults'],
+        unless overruled via `kwargs`.
         """
         # Get style parms, with "default" fallback.
         style = {**styles["default"], **styles[style]}
@@ -84,7 +86,7 @@ class Plot2D:
 
         # ax.imshow(Z[::-1])
         collections = ax.contourf(
-            Z, style["levels"], cmap=style["cmap"], **kwargs,
+            Z, style["levels"], cmap=style["cmap"], locator=style["locator"], **kwargs,
             extend="both" if has_out_of_range else "neither",
             origin=None, extent=(0, Lx, 0, Ly),
             # NB: this artificially stretches the field
