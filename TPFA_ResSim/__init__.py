@@ -45,6 +45,10 @@ class ResSim(NicePrint, Grid2D, Plot2D):
             if getattr(self, k) is None:
                 setattr(self, k, v)
 
+    # Prefer __setattr__ approach (over @property get/set-ers)
+    # because @property requires the _private pattern,
+    # which is pretty ugly with dataclasses,
+    # and also because can unify treatment of inj/prod wells.
     def __setattr__(self, key, val):
         if val is not None:
             # Well positions -- collocate at some node
