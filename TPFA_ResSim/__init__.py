@@ -46,14 +46,15 @@ class ResSim(NicePrint, Grid2D, Plot2D):
                 setattr(self, k, v)
 
     def __setattr__(self, key, val):
-        # Well positions -- collocate at some node
-        if key in ["inj_xy", "prod_xy"] and val is not None:
-            val = np.array(val, float)
-            for i, (x, y) in enumerate(val):
-                val[i] = self.ind2xy(self.xy2ind(x, y))
-        # Well rates
-        if key in ["inj_rates", "prod_rates"] and val is not None:
-            val = np.array(val, float)
+        if val is not None:
+            # Well positions -- collocate at some node
+            if key in ["inj_xy", "prod_xy"]:
+                val = np.array(val, float)
+                for i, (x, y) in enumerate(val):
+                    val[i] = self.ind2xy(self.xy2ind(x, y))
+            # Well rates
+            if key in ["inj_rates", "prod_rates"]:
+                val = np.array(val, float)
         # Set
         super().__setattr__(key, val)
 
