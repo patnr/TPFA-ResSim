@@ -57,6 +57,9 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         # Set
         super().__setattr__(key, val)
 
+    name: str = "Unnamed"
+    """Description."""
+
     vw: float = 1.
     """Viscosity for water."""
     vo: float = 1.
