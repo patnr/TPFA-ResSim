@@ -59,6 +59,13 @@ class ResSim(NicePrint, Grid2D, Plot2D):
             # Well rates
             if key in ["inj_rates", "prod_rates"]:
                 val = np.array(val, float)
+            # Permeabilities
+            if key == "K":
+                if np.isscalar(val):
+                    val = np.full_like(self.shape, val, dtype=float)
+                if val.size == self.size:
+                    val = np.stack([val, val])  # both components
+                val = val.reshape((2, *self.shape))
         # Set
         super().__setattr__(key, val)
 

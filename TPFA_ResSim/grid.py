@@ -62,6 +62,11 @@ class Grid2D:
         return self.Nx, self.Ny
 
     @property
+    def size(self):
+        """Total number of elements."""
+        return np.prod(self.shape)
+
+    @property
     def domain(self):
         """`(0, 0, Lx, Ly)`"""
         return ((0, 0), (self.Lx, self.Ly))
