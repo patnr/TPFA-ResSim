@@ -53,12 +53,13 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         if val is not None:
             # Well positions -- collocate at some node
             if key in ["inj_xy", "prod_xy"]:
-                val = np.array(val, float)
+                val = np.array(val, float).reshape((-1, 2))
                 for i, (x, y) in enumerate(val):
                     val[i] = self.ind2xy(self.xy2ind(x, y))
             # Well rates
             if key in ["inj_rates", "prod_rates"]:
-                val = np.array(val, float)
+                nWell = len(getattr(self, key.replace("rates", "xy")))
+                val = np.array(val, float).reshape((nWell, -1))
             # Permeabilities
             if key == "K":
                 if np.isscalar(val):
@@ -86,7 +87,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     """Porosity; Array of shape `(Nx, Ny)`)."""
 
     inj_xy: np.ndarray = None
-    """Array of shape `(n, 2)` of x- and y-coords for `n` injector wells.
+    """Array of shape `(nWell, 2)` of x- and y-coords for `nWell` injectors.
 
     Values should be betwen `0` and `Lx` or `Ly`.
 
@@ -97,7 +98,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     prod_xy: np.ndarray = None
     """Like `inj_xy`, but for producing wells."""
     inj_rates: np.ndarray = None
-    """Array of shape `(n, nTime)` -- or `(n, 1)` if constant-in-time.
+    """Array of shape `(nWell, nTime)` -- or `(nWell, 1)` if constant-in-time.
 
     .. note:: Both `inj_rates` and `prod_rates` are rates should be positive.
         At each time index, it is asserted that the rates sum to 0,
