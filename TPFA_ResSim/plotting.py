@@ -48,8 +48,8 @@ styles = dict(
 class Plot2D:
     """Plots specialized for 2D fields."""
 
-    def plt_field(self, ax, Z, style="default", wells=False,
-                  argmax=False, colorbar=False, labels=True, **kwargs):
+    def plt_field(self, ax, Z, style="default", wells=True,
+                  argmax=False, colorbar=True, labels=True, **kwargs):
         """Contour-plot of the (flat) unravelled field `Z`.
 
         Applies properties in `styles[style]`, with fallbacks from styles['defaults'],
