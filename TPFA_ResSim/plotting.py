@@ -22,6 +22,7 @@ cm_ow = lin_cm("", [(0, "#1d9e97"), (.3, "#b2e0dc"), (1, "#f48974")])
 # cMiddle = .3*ccnvrt(cWater) + .7*ccnvrt(cOil)
 # cm_ow = lin_cm("", [cWater, cMiddle, cOil])
 
+
 styles = dict(
     default = dict(
         title  = "",
@@ -52,16 +53,13 @@ class Plot2D:
                   argmax=False, colorbar=True, labels=True, **kwargs):
         """Contour-plot of the (flat) unravelled field `Z`.
 
-        Applies properties in `styles[style]`, with fallbacks from styles['defaults'],
-        unless overruled via `kwargs`.
+        `kwargs` falls back to `styles[style]`, which falls back to `styles['defaults']`.
         """
-        # Get style parms, with "default" fallback.
-        style = {**styles["default"], **styles[style]}
-        # Pop styles from kwargs. Remainder of kwargs goes to countourf
+        # Set defaults
+        kwargs = {**styles["default"], **styles[style], **kwargs}
+        # Pop from kwargs. Remainder goes to countourf
         ax.set(**axprops(kwargs))
-        for key in style:
-            if key in kwargs:
-                style[key] = kwargs.pop(key)
+        cticks = kwargs.pop("cticks")
 
         # Plotting with extent=(0, Lx, 0, Ly), rather than merely changing ticks
         # has the advantage that set_aspect("equal") yields correct axes size,
@@ -78,16 +76,15 @@ class Plot2D:
 
         # Need to transpose coz self assumes shape (Nx, Ny),
         # and contour() uses the same orientation as array printing.
-        Z = style["transf"](Z)
+        Z = kwargs.pop("transf")(Z)
         Z = Z.reshape(self.shape).T
 
         # Did we bother to specify set_over/set_under/set_bad ?
-        has_out_of_range = getattr(style["cmap"], "_rgba_over", None) is not None
+        has_out_of_range = getattr(kwargs["cmap"], "_rgba_over", None) is not None
 
         # ax.imshow(Z[::-1])
         collections = ax.contourf(
-            Z, style["levels"], cmap=style["cmap"], locator=style["locator"], **kwargs,
-            extend="both" if has_out_of_range else "neither",
+            Z, **kwargs, extend="both" if has_out_of_range else "neither",
             origin=None, extent=(0, Lx, 0, Ly),
             # NB: this artificially stretches the field
             # (the values are placed at edges rather than gridcell centres).
@@ -95,7 +92,7 @@ class Plot2D:
 
         # Contourf does not plot (at all) the bad regions. "Fake it" by facecolor
         if has_out_of_range:
-            ax.set_facecolor(getattr(style["cmap"], "_rgba_bad", "w"))
+            ax.set_facecolor(getattr(kwargs["cmap"], "_rgba_bad", "w"))
 
         # Axis lims
         ax.set_xlim((0, Lx))
@@ -134,7 +131,7 @@ class Plot2D:
                 cax = dict(cax=colorbar)
             else:
                 cax = dict(ax=ax, shrink=.8)
-            ax.figure.colorbar(collections, **cax, ticks=style["cticks"])
+            ax.figure.colorbar(collections, **cax, ticks=cticks)
 
         return collections
 
