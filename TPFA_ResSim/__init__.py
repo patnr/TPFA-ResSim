@@ -327,9 +327,9 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         .. note:: `output[0] == x0`, hence `len(output) = nSteps + 1`.
 
         .. note::
-            "Recurse" is a fancy programming term referring to a function calling itself.
-            Here we implement it simply by a for loop, passing previous output as next intput.
-            Indeed "recursive" is also an accurate description of causal (Markov) processes,
+            "Recurse" is a describes a function calling itself.
+            Here we implement it simply by a for loop.
+            "Wecursive" is also an accurate description of causal (Markov) processes,
             such as nature or its simulators, which build on themselves.
         """
         # Init
