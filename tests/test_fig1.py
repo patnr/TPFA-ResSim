@@ -15,7 +15,7 @@ import numpy.random as rnd
 from scipy.ndimage import uniform_filter as smooth
 import matplotlib.pyplot as plt
 
-from TPFA_ResSim import ResSim, recurse
+from TPFA_ResSim import ResSim
 
 plt.ion()
 # rnd.seed(4)

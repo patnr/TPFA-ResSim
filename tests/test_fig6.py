@@ -19,7 +19,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pytest
 
-from TPFA_ResSim import ResSim, recurse
+from TPFA_ResSim import ResSim
 
 model = ResSim(Lx=1, Ly=1, Nx=64, Ny=64)
 # Change fluid properties (default: 1, 1, 0, 0)
@@ -40,7 +40,7 @@ def test_compare_matlab(imp):
     model.inj_rates=[[1]]
     model.prod_rates=[[1]]
 
-    SS = recurse(model.time_stepper(dt, implicit=imp), nSteps, water_sat0)
+    SS = model.sim(dt, nSteps, water_sat0, implicit=imp)
 
     # From matlab_codes/listing9.m: >> S(1:600:end)
     matlab_output = ([0.99963, 0.91573, 0.75736, 0.89799, 0.79862, 0.62061, 0.62483]
@@ -59,7 +59,7 @@ def test_1():
     model.prod_xy=[[1, 1]]
     model.prod_rates=[[1]]
 
-    SS = recurse(model.time_stepper(dt), nSteps, water_sat0)
+    SS = model.sim(dt, nSteps, water_sat0)
     reference = [0.9995, 0.8819, 0.8265, 0.8786, 0.7766, 0.7105, 0.1166]
     assert np.all(np.isclose(SS[-1, ::600], reference, rtol=1e-4))
 
@@ -70,7 +70,7 @@ def test_2():
     model.prod_xy=[[1, 1]]
     model.prod_rates=[[2]]
 
-    SS = recurse(model.time_stepper(dt), nSteps, water_sat0)
+    SS = model.sim(dt, nSteps, water_sat0)
     reference = [0.99983, 0.95525, 0.8614, 0.94477, 0.88827, 0.82546, 0.80773]
     assert np.all(np.isclose(SS[-1, ::600], reference))
 
@@ -91,7 +91,7 @@ if __name__ == "__main__":
     model.prod_xy=[[1, 1]]
     model.prod_rates=[[1]]
 
-    SS = recurse(model.time_stepper(dt, implicit=False), nSteps, water_sat0)
+    SS = model.sim(dt, nSteps, water_sat0, implicit=False)
 
     kws = dict(levels=17, cmap="jet", origin=None,
                extent=(0, model.Lx, 0, model.Ly))

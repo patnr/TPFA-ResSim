@@ -23,12 +23,12 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     >>> model = ResSim(Lx=1, Ly=1, Nx=64, Ny=64)
     >>> model.inj_xy=[[0, .32]]
     >>> model.inj_rates=[[1]]
-    >>> model.prod_rates=[[1]]
     >>> model.prod_xy=[[1, 1]]
+    >>> model.prod_rates=[[1]]
     >>> water_sat0 = np.zeros(model.Nxy)
     >>> dt = .35
     >>> nSteps = 2
-    >>> S = recurse(model.time_stepper(dt), nSteps, water_sat0, pbar=False)
+    >>> S = model.sim(dt, nSteps, water_sat0, pbar=False)
 
     This produces the following values (used for automatic testing):
     >>> S[-1, [100, 1300, 2900]]
@@ -321,26 +321,26 @@ class ResSim(NicePrint, Grid2D, Plot2D):
             return S
         return integrate
 
+    def sim(self, dt, nSteps, x0, pbar=True, leave=True, **kwargs):
+        """Recursively (`nSteps` times) apply `time_stepper` with `dt`, from `x0`.
 
-def recurse(fun, nSteps, x0, pbar=True, leave=True):
-    """Recursively apply `fun` `nSteps` times.
+        .. note:: `output[0] == x0`, hence `len(output) = nSteps + 1`.
 
-    .. note:: `output[0] == x0`, hence `len(output) = nSteps + 1`.
+        .. note::
+            "Recurse" is a fancy programming term referring to a function calling itself.
+            Here we implement it simply by a for loop, passing previous output as next intput.
+            Indeed "recursive" is also an accurate description of causal (Markov) processes,
+            such as nature or its simulators, which build on themselves.
+        """
+        # Init
+        xx = np.zeros((nSteps+1,)+x0.shape)
+        xx[0] = x0
+        step = self.time_stepper(dt, **kwargs)
 
-    .. note::
-        "Recurse" is a fancy programming term referring to a function calling itself.
-        Here we implement it simply by a for loop, passing previous output as next intput.
-        Indeed "recursive" is also an accurate description of causal (Markov) processes,
-        such as nature or its simulators, which build on themselves.
-    """
-    # Init
-    xx = np.zeros((nSteps+1,)+x0.shape)
-    xx[0] = x0
-
-    # Recurse
-    kk = np.arange(nSteps)
-    if pbar:
-        kk = tqdm(kk, "Simulation", leave=leave, mininterval=1e-2)
-    for k in kk:
-        xx[k+1] = fun(xx[k], k)
-    return xx
+        # Recurse
+        kk = np.arange(nSteps)
+        if pbar:
+            kk = tqdm(kk, "Simulation", leave=leave, mininterval=1e-2)
+        for k in kk:
+            xx[k+1] = step(xx[k], k)
+        return xx
