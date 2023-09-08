@@ -219,8 +219,8 @@ class Plot2D:
         fig, (ax1, ax2) = place.freshfig(title, ncols=2, figsize=figsize, rel=True)
         fig.suptitle(title)  # coz animation never (any backend) displays title
         # Saturations
-        ax2.cc = self.plt_field(ax2, wsats[-1], "oil", wells="color",
-                                colorbar=True, **kwargs)
+        ax2.cc = self.plt_field(ax2, wsats[-1], "oil",
+                                wells="color", colorbar=True, **kwargs)
         # Production
         hh = self.plt_production(ax1, prod, legend_outside=False)
 
@@ -235,7 +235,8 @@ class Plot2D:
                         ax2.collections.remove(c)
                     except (AttributeError, ValueError):
                         pass  # occurs when re-running script
-                ax2.cc = self.plt_field(ax2, wsats[iT], "oil", **kwargs)
+                ax2.cc = self.plt_field(ax2, wsats[iT], "oil",
+                                        wells=False, colorbar=False, **kwargs)
 
                 # Update production lines
                 if iT >= 1:
