@@ -86,6 +86,11 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     por: np.ndarray = None
     """Porosity; Array of shape `(Nx, Ny)`)."""
 
+    nInj  = property(lambda self: len(self.inj_xy))
+    """Num. of injector wells."""
+    nProd = property(lambda self: len(self.prod_xy))
+    """Num. of producer wells."""
+
     inj_xy: np.ndarray = None
     """Array of shape `(nWell, 2)` of x- and y-coords for `nWell` injectors.
 
