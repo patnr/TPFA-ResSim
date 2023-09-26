@@ -56,16 +56,14 @@ class Plot2D:
 
         `kwargs` falls back to `styles[style]`, which falls back to `styles['defaults']`.
         """
-        # Set defaults
+        # Populate kwargs with fallback style
         kwargs = {**styles["default"], **styles[style], **kwargs}
         # Pop from kwargs. Remainder goes to countourf
         ax.set(**axprops(kwargs))
         cticks = kwargs.pop("cticks")
 
-        # Plotting with extent=(0, Lx, 0, Ly), rather than merely changing ticks
-        # has the advantage that set_aspect("equal") yields correct axes size,
-        # and that mouse hovering (with interactive backends) reports correct pos.
-        # Disadvantage: well_scatter must also account for coord_type.
+        # Why extent=(0, Lx, 0, Ly), rather than merely changing ticks?
+        # set_aspect("equal") and mouse hovering (reporting x,y).
         if "rel" in coord_type:
             Lx, Ly = 1, 1
         elif "abs" in coord_type:
@@ -75,19 +73,27 @@ class Plot2D:
         else:
             raise ValueError(f"Unsupported coord_type: {coord_type}")
 
-        # Need to transpose coz self assumes shape (Nx, Ny),
-        # and contour() uses the same orientation as array printing.
+        # Apply transform
         Z = kwargs.pop("transf")(Z)
+
+        # Need to transpose coz orientation is model.shape==(Nx, Ny),
+        # while contour() displays the same orientation as array printing.
         Z = Z.reshape(self.shape).T
 
         # Did we bother to specify set_over/set_under/set_bad ?
         has_out_of_range = getattr(kwargs["cmap"], "_rgba_over", None) is not None
 
-        # ax.imshow(Z[::-1])
+        # Unlike `ax.imshow(Z[::-1])`, `contourf` does not simply fill pixels/cells (but
+        # it does provide nice interpolation!) so there will be whitespace on the margins.
+        # No fix is needed, and anyway it would not be trivial/fast,
+        # ref https://github.com/matplotlib/basemap/issues/406 .
         collections = ax.contourf(
-            Z, **kwargs, extend="both" if has_out_of_range else "neither",
-            origin="lower", extent=(0, Lx, 0, Ly),
-            )
+            Z, **kwargs,
+            # origin=None,  # ⇒ NB: falsely stretches the field!!!
+            origin="lower",
+            extent=(0, Lx, 0, Ly),
+            extend="both" if has_out_of_range else "neither",
+        )
 
         # Contourf does not plot (at all) the bad regions. "Fake it" by facecolor
         if has_out_of_range:

@@ -127,7 +127,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
             for xy, q in zip(xys, rates):
                 # Use += in case of superimposed wells (e.g. by optimzt)
                 Q[self.xy2ind(*xy)] += sign * q
-        assert np.isclose(Q.sum(), 0), "Inj - Prod does not sum to 0"
+        assert np.isclose(Q.sum(), 0), "(Inj - Prod) does not sum to 0"
         self._Q = Q
 
     # Pres() -- listing 5

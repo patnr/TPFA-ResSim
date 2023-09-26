@@ -7,13 +7,13 @@ which direction and index is for x and which is for y.
 The index ordering is "C-style" (numpy default).
 This choice means that `x` is the 1st coord., `y` is 2nd,
 and is hardcoded in the reservoir simulator model code
-in what takes place **between** `np.ravel` and `np.reshape`
-(both of which are configured to use row-major index ordering).
+(in what takes place **between** `np.ravel` and `np.reshape`,
+both of which are configured to use row-major index ordering.
+"F-style" (column-major) indexing implementation is perfectly possible,
+but would imply an undue amount hassle).
 Conveniently, it also means that `x` and `y` tend to occur in alphabetic order.
 Thus, in printing a matrix of a field, the `x` coordinate corresponds to the row index.
 By contrast, the plotting module depicts `x` from left to right, `y` from bottom to top.
-Implementing support for "F-style" (column-major) indexing is possible,
-but would imply an undue amount hassle.
 """
 
 from dataclasses import dataclass
@@ -68,7 +68,7 @@ class Grid2D:
 
     @property
     def domain(self):
-        """`(0, 0, Lx, Ly)`"""
+        """`((0, 0), (Lx, Ly))`"""
         return ((0, 0), (self.Lx, self.Ly))
 
     @property
