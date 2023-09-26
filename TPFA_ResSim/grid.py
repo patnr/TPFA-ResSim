@@ -93,7 +93,7 @@ class Grid2D:
 
     @property
     def mesh(self):
-        """Generate 2D coordinate grids."""
+        """Generate 2D coordinate grid of cell centres."""
         xx = np.linspace(0, self.Lx, self.Nx, endpoint=False) + self.hx/2
         yy = np.linspace(0, self.Ly, self.Ny, endpoint=False) + self.hy/2
         return np.meshgrid(xx, yy, indexing="ij")
@@ -143,19 +143,3 @@ class Grid2D:
         """Inverse of `self.xy2ind`."""
         i, j = self.ind2sub(ind)
         return self.sub2xy(i, j)
-
-    def sub2xy_stretched(self, ix, iy):
-        """Like `self.xy2sub`, but stretched.
-
-        .. warning:: Puts `i=0` at `x=0`, and `i=Nx-1` at `Lx`.
-            This is wrong, and is only intended for use with `TPFA_ResSim.plotting.field`,
-            which also stretches the grid (because it does not use `origin="lower"`).
-        """
-        x = np.asarray(ix) * self.Lx/(self.Nx-1)
-        y = np.asarray(iy) * self.Ly/(self.Ny-1)
-        return np.asarray([x, y])
-
-    def ind2xy_stretched(self, ind):
-        """Like `self.xy2ind`, but using `sub2xy_stretched`."""
-        i, j = self.ind2sub(ind)
-        return self.sub2xy_stretched(i, j)

@@ -85,9 +85,7 @@ class Plot2D:
         # ax.imshow(Z[::-1])
         collections = ax.contourf(
             Z, **kwargs, extend="both" if has_out_of_range else "neither",
-            origin=None, extent=(0, Lx, 0, Ly),
-            # NB: this artificially stretches the field
-            # (the values are placed at edges rather than gridcell centres).
+            origin="lower", extent=(0, Lx, 0, Ly),
             )
 
         # Contourf does not plot (at all) the bad regions. "Fake it" by facecolor
@@ -120,7 +118,7 @@ class Plot2D:
         # Add argmax marker
         if argmax:
             idx = Z.T.argmax()  # reverse above transpose
-            xy = self.ind2xy_stretched(idx)
+            xy = self.ind2xy(idx)
             for c, ms in zip(['b', 'r', 'y'],
                              [10, 6, 3]):
                 ax.plot(*xy, "o", c=c, ms=ms, label="max", zorder=98)
@@ -138,8 +136,8 @@ class Plot2D:
 
     def well_scatter(self, ax, ww, inj=True, text=None, color=None, size=1):
         """Scatter-plot the wells of `ww` onto a `Plot2D.plt_field`."""
-        # Well coordinates, stretched for plotting (ref plotting.plt_fields)
-        ww = self.sub2xy_stretched(*self.xy2sub(*ww.T)).T
+        # Well coordinates
+        ww = self.sub2xy(*self.xy2sub(*ww.T)).T
         # NB: make sure ww array data is not overwritten (avoid in-place)
         if   "rel" in coord_type: s = 1/self.Lx, 1/self.Ly                     # noqa
         elif "abs" in coord_type: s = 1, 1                                     # noqa
