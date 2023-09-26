@@ -111,16 +111,16 @@ if __name__ == "__main__":
         else:
             k = int(t/dt)
             ax.set_title("t = {:.2f}".format(k * dt))
-            Z = SS[k].reshape(model.shape)  # Also transpose/flip for plot orientation
+            Z = SS[k].reshape(model.shape).T  # transpose/flip for plot orientation
 
             # Puts the values in gridcell centers (agrees w/ finite-vol. interpretation)
-            # ax.imshow(Z.T[::-1], **kws)
+            # ax.imshow(Z[::-1], **kws)
 
             # Also colocates with gridcell centers, but does not extend to edges.
-            # ax.contourf(Z.T, levels=17, cmap="jet", origin="lower")
+            # ax.contourf(Z, levels=17, cmap="jet", origin="lower")
 
             # Artificially stretches the field
-            ax.contourf(Z.T, **kws)
+            ax.contourf(Z, **kws)
 
 
     ## Animation
