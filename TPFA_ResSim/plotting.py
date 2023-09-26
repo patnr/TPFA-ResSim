@@ -2,6 +2,7 @@
 
 import matplotlib as mpl
 import numpy as np
+from matplotlib.ticker import MultipleLocator
 from mpl_tools import place, place_ax
 from mpl_tools.misc import axprops
 
@@ -50,7 +51,7 @@ class Plot2D:
     """Plots specialized for 2D fields."""
 
     def plt_field(self, ax, Z, style="default", wells=True,
-                  argmax=False, colorbar=True, labels=True, **kwargs):
+                  argmax=False, colorbar=True, labels=True, grid=False, **kwargs):
         """Contour-plot of the (flat) unravelled field `Z`.
 
         `kwargs` falls back to `styles[style]`, which falls back to `styles['defaults']`.
@@ -91,6 +92,24 @@ class Plot2D:
         # Contourf does not plot (at all) the bad regions. "Fake it" by facecolor
         if has_out_of_range:
             ax.set_facecolor(getattr(kwargs["cmap"], "_rgba_bad", "w"))
+
+        # Grid (reflecting the model grid)
+        # NB: If not showing grid, then don't locate ticks on grid, because they're
+        #     generally uglier that mpl's default/automatic tick location. But, it
+        #     should be safe to go with 'g' format instead of 'f'.
+        ax.xaxis.set_major_formatter('{x:.3g}')
+        ax.yaxis.set_major_formatter('{x:.3g}')
+        ax.tick_params(which='minor', length=0, color='r')
+        ax.tick_params(which='major', width=1.5, direction="in")
+        if grid:
+            n1 = 10
+            xStep = 1 + self.Nx//n1
+            yStep = 1 + self.Ny//n1
+            ax.xaxis.set_major_locator(MultipleLocator(self.hx*xStep))
+            ax.yaxis.set_major_locator(MultipleLocator(self.hy*yStep))
+            ax.xaxis.set_minor_locator(MultipleLocator(self.hx))
+            ax.yaxis.set_minor_locator(MultipleLocator(self.hy))
+            ax.grid(True, which="both")
 
         # Axis lims
         ax.set_xlim((0, Lx))
