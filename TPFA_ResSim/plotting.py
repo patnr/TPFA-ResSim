@@ -74,6 +74,7 @@ class Plot2D:
             raise ValueError(f"Unsupported coord_type: {coord_type}")
 
         # Apply transform
+        Z = np.asarray(Z)
         Z = kwargs.pop("transf")(Z)
 
         # Need to transpose coz orientation is model.shape==(Nx, Ny),
