@@ -122,12 +122,10 @@ class ResSim(NicePrint, Grid2D, Plot2D):
                 rates = rates[:, 0]
             else:
                 rates = rates[:, k]
-            assert len(rates) == len(xys), "Mismatch in rate specification"
 
             for xy, q in zip(xys, rates):
                 # Use += in case of superimposed wells (e.g. by optimzt)
                 Q[self.xy2ind(*xy)] += sign * q
-        assert np.isclose(Q.sum(), 0), "(Inj - Prod) does not sum to 0"
         self._Q = Q
 
     # Pres() -- listing 5
@@ -318,6 +316,16 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         """
         def integrate(S, k):
             self._set_Q(k)
+
+            # Catch some common issues, usually due to history matched params.
+            # For example, mass imblance is insidiously silent (inputs deficit in SW corner)
+            # but most would cause a (harder to debug) exception further down the line.
+            assert len(self.inj_rates) == len(self.inj_xy)
+            assert len(self.prod_rates) == len(self.prod_xy)
+            assert np.isclose(self._Q.sum(), 0), "(Inj - Prod) does not sum to 0"
+            assert np.all((0 <= self.K  ) & np.isfinite(self.K))
+            assert np.all((0 <= self.por) & (self.por <= 1))
+
             [P, V] = self.pressure_step(S)
             if implicit:
                 S = self.saturation_step_implicit(S, V, dt)
