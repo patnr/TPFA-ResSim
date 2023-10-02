@@ -317,9 +317,9 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         def integrate(S, k):
             self._set_Q(k)
 
-            # Catch some common issues, usually due to history matched params.
-            # For example, mass imblance is insidiously silent (inputs deficit in SW corner)
-            # but most would cause a (harder to debug) exception further down the line.
+            # Catch some common issues, usually due to history matched params,
+            # before they become mysterious or insidious (e.g. mass imblance
+            # silently inserts deficit in SW corner).
             assert len(self.inj_rates) == len(self.inj_xy)
             assert len(self.prod_rates) == len(self.prod_xy)
             assert np.isclose(self._Q.sum(), 0), "(Inj - Prod) does not sum to 0"
