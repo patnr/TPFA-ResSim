@@ -1,6 +1,7 @@
 """Convenient plot functions for reservoir model."""
 
 import matplotlib as mpl
+import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.ticker import MultipleLocator
 from mpl_tools import place, place_ax
@@ -51,7 +52,8 @@ class Plot2D:
     """Plots specialized for 2D fields."""
 
     def plt_field(self, ax, Z, style="default", wells=True,
-                  argmax=False, colorbar=True, labels=True, grid=False, **kwargs):
+                  argmax=False, colorbar=True, labels=True, grid=False,
+                  finalize=True, **kwargs):
         """Contour-plot of the (flat) unravelled field `Z`.
 
         `kwargs` falls back to `styles[style]`, which falls back to `styles['defaults']`.
@@ -157,6 +159,7 @@ class Plot2D:
                 cax = dict(ax=ax, shrink=.8)
             ax.figure.colorbar(collections, **cax, ticks=cticks)
 
+        tight_show(ax.figure, finalize)
         return collections
 
 
@@ -203,7 +206,8 @@ class Plot2D:
 
         return sh
 
-    def plt_production(self, ax, production, obs=None, legend_outside=True):
+    def plt_production(self, ax, production, obs=None,
+                       legend_outside=True, finalize=True):
         """Production time series. Multiple wells in 1 axes => not ensemble compat."""
         hh = []
         tt = 1+np.arange(len(production))
@@ -215,7 +219,6 @@ class Plot2D:
                 ax.plot(tt, y, "*", c=hh[i].get_color())
 
         # Add legend
-        place_ax.adjust_position(ax, w=-0.05)
         if legend_outside:
             kws = dict(
                   bbox_to_anchor=(1, 1),
@@ -226,27 +229,31 @@ class Plot2D:
             kws = dict(loc="lower left")
         ax.legend(title="Well #.", **kws)
 
-        ax.set_ylabel("Production (saturations)")
+        ax.set_title("Oil saturation in producers")
         ax.set_xlabel("Time index")
         # ax.set_ylim(-0.01, 1.01)
         ax.axhline(0, c="xkcd:light grey", ls="--", zorder=1.8)
         ax.axhline(1, c="xkcd:light grey", ls="--", zorder=1.8)
+
+        tight_show(ax.figure, finalize)
         return hh
 
     # Note: See note in mpl_setup.py about properly displaying the animation.
-    def anim(self, _perm, wsats, prod, title="",
-             figsize=(2.0, .7), pause=200, animate=True, **kwargs):
+    def anim(self, wsats, prod, title="", figsize=(10, 3.5), pause=200, animate=True,
+             **kwargs):
         """Animate the saturation and production time series."""
 
         # Create figure and axes
         title = "Animation" + ("-- " + title if title else "")
-        fig, (ax1, ax2) = place.freshfig(title, ncols=2, figsize=figsize, rel=True)
+        fig, (ax1, ax2) = place.freshfig(title, ncols=2, figsize=figsize,
+                                         gridspec_kw=dict(width_ratios=(2, 3)))
         fig.suptitle(title)  # coz animation never (any backend) displays title
         # Saturations
-        ax2.cc = self.plt_field(ax2, wsats[-1], "oil",
-                                wells="color", colorbar=True, **kwargs)
+        kwargs.update(wells="color", colorbar=True, finalize=False)
+        ax2.cc = self.plt_field(ax2, wsats[-1], "oil", **kwargs)
         # Production
-        hh = self.plt_production(ax1, prod, legend_outside=False)
+        hh = self.plt_production(ax1, prod, legend_outside=False, finalize=False)
+        fig.tight_layout()
 
         if animate:
             from matplotlib import animation
@@ -259,8 +266,8 @@ class Plot2D:
                         ax2.collections.remove(c)
                     except (AttributeError, ValueError):
                         pass  # occurs when re-running script
-                ax2.cc = self.plt_field(ax2, wsats[iT], "oil",
-                                        wells=False, colorbar=False, **kwargs)
+                kwargs.update(wells=False, colorbar=False)
+                ax2.cc = self.plt_field(ax2, wsats[iT], "oil", **kwargs)
 
                 # Update production lines
                 if iT >= 1:
@@ -278,3 +285,8 @@ class Plot2D:
             )
 
             return ani
+
+def tight_show(figure, enabled):
+    if enabled:
+        figure.tight_layout()
+        plt.show()
