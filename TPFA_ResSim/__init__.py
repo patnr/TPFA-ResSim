@@ -106,14 +106,14 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     """Array of shape `(nWell, nTime)` -- or `(nWell, 1)` if constant-in-time.
 
     .. note:: Both `inj_rates` and `prod_rates` are rates should be positive.
-        At each time index, it is asserted that the rates sum to 0,
+        At each time index, it is asserted that the difference of their sums is 0,
         otherwise the model would silently input deficit from SW corner.
     """
     prod_rates: np.ndarray = None
     """Like `prod_rates`, but for producing wells."""
 
     def _set_Q(self, k):
-        """Define source/sink *field* (at time `k`) from well specifications."""
+        """Define the source/sink *field*, `Q`, for time `k` from well specs."""
         Q = np.zeros(self.Nxy)
         for xys, sign, rates in [(self.inj_xy, +1, self.inj_rates),
                                  (self.prod_xy, -1, self.prod_rates)]:
@@ -317,9 +317,8 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         def integrate(S, k):
             self._set_Q(k)
 
-            # Catch some common issues, usually due to history matched params,
-            # before they become mysterious or insidious (e.g. mass imblance
-            # silently inserts deficit in SW corner).
+            # Catch some common issues before they become mysterious/insidious
+            # (e.g. mass imblance silently inserts deficit in SW corner).
             assert len(self.inj_rates) == len(self.inj_xy)
             assert len(self.prod_rates) == len(self.prod_xy)
             assert np.isclose(self._Q.sum(), 0), "(Inj - Prod) does not sum to 0"
@@ -345,15 +344,19 @@ class ResSim(NicePrint, Grid2D, Plot2D):
             "Wecursive" is also an accurate description of causal (Markov) processes,
             such as nature or its simulators, which build on themselves.
         """
-        # Init
-        xx = np.zeros((nSteps+1,)+x0.shape)
-        xx[0] = x0
         step = self.time_stepper(dt, **kwargs)
 
-        # Recurse
+        # pbar
         kk = np.arange(nSteps)
         if pbar:
             kk = tqdm(kk, "Simulation", leave=leave, mininterval=1e-2)
+
+        # Init
+        xx = np.zeros((nSteps+1,)+x0.shape)
+        xx[0] = x0
+
+        # Recurse
         for k in kk:
             xx[k+1] = step(xx[k], k)
+
         return xx
