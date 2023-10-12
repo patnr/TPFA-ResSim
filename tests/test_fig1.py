@@ -26,7 +26,7 @@ model = ResSim(Lx=1, Ly=1, Nx=8, Ny=8,
                inj_xy=[[0, 0]], inj_rates=[[1]],
                prod_xy=[[1, 1]], prod_rates=[[1]])
 
-model._set_Q(None)
+model._set_Q(None, 0)
 [P, V] = model.TPFA(model.K)
 
 ax = axs[0, 0]
@@ -49,7 +49,7 @@ ax.set(title="Porosity", aspect="equal")
 cc = ax.pcolormesh(logK.T[..., 0], edgecolors='k', linewidth=.01, cmap="jet")
 fig.colorbar(cc, axs[1, 1], orientation="horizontal")
 
-model._set_Q(None)
+model._set_Q(None, 0)
 [P, V] = model.TPFA(model.K)
 
 ax = axs[0, 2]
