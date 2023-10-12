@@ -113,31 +113,35 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     """Like `prod_rates`, but for producing wells."""
 
     def _set_Q(self, S, k):
-        """Define the source/sink *field*, `Q`, for time `k` from well specs."""
+        """Populate (for time `k`) the source/sink *field*, `Q`, from well specs."""
         Q = np.zeros(self.Nxy)
-        # for kind in ['inj', 'prod']
-        for kind, rates in self.dynamic_rate(S, k).items():
-            self.actual_rates[kind].append(rates)
-            # Populate Q:
+        rates = self.dynamic_rate(S, k)
+        for kind in ['inj', 'prod']:
+            # Populate Q
             xys = getattr(self, f'{kind}_xy')
             sgn = +1 if kind == "inj" else -1
-            for xy, q in zip(xys, rates):
+            for xy, q in zip(xys, rates[kind]):
                 Q[self.xy2ind(*xy)] += sgn * q  # += enables superimposition
+            # Store the computed/dynamic rates
+            if hasattr(self, "actual_rates"):
+                self.actual_rates[kind][:, k] = rates[kind]
         self._Q = Q
 
-    def _get_nominal_rates_at(self, k):
+    def _wanted_rates_at(self, k):
+        """Lookup nominal/specified rates. Allows constant-in-time (singleton) spec."""
         get_now = lambda arr: arr[k] if (len(arr) > 1) else arr[0]
         return dict(inj=get_now(self.inj_rates.T),
                     prod=get_now(self.prod_rates.T))
 
     def dynamic_rate(self, S, k):
-        """Compute the actual rates for time index `k`.
+        """Compute the `actual_rates` for time index `k`.
 
-        This default implementation returns `dict(inj=inj_rates[:, k],
-        prod=prod_rates[:, k])` but you can overwrite it. For example:
-        halt production wells where water saturation `S > 0.9`.
+        This default implementation simply copies the given well specifications,
+        returning `dict(inj=inj_rates[:, k], prod=prod_rates[:, k])`.
+        But you can overwrite it, for example to halt production wells
+        where water saturation `S > 0.9`.
         """
-        return self._get_nominal_rates_at(k)
+        return self._wanted_rates_at(k)
 
     # Pres() -- listing 5
     def pressure_step(self, S):
@@ -365,14 +369,11 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         # Init
         xx = np.zeros((nSteps+1,)+x0.shape)
         xx[0] = x0
-        self.actual_rates = dict(inj=[], prod=[])
+        self.actual_rates = dict(inj=np.zeros((self.nInj, nSteps)),
+                                 prod=np.zeros((self.nProd, nSteps)))
 
         # Recurse
         for k in kk:
             xx[k+1] = step(xx[k], k)
-
-        # asarray(actual_rates)
-        for kind in ['inj', 'prod']:
-            self.actual_rates[kind] = np.asarray(self.actual_rates[kind])
 
         return xx
