@@ -112,21 +112,32 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     prod_rates: np.ndarray = None
     """Like `prod_rates`, but for producing wells."""
 
-    def _set_Q(self, k):
+    def _set_Q(self, S, k):
         """Define the source/sink *field*, `Q`, for time `k` from well specs."""
         Q = np.zeros(self.Nxy)
-        for xys, sign, rates in [(self.inj_xy, +1, self.inj_rates),
-                                 (self.prod_xy, -1, self.prod_rates)]:
-
-            if rates.shape[1] == 1:
-                rates = rates[:, 0]
-            else:
-                rates = rates[:, k]
-
+        # for kind in ['inj', 'prod']
+        for kind, rates in self.dynamic_rate(S, k).items():
+            self.actual_rates[kind].append(rates)
+            # Populate Q:
+            xys = getattr(self, f'{kind}_xy')
+            sgn = +1 if kind == "inj" else -1
             for xy, q in zip(xys, rates):
-                # Use += in case of superimposed wells (e.g. by optimzt)
-                Q[self.xy2ind(*xy)] += sign * q
+                Q[self.xy2ind(*xy)] += sgn * q  # += enables superimposition
         self._Q = Q
+
+    def _get_nominal_rates_at(self, k):
+        get_now = lambda arr: arr[k] if (len(arr) > 1) else arr[0]
+        return dict(inj=get_now(self.inj_rates.T),
+                    prod=get_now(self.prod_rates.T))
+
+    def dynamic_rate(self, S, k):
+        """Compute the actual rates for time index `k`.
+
+        This default implementation returns `dict(inj=inj_rates[:, k],
+        prod=prod_rates[:, k])` but you can overwrite it. For example:
+        halt production wells where water saturation `S > 0.9`.
+        """
+        return self._get_nominal_rates_at(k)
 
     # Pres() -- listing 5
     def pressure_step(self, S):
@@ -315,7 +326,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         - `implicit`: reduces sub-`dt` until convergence is achieved.
         """
         def integrate(S, k):
-            self._set_Q(k)
+            self._set_Q(S, k)
 
             # Catch some common issues before they become mysterious/insidious
             # (e.g. mass imblance silently inserts deficit in SW corner).
@@ -354,9 +365,14 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         # Init
         xx = np.zeros((nSteps+1,)+x0.shape)
         xx[0] = x0
+        self.actual_rates = dict(inj=[], prod=[])
 
         # Recurse
         for k in kk:
             xx[k+1] = step(xx[k], k)
+
+        # asarray(actual_rates)
+        for kind in ['inj', 'prod']:
+            self.actual_rates[kind] = np.asarray(self.actual_rates[kind])
 
         return xx
