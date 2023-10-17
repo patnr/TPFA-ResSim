@@ -136,10 +136,9 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     def dynamic_rate(self, S, k):
         """Compute the `actual_rates` for time index `k`.
 
-        This default implementation simply copies the given well specifications,
-        returning `dict(inj=inj_rates[:, k], prod=prod_rates[:, k])`.
-        But you can overwrite it, for example to halt production wells
-        where water saturation `S > 0.9`.
+        This default implementation simply reads the given well specifications.
+        But you can overwrite (patch/inherit) it, for example to halt production wells
+        if water saturation is too high or simply if the suggested rate is near 0.
         """
         return self._wanted_rates_at(k)
 
