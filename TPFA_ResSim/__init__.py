@@ -240,8 +240,8 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         return A
 
     # Extracted from Upstream()
-    def estimate_CFL(self, pv, V, fi):
-        """Estimate CFL for use with `saturation_step_upwind`."""
+    def estimate_1CFL(self, pv, V, fi):
+        """Estimate 1/CFL for use with `saturation_step_upwind`."""
         # In-/Out-flux x-/y- faces
         XP = V.x.clip(min=0)
         XN = V.x.clip(max=0)
@@ -249,10 +249,9 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         YN = V.y.clip(max=0)
         Vi = XP[:-1, :] + YP[:, :-1] - XN[1:, :] - YN[:, 1:]
 
-        pm  = min(pv / (Vi.ravel() + fi))  # estimate of influx
+        flx = max((Vi.ravel() + fi) / pv)  # estimate of influx
         sat = self.swc + self.sor
-        cfl = ((1 - sat) / 3) * pm  # NB: 3-->2 since no z-dim ?
-        return cfl
+        return 3 / (1 - sat) * flx  # NB: 3-->2 since no z-dim ?
 
     # Upstream() -- listing 8
     def saturation_step_upwind(self, S, V, dt):
@@ -262,8 +261,8 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         fi = self._Q.clip(min=0)                 # Well inflow
 
         # Compute sub/local dt
-        cfl = self.estimate_CFL(pv, V, fi)
-        nT = int(np.ceil(dt / cfl))
+        cfl1 = self.estimate_1CFL(pv, V, fi)
+        nT = int(np.ceil(dt * cfl1))
         nT = max(1, nT)
 
         # Scale A
