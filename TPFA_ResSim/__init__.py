@@ -129,9 +129,9 @@ class ResSim(NicePrint, Grid2D, Plot2D):
 
     def _wanted_rates_at(self, k):
         """Lookup nominal/specified rates. Allows constant-in-time (singleton) spec."""
-        return dict(inj=get_now(self.inj_rates.T),
-                    prod=get_now(self.prod_rates.T))
         get_now = lambda arr: np.copy(arr[k] if (len(arr) > 1) else arr[0])
+        return (get_now(self.inj_rates.T),
+                get_now(self.prod_rates.T))
 
     def dynamic_rate(self, S, k):
         """Compute the `actual_rates` for time index `k`.
@@ -140,7 +140,8 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         But you can overwrite (patch/inherit) it, for example to halt production wells
         if water saturation is too high or simply if the suggested rate is near 0.
         """
-        return self._wanted_rates_at(k)
+        inj, prod = self._wanted_rates_at(k)
+        return dict(inj=inj, prod=prod)
 
     # Pres() -- listing 5
     def pressure_step(self, S):
