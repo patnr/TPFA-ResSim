@@ -129,9 +129,9 @@ class ResSim(NicePrint, Grid2D, Plot2D):
 
     def _wanted_rates_at(self, k):
         """Lookup nominal/specified rates. Allows constant-in-time (singleton) spec."""
-        get_now = lambda arr: arr[k] if (len(arr) > 1) else arr[0]
         return dict(inj=get_now(self.inj_rates.T),
                     prod=get_now(self.prod_rates.T))
+        get_now = lambda arr: np.copy(arr[k] if (len(arr) > 1) else arr[0])
 
     def dynamic_rate(self, S, k):
         """Compute the `actual_rates` for time index `k`.
