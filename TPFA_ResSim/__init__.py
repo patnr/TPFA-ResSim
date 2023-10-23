@@ -335,6 +335,8 @@ class ResSim(NicePrint, Grid2D, Plot2D):
             assert len(self.inj_rates) == len(self.inj_xy)
             assert len(self.prod_rates) == len(self.prod_xy)
             assert np.isclose(self._Q.sum(), 0), "(Inj - Prod) does not sum to 0"
+            assert np.all(self.inj_rates >= 0)
+            assert np.all(self.prod_rates >= 0)
             assert np.all((0 <= self.K  ) & np.isfinite(self.K))
             assert np.all((0 <= self.por) & (self.por <= 1))
 
