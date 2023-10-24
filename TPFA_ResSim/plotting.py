@@ -136,10 +136,10 @@ class Plot2D:
         # Add well markers
         if wells:
             if wells == "color":
-                wells = {"color": [f"C{i}" for i in range(len(self.prod_xy))]}
+                wells = {"color": [f"C{i}" for i in range(len(self.prd_xy))]}
             elif wells in [True, 1]:
                 wells = {}
-            self.well_scatter(ax, self.prod_xy, False, **wells)
+            self.well_scatter(ax, self.prd_xy, False, **wells)
             wells.pop("color", None)
             self.well_scatter(ax, self.inj_xy, True, **wells)
 

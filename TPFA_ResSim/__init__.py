@@ -22,9 +22,9 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     Example:
     >>> model = ResSim(Lx=1, Ly=1, Nx=64, Ny=64)
     >>> model.inj_xy=[[0, .32]]
+    >>> model.prd_xy=[[1, 1]]
     >>> model.inj_rates=[[1]]
-    >>> model.prod_xy=[[1, 1]]
-    >>> model.prod_rates=[[1]]
+    >>> model.prd_rates=[[1]]
     >>> water_sat0 = np.zeros(model.Nxy)
     >>> dt = .35
     >>> nSteps = 2
@@ -48,16 +48,16 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     # Prefer __setattr__ approach (over @property get/set-ers)
     # because @property requires the _private pattern,
     # which is pretty ugly with dataclasses,
-    # and also because can unify treatment of inj/prod wells.
+    # and also because can unify treatment of inj/prd wells.
     def __setattr__(self, key, val):
         if val is not None:
             # Well positions -- collocate at some node
-            if key in ["inj_xy", "prod_xy"]:
+            if key in ["inj_xy", "prd_xy"]:
                 val = np.array(val, float).reshape((-1, 2))
                 for i, (x, y) in enumerate(val):
                     val[i] = self.ind2xy(self.xy2ind(x, y))
             # Well rates
-            if key in ["inj_rates", "prod_rates"]:
+            if key in ["inj_rates", "prd_rates"]:
                 nWell = len(getattr(self, key.replace("rates", "xy")))
                 val = np.array(val, float).reshape((nWell, -1))
             # Permeabilities
@@ -88,7 +88,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
 
     nInj  = property(lambda self: len(self.inj_xy))
     """Num. of injector wells."""
-    nProd = property(lambda self: len(self.prod_xy))
+    nPrd = property(lambda self: len(self.prd_xy))
     """Num. of producer wells."""
 
     inj_xy: np.ndarray = None
@@ -100,23 +100,23 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         This is a design choice, not a mathematical necessity.
         An alternative would be to distribute them over nearby nodes.
     """
-    prod_xy: np.ndarray = None
+    prd_xy: np.ndarray = None
     """Like `inj_xy`, but for producing wells."""
     inj_rates: np.ndarray = None
     """Array of shape `(nWell, nTime)` -- or `(nWell, 1)` if constant-in-time.
 
-    .. note:: Both `inj_rates` and `prod_rates` are rates should be positive.
+    .. note:: Both `inj_rates` and `prd_rates` are rates should be positive.
         At each time index, it is asserted that the difference of their sums is 0,
         otherwise the model would silently input deficit from SW corner.
     """
-    prod_rates: np.ndarray = None
-    """Like `prod_rates`, but for producing wells."""
+    prd_rates: np.ndarray = None
+    """Like `prd_rates`, but for producing wells."""
 
     def _set_Q(self, S, k):
         """Populate (for time `k`) the source/sink *field*, `Q`, from well specs."""
         Q = np.zeros(self.Nxy)
         rates = self.dynamic_rate(S, k)
-        for kind in ['inj', 'prod']:
+        for kind in ['inj', 'prd']:
             # Populate Q
             xys = getattr(self, f'{kind}_xy')
             sgn = +1 if kind == "inj" else -1
@@ -131,7 +131,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         """Lookup nominal/specified rates. Allows constant-in-time (singleton) spec."""
         get_now = lambda arr: np.copy(arr[k] if (len(arr) > 1) else arr[0])
         return (get_now(self.inj_rates.T),
-                get_now(self.prod_rates.T))
+                get_now(self.prd_rates.T))
 
     def dynamic_rate(self, S, k):
         """Compute the `actual_rates` for time index `k`.
@@ -140,8 +140,8 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         But you can overwrite (patch/inherit) it, for example to halt production wells
         if water saturation is too high or simply if the suggested rate is near 0.
         """
-        inj, prod = self._wanted_rates_at(k)
-        return dict(inj=inj, prod=prod)
+        inj, prd = self._wanted_rates_at(k)
+        return dict(inj=inj, prd=prd)
 
     # Pres() -- listing 5
     def pressure_step(self, S):
@@ -334,10 +334,10 @@ class ResSim(NicePrint, Grid2D, Plot2D):
             # Catch some common issues before they become mysterious/insidious
             # (e.g. mass imblance silently inserts deficit in SW corner).
             assert len(self.inj_rates) == len(self.inj_xy)
-            assert len(self.prod_rates) == len(self.prod_xy)
-            assert np.isclose(self._Q.sum(), 0), "(Inj - Prod) does not sum to 0"
+            assert len(self.prd_rates) == len(self.prd_xy)
+            assert np.isclose(self._Q.sum(), 0), "(inj - prd) does not sum to 0"
             assert np.all(self.inj_rates >= 0)
-            assert np.all(self.prod_rates >= 0)
+            assert np.all(self.prd_rates >= 0)
             assert np.all((0 <= self.K  ) & np.isfinite(self.K))
             assert np.all((0 <= self.por) & (self.por <= 1))
 
@@ -371,7 +371,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         xx = np.zeros((nSteps+1,)+x0.shape)
         xx[0] = x0
         self.actual_rates = dict(inj=np.zeros((self.nInj, nSteps)),
-                                 prod=np.zeros((self.nProd, nSteps)))
+                                 prd=np.zeros((self.nPrd, nSteps)))
 
         # Recurse
         for k in kk:

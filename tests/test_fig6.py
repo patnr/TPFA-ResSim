@@ -36,9 +36,9 @@ dt = 0.7/nSteps
 @pytest.mark.parametrize("imp", [True, False])
 def test_compare_matlab(imp):
     model.inj_xy=[[0, 0]]
-    model.prod_xy=[[1, 1]]
+    model.prd_xy=[[1, 1]]
     model.inj_rates=[[1]]
-    model.prod_rates=[[1]]
+    model.prd_rates=[[1]]
 
     SS = model.sim(dt, nSteps, water_sat0, implicit=imp)
 
@@ -55,9 +55,9 @@ def test_1():
     rate1[:10] = 1
     rate2[:10] = 0
     model.inj_xy=[[0, 0], [0, 1]]
+    model.prd_xy=[[1, 1]]
     model.inj_rates=[rate1, rate2]
-    model.prod_xy=[[1, 1]]
-    model.prod_rates=[[1]]
+    model.prd_rates=[[1]]
 
     SS = model.sim(dt, nSteps, water_sat0)
     reference = [0.9995, 0.8819, 0.8265, 0.8786, 0.7766, 0.7105, 0.1166]
@@ -66,9 +66,9 @@ def test_1():
 
 def test_2():
     model.inj_xy=[[0, 0]]
+    model.prd_xy=[[1, 1]]
     model.inj_rates=[[2]]
-    model.prod_xy=[[1, 1]]
-    model.prod_rates=[[2]]
+    model.prd_rates=[[2]]
 
     SS = model.sim(dt, nSteps, water_sat0)
     reference = [0.99983, 0.95525, 0.8614, 0.94477, 0.88827, 0.82546, 0.80773]
@@ -87,9 +87,9 @@ if __name__ == "__main__":
     rate1[10:] = 0
 
     model.inj_xy=[[0, 0], [0, 1]]
+    model.prd_xy=[[1, 1]]
     model.inj_rates=[rate1, rate2]
-    model.prod_xy=[[1, 1]]
-    model.prod_rates=[[1]]
+    model.prd_rates=[[1]]
 
     SS = model.sim(dt, nSteps, water_sat0, implicit=False)
 
@@ -124,5 +124,5 @@ if __name__ == "__main__":
 
 
     ## Animation
-    prod = [model.xy2ind(*xy) for xy in model.prod_xy]
+    prod = [model.xy2ind(*xy) for xy in model.prd_xy]
     animation = model.anim(None, SS, SS[1:, prod])

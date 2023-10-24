@@ -24,7 +24,7 @@ fig, axs = freshfig("Fig. 1", ncols=3, nrows=2, gridspec_kw={'height_ratios': (9
 ## Panel 0
 model = ResSim(Lx=1, Ly=1, Nx=8, Ny=8,
                inj_xy=[[0, 0]], inj_rates=[[1]],
-               prod_xy=[[1, 1]], prod_rates=[[1]])
+               prd_xy=[[1, 1]], prd_rates=[[1]])
 
 model._set_Q(None, 0)
 [P, V] = model.TPFA(model.K)
@@ -39,7 +39,7 @@ cb.ax.tick_params(labelsize=8)
 ## Panels 1 and 2
 model = ResSim(Lx=1, Ly=1, Nx=32, Ny=32,
                inj_xy=[[0, 0]], inj_rates=[[1]],
-               prod_xy=[[1, 1]], prod_rates=[[1]])
+               prd_xy=[[1, 1]], prd_rates=[[1]])
 logK = 5*smooth(smooth(rnd.randn(2, *model.shape)))
 model.K = np.exp(logK)
 
