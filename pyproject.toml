@@ -46,6 +46,9 @@ ignore = "W6"
 [tool.ruff]
 line-length = 88
 
+[tool.ruff.format]
+exclude = ["tests/*"]
+
 [tool.ruff.lint]
 # Pinned to the classic pyflakes + pycodestyle-errors selection (the coverage
 # of the old flakeheaven config). Notably, this excludes the whitespace (E1,

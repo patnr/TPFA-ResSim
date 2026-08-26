@@ -79,23 +79,23 @@ class Grid2D:
     @property
     def hx(self):
         """x-length of cells"""
-        return self.Lx/self.Nx
+        return self.Lx / self.Nx
 
     @property
     def hy(self):
         """y-length of cells"""
-        return self.Ly/self.Ny
+        return self.Ly / self.Ny
 
     @property
     def h2(self):
         """`hx` * `hy`"""
-        return self.hx*self.hy
+        return self.hx * self.hy
 
     @property
     def mesh(self):
         """Generate 2D coordinate grid of cell centres."""
-        xx = np.linspace(0, self.Lx, self.Nx, endpoint=False) + self.hx/2
-        yy = np.linspace(0, self.Ly, self.Ny, endpoint=False) + self.hy/2
+        xx = np.linspace(0, self.Lx, self.Nx, endpoint=False) + self.hx / 2
+        yy = np.linspace(0, self.Ly, self.Ny, endpoint=False) + self.hy / 2
         return np.meshgrid(xx, yy, indexing="ij")
 
     def sub2ind(self, ix, iy):
@@ -122,8 +122,8 @@ class Grid2D:
         assert np.all(x <= self.Lx)
         assert np.all(y <= self.Ly)
         # Set upper border values to slightly interior
-        x = x.clip(max=self.Lx-1e-8)
-        y = y.clip(max=self.Ly-1e-8)
+        x = x.clip(max=self.Lx - 1e-8)
+        y = y.clip(max=self.Ly - 1e-8)
         ix = np.floor(x / self.Lx * self.Nx).astype(int)
         iy = np.floor(y / self.Ly * self.Ny).astype(int)
         return np.asarray([ix, iy])
@@ -135,8 +135,8 @@ class Grid2D:
 
     def sub2xy(self, ix, iy):
         """Inverse of `self.xy2sub`."""
-        x = (np.asarray(ix) + .5) * self.hx
-        y = (np.asarray(iy) + .5) * self.hy
+        x = (np.asarray(ix) + 0.5) * self.hx
+        y = (np.asarray(iy) + 0.5) * self.hy
         return np.asarray([x, y])
 
     def ind2xy(self, ind):

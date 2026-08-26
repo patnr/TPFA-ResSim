@@ -34,13 +34,13 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     >>> S[-1, [100, 1300, 2900]]
     array([0.9429345 , 0.91358172, 0.71554613])
     """
+
     # Dont use dataclass repr
     __repr__ = NicePrint.__repr__
     __str__ = NicePrint.__str__
 
     def __post_init__(self):
-        defaults = dict(K=np.ones((2, *self.shape)),
-                        por=np.ones(self.shape))
+        defaults = dict(K=np.ones((2, *self.shape)), por=np.ones(self.shape))
         for k, v in defaults.items():
             if getattr(self, k) is None:
                 setattr(self, k, v)
@@ -73,15 +73,15 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     name: str = "Unnamed"
     """Description."""
 
-    vw: float = 1.
+    vw: float = 1.0
     """Viscosity for water."""
-    vo: float = 1.
+    vo: float = 1.0
     """Viscosity for oil."""
-    swc: float = 0.
+    swc: float = 0.0
     """Irreducible saturation, water."""
-    sor: float = 0.
+    sor: float = 0.0
     """Irreducible saturation, oil."""
-    ct: float = 0.
+    ct: float = 0.0
     """Total (rock + fluids) compressibility. The default, `0`, yields the
     incompressible model, whose pressure eqn. is elliptic
     (infinite speed of propagation), requires balanced source/sink terms,
@@ -102,7 +102,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     por: np.ndarray = None
     """Porosity; Array of shape `(Nx, Ny)`)."""
 
-    nInj  = property(lambda self: len(self.inj_xy))
+    nInj = property(lambda self: len(self.inj_xy))
     """Num. of injector wells."""
     nPrd = property(lambda self: len(self.prd_xy))
     """Num. of producer wells."""
@@ -132,9 +132,9 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         """Populate (for time `k`) the source/sink *field*, `Q`, from well specs."""
         Q = np.zeros(self.Nxy)
         rates = self.dynamic_rate(S, k)
-        for kind in ['inj', 'prd']:
+        for kind in ["inj", "prd"]:
             # Populate Q
-            xys = getattr(self, f'{kind}_xy')
+            xys = getattr(self, f"{kind}_xy")
             sgn = +1 if kind == "inj" else -1
             for xy, q in zip(xys, rates[kind]):
                 Q[self.xy2ind(*xy)] += sgn * q  # += enables superimposition
@@ -146,8 +146,10 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     def _wanted_rates_at(self, k):
         """Lookup nominal/specified rates. Allows constant-in-time (singleton) spec."""
         get_now = lambda arr: np.copy(arr[k] if (len(arr) > 1) else arr[0])
+        # fmt: off
         return (get_now(self.inj_rates.T),
                 get_now(self.prd_rates.T))
+        # fmt: on
 
     def dynamic_rate(self, S, k):
         """Compute the `actual_rates` for time index `k`.
@@ -185,8 +187,8 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     def RelPerm(self, s):
         """Rel. permeabilities of oil and water. Return as mobilities (perm/viscocity)."""
         S = self.rescale_sat(s)
-        Mw = S**2 / self.vw        # Water mobility
-        Mo = (1 - S)**2 / self.vo  # Oil mobility
+        Mw = S**2 / self.vw  # Water mobility
+        Mo = (1 - S) ** 2 / self.vo  # Oil mobility
         return Mw, Mo
 
     def dRelPerm(self, s):
@@ -209,7 +211,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         by finite differences.
         """
         # Compute transmissibilities by harmonic averaging.
-        L = 1/K
+        L = 1 / K
         TX = np.zeros((self.Nx + 1, self.Ny))
         TY = np.zeros((self.Nx, self.Ny + 1))
         TX[1:-1, :] = 2 * self.hy / self.hx / (L[0, :-1, :] + L[0, 1:, :])
@@ -217,9 +219,9 @@ class ResSim(NicePrint, Grid2D, Plot2D):
 
         # Assemble TPFA discretization matrix.
         x1 = TX[:-1, :].ravel()
-        x2 = TX[1:, :] .ravel()
+        x2 = TX[1:, :].ravel()
         y1 = TY[:, :-1].ravel()
-        y2 = TY[:, 1:] .ravel()
+        y2 = TY[:, 1:].ravel()
 
         # Setup linear system
         DiagVecs = [-x2, -y2, y1 + y2 + x1 + x2, -y1, -x1]
@@ -228,8 +230,9 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         if self.ct > 0:
             # Accumulation term (φ ct h²/dt) of backward Euler.
             # Renders the system nonsingular (unlike the pure-Neumann problem).
-            assert p_prev is not None and dt is not None, \
+            assert p_prev is not None and dt is not None, (
                 "Compressible model (ct > 0) requires p_prev and dt."
+            )
             accum = self.por.ravel() * self.ct * self.h2 / dt
             DiagVecs[2] = DiagVecs[2] + accum
             q = q + accum * p_prev
@@ -239,7 +242,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
 
         # Solve; compute A\q
         # u = np.linalg.solve(A.A, q) # direct dense solver
-        u = spsolve(A.tocsr(), q)     # direct sparse solver
+        u = spsolve(A.tocsr(), q)  # direct sparse solver
         # u, _info = cg(A, q)         # conjugate gradient
         # Could also try scipy.linalg.solveh_banded which, according to
         # https://scicomp.stackexchange.com/a/30074 uses the Thomas algorithm,
@@ -250,8 +253,8 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         # Extract fluxes
         P = u.reshape(self.shape)
         V = DotDict(
-            x=np.zeros((self.Nx+1, self.Ny)),
-            y=np.zeros((self.Nx, self.Ny+1)),
+            x=np.zeros((self.Nx + 1, self.Ny)),
+            y=np.zeros((self.Nx, self.Ny + 1)),
         )
         V.x[1:-1, :] = (P[:-1, :] - P[1:, :]) * TX[1:-1, :]
         V.y[:, 1:-1] = (P[:, :-1] - P[:, 1:]) * TY[:, 1:-1]
@@ -264,8 +267,8 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         # Flow fluxes, separated into direction (x-y) and sign
         x1 = V.x.clip(max=0)[:-1, :].ravel()
         y1 = V.y.clip(max=0)[:, :-1].ravel()
-        x2 = V.x.clip(min=0)[1:, :] .ravel()
-        y2 = V.y.clip(min=0)[:, 1:] .ravel()
+        x2 = V.x.clip(min=0)[1:, :].ravel()
+        y2 = V.y.clip(min=0)[:, 1:].ravel()
         DiagVecs = [x2, y2, fp + y1 - y2 + x1 - x2, -y1, -x1]
         DiagIndx = [-self.Ny, -1, 0, 1, self.Ny]
         A = self._spdiags(DiagVecs, DiagIndx)
@@ -288,6 +291,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     # Upstream() -- listing 8
     def saturation_step_upwind(self, S, V, dt):
         """Explicit upwind FV discretisation of conserv. of mass (water sat.)."""
+        # fmt: off
         A  = self.upwind_diff(V)                 # FV discretized transport operator
         pv = self.h2 * self.por.ravel()          # Pore volume = cell volume * porosity
         fi = self._Q.clip(min=0)                 # Well inflow
@@ -305,11 +309,13 @@ class ResSim(NicePrint, Grid2D, Plot2D):
             Mw, Mo = self.RelPerm(S)             # compute mobilities
             fw = Mw / (Mw + Mo)                  # compute fractional flow
             S = S + (B@fw + fi*dtx)              # update saturation
+        # fmt: on
         return S
 
     # NewtRaph() -- listing 10
     def saturation_step_implicit(self, S, V, dt, nNewtonMax=10, nTmax_log2=10):
         """Implicit FV discretisation of conserv. of mass (water sat.)."""
+        # fmt: off
         A  = self.upwind_diff(V)                 # FV discretized transport operator
         pv = self.h2 * self.por.ravel()          # Pore volume = cell.vol * por
         fi = self._Q.clip(min=0)                 # Well inflow
@@ -348,6 +354,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         else:
             # Failed (even with max nT) to complete all time steps
             print("Warning: did not converge")
+        # fmt: on
 
         return Sn
 
@@ -359,6 +366,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         - `explicit`: computes sub-`dt` based on CFL esitmate.
         - `implicit`: reduces sub-`dt` until convergence is achieved.
         """
+
         def integrate(S, P, k):
             self._set_Q(S, k)
 
@@ -371,7 +379,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
                 assert np.isclose(self._Q.sum(), 0), "(inj - prd) does not sum to 0"
             assert np.all(self.inj_rates >= 0)
             assert np.all(self.prd_rates >= 0)
-            assert np.all((0 <= self.K  ) & np.isfinite(self.K))
+            assert np.all((0 <= self.K) & np.isfinite(self.K))
             assert np.all((0 <= self.por) & (self.por <= 1))
 
             [P, V] = self.pressure_step(S, P, dt)
@@ -380,6 +388,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
             else:
                 S = self.saturation_step_upwind(S, V, dt)
             return S, P.ravel()
+
         return integrate
 
     def sim(self, dt, nSteps, x0, p0=None, pbar=True, leave=True, **kwargs):
@@ -407,16 +416,18 @@ class ResSim(NicePrint, Grid2D, Plot2D):
             kk = tqdm(kk, "Simulation", leave=leave, mininterval=1e-2)
 
         # Init
-        xx = np.zeros((nSteps+1,)+x0.shape)
-        pp = np.zeros((nSteps+1, self.Nxy))
+        xx = np.zeros((nSteps + 1,) + x0.shape)
+        pp = np.zeros((nSteps + 1, self.Nxy))
         xx[0] = x0
         if p0 is not None:
             pp[0] = p0
+        # fmt: off
         self.actual_rates = dict(inj=np.zeros((self.nInj, nSteps)),
                                  prd=np.zeros((self.nPrd, nSteps)))
+        # fmt: on
 
         # Recurse
         for k in kk:
-            xx[k+1], pp[k+1] = step(xx[k], pp[k], k)
+            xx[k + 1], pp[k + 1] = step(xx[k], pp[k], k)
 
         return xx, pp

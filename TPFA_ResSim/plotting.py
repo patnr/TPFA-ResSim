@@ -16,7 +16,7 @@ coord_type = "absolute"
 
 # Colormap for saturation
 lin_cm = mpl.colors.LinearSegmentedColormap.from_list
-cm_ow = lin_cm("", [(0, "#1d9e97"), (.3, "#b2e0dc"), (1, "#f48974")])
+cm_ow = lin_cm("", [(0, "#1d9e97"), (0.3, "#b2e0dc"), (1, "#f48974")])
 # cOil, cWater = "red", "blue"        # Plain
 # cOil, cWater = "#d8345f", "#01a9b4" # Pastel/neon
 # cOil, cWater = "#e58a8a", "#086972" # Pastel
@@ -26,23 +26,23 @@ cm_ow = lin_cm("", [(0, "#1d9e97"), (.3, "#b2e0dc"), (1, "#f48974")])
 
 
 styles = dict(
-    default = dict(
-        title  = "",
-        transf = lambda x: x,
-        cmap   = "viridis",
-        levels = 10,
-        cticks = None,
+    default=dict(
+        title="",
+        transf=lambda x: x,
+        cmap="viridis",
+        levels=10,
+        cticks=None,
         # Note that providing vmin/vmax (and not a levels list) to mpl
         # yields prettier colobar ticks, but destorys the consistency
         # of the colorbars from one figure to another.
-        locator = None,
+        locator=None,
     ),
-    oil = dict(
-        title  = "Oil saturation",
-        transf = lambda x: 1 - x,
-        cmap   = cm_ow,
-        levels = np.linspace(0 - 1e-7, 1 + 1e-7, 20),
-        cticks = np.linspace(0, 1, 6),
+    oil=dict(
+        title="Oil saturation",
+        transf=lambda x: 1 - x,
+        cmap=cm_ow,
+        levels=np.linspace(0 - 1e-7, 1 + 1e-7, 20),
+        cticks=np.linspace(0, 1, 6),
     ),
 )
 """Default `Plot2D.plt_field` plot styling values."""
@@ -51,9 +51,19 @@ styles = dict(
 class Plot2D:
     """Plots specialized for 2D fields."""
 
-    def plt_field(self, ax, Z, style="default", wells=True,
-                  argmax=False, colorbar=True, labels=True, grid=False,
-                  finalize=True, **kwargs):
+    def plt_field(
+        self,
+        ax,
+        Z,
+        style="default",
+        wells=True,
+        argmax=False,
+        colorbar=True,
+        labels=True,
+        grid=False,
+        finalize=True,
+        **kwargs,
+    ):
         """Contour-plot of the (flat) unravelled field `Z`.
 
         `kwargs` falls back to `styles[style]`, which falls back to `styles['defaults']`.
@@ -91,7 +101,8 @@ class Plot2D:
         # No fix is needed, and anyway it would not be trivial/fast,
         # ref https://github.com/matplotlib/basemap/issues/406 .
         collections = ax.contourf(
-            Z, **kwargs,
+            Z,
+            **kwargs,
             # origin=None,  # ⇒ NB: falsely stretches the field!!!
             origin="lower",
             extent=(0, Lx, 0, Ly),
@@ -106,16 +117,16 @@ class Plot2D:
         # NB: If not showing grid, then don't locate ticks on grid, because they're
         #     generally uglier that mpl's default/automatic tick location. But, it
         #     should be safe to go with 'g' format instead of 'f'.
-        ax.xaxis.set_major_formatter('{x:.3g}')
-        ax.yaxis.set_major_formatter('{x:.3g}')
-        ax.tick_params(which='minor', length=0, color='r')
-        ax.tick_params(which='major', width=1.5, direction="in")
+        ax.xaxis.set_major_formatter("{x:.3g}")
+        ax.yaxis.set_major_formatter("{x:.3g}")
+        ax.tick_params(which="minor", length=0, color="r")
+        ax.tick_params(which="major", width=1.5, direction="in")
         if grid:
             n1 = 10
-            xStep = 1 + self.Nx//n1
-            yStep = 1 + self.Ny//n1
-            ax.xaxis.set_major_locator(MultipleLocator(self.hx*xStep))
-            ax.yaxis.set_major_locator(MultipleLocator(self.hy*yStep))
+            xStep = 1 + self.Nx // n1
+            yStep = 1 + self.Ny // n1
+            ax.xaxis.set_major_locator(MultipleLocator(self.hx * xStep))
+            ax.yaxis.set_major_locator(MultipleLocator(self.hy * yStep))
             ax.xaxis.set_minor_locator(MultipleLocator(self.hx))
             ax.yaxis.set_minor_locator(MultipleLocator(self.hy))
             ax.grid(True, which="both")
@@ -147,8 +158,7 @@ class Plot2D:
         if argmax:
             idx = Z.T.argmax()  # reverse above transpose
             xy = self.ind2xy(idx)
-            for c, ms in zip(['b', 'r', 'y'],
-                             [10, 6, 3]):
+            for c, ms in zip(["b", "r", "y"], [10, 6, 3]):
                 ax.plot(*xy, "o", c=c, ms=ms, label="max", zorder=98)
 
         # Add colorbar
@@ -156,74 +166,87 @@ class Plot2D:
             if isinstance(colorbar, type(ax)):
                 cax = dict(cax=colorbar)
             else:
-                cax = dict(ax=ax, shrink=.8)
+                cax = dict(ax=ax, shrink=0.8)
             ax.figure.colorbar(collections, **cax, ticks=cticks)
 
         tight_show(ax.figure, finalize)
         return collections
-
 
     def well_scatter(self, ax, ww, inj=True, text=None, color=None, size=1):
         """Scatter-plot the wells of `ww` onto a `Plot2D.plt_field`."""
         # Well coordinates
         ww = self.sub2xy(*self.xy2sub(*ww.T)).T
         # NB: make sure ww array data is not overwritten (avoid in-place)
+        # fmt: off
         if   "rel" in coord_type: s = 1/self.Lx, 1/self.Ly                     # noqa
         elif "abs" in coord_type: s = 1, 1                                     # noqa
         elif "ind" in coord_type: s = self.Nx/self.Lx, self.Ny/self.Ly         # noqa
         else: raise ValueError("Unsupported coordinate type: %s" % coord_type) # noqa
+        # fmt: on
         ww = ww * s
 
         # Style
         if inj:
-            c  = "w"
+            c = "w"
             ec = "gray"
-            d  = "k"
-            m  = "v"
+            d = "k"
+            m = "v"
         else:
-            c  = "k"
+            c = "k"
             ec = "gray"
-            d  = "w"
-            m  = "^"
+            d = "w"
+            m = "^"
 
         if color:
             c = color
 
         # Markers
-        sh = ax.plot(*ww.T, 'r.', ms=3, clip_on=False)
-        sh = ax.scatter(*ww.T, s=(size * 26)**2, c=c, marker=m, ec=ec,
-                        clip_on=False,
-                        zorder=1.5,  # required on Jupypter
-                        )
+        sh = ax.plot(*ww.T, "r.", ms=3, clip_on=False)
+        sh = ax.scatter(
+            *ww.T,
+            s=(size * 26) ** 2,
+            c=c,
+            marker=m,
+            ec=ec,
+            clip_on=False,
+            zorder=1.5,  # required on Jupypter
+        )
 
         # Text labels
         if text is not False:
             for i, w in enumerate(ww):
                 if not inj:
                     w[1] -= 0.01
-                ax.text(*w[:2], i if text is None else text,
-                        color=d, fontsize=size*12, ha="center", va="center")
+                ax.text(
+                    *w[:2],
+                    i if text is None else text,
+                    color=d,
+                    fontsize=size * 12,
+                    ha="center",
+                    va="center",
+                )
 
         return sh
 
-    def plt_production(self, ax, production, obs=None,
-                       legend_outside=True, finalize=True):
+    def plt_production(
+        self, ax, production, obs=None, legend_outside=True, finalize=True
+    ):
         """Production time series. Multiple wells in 1 axes => not ensemble compat."""
         hh = []
-        tt = 1+np.arange(len(production))
-        for i, p in enumerate(1-production.T):
+        tt = 1 + np.arange(len(production))
+        for i, p in enumerate(1 - production.T):
             hh += ax.plot(tt, p, "-", label=i)
 
         if obs is not None:
-            for i, y in enumerate(1-obs.T):
+            for i, y in enumerate(1 - obs.T):
                 ax.plot(tt, y, "*", c=hh[i].get_color())
 
         # Add legend
         if legend_outside:
             kws = dict(
-                  bbox_to_anchor=(1, 1),
-                  loc="upper left",
-                  ncol=1+len(production.T)//10,
+                bbox_to_anchor=(1, 1),
+                loc="upper left",
+                ncol=1 + len(production.T) // 10,
             )
         else:
             kws = dict(loc="lower left")
@@ -239,14 +262,23 @@ class Plot2D:
         return hh
 
     # Note: See note in mpl_setup.py about properly displaying the animation.
-    def anim(self, wsats, prod, title="", figsize=(10, 3.5), pause=200, animate=True,
-             **kwargs):
+    def anim(
+        self,
+        wsats,
+        prod,
+        title="",
+        figsize=(10, 3.5),
+        pause=200,
+        animate=True,
+        **kwargs,
+    ):
         """Animate the saturation and production time series."""
 
         # Create figure and axes
         title = "Animation" + ("-- " + title if title else "")
-        fig, (ax1, ax2) = place.freshfig(title, ncols=2, figsize=figsize,
-                                         gridspec_kw=dict(width_ratios=(2, 3)))
+        fig, (ax1, ax2) = place.freshfig(
+            title, ncols=2, figsize=figsize, gridspec_kw=dict(width_ratios=(2, 3))
+        )
         fig.suptitle(title)  # coz animation never (any backend) displays title
         # Saturations
         kwargs.update(wells="color", colorbar=True, finalize=False)
@@ -257,6 +289,7 @@ class Plot2D:
 
         if animate:
             from matplotlib import animation
+
             tt = np.arange(len(wsats))
 
             def update_fig(iT):
@@ -272,10 +305,14 @@ class Plot2D:
                 # Update production lines
                 if iT >= 1:
                     for h, p in zip(hh, prod.T):
-                        h.set_data(tt[1:1+iT], 1 - p[:iT])
+                        h.set_data(tt[1 : 1 + iT], 1 - p[:iT])
 
             ani = animation.FuncAnimation(
-                fig, update_fig, len(tt), blit=False, interval=pause,
+                fig,
+                update_fig,
+                len(tt),
+                blit=False,
+                interval=pause,
                 # Prevent busy/idle indicator constantly flashing, despite %%capture
                 # and even manually clearing the output of the calling cell.
                 repeat=False,  # flashing stops once the (unshown) animation finishes.
@@ -285,6 +322,7 @@ class Plot2D:
             )
 
             return ani
+
 
 def tight_show(figure, enabled):
     if enabled:
