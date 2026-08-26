@@ -40,7 +40,7 @@ def test_compare_matlab(imp):
     model.inj_rates=[[1]]
     model.prd_rates=[[1]]
 
-    SS = model.sim(dt, nSteps, water_sat0, implicit=imp)
+    SS, PP = model.sim(dt, nSteps, water_sat0, implicit=imp)
 
     # From matlab_codes/listing9.m: >> S(1:600:end)
     matlab_output = ([0.99963, 0.91573, 0.75736, 0.89799, 0.79862, 0.62061, 0.62483]
@@ -59,7 +59,7 @@ def test_1():
     model.inj_rates=[rate1, rate2]
     model.prd_rates=[[1]]
 
-    SS = model.sim(dt, nSteps, water_sat0)
+    SS, PP = model.sim(dt, nSteps, water_sat0)
     reference = [0.9995, 0.8819, 0.8265, 0.8786, 0.7766, 0.7105, 0.1166]
     assert np.all(np.isclose(SS[-1, ::600], reference, rtol=1e-4))
 
@@ -70,7 +70,7 @@ def test_2():
     model.inj_rates=[[2]]
     model.prd_rates=[[2]]
 
-    SS = model.sim(dt, nSteps, water_sat0)
+    SS, PP = model.sim(dt, nSteps, water_sat0)
     reference = [0.99983, 0.95525, 0.8614, 0.94477, 0.88827, 0.82546, 0.80773]
     assert np.all(np.isclose(SS[-1, ::600], reference))
 
@@ -91,7 +91,7 @@ if __name__ == "__main__":
     model.inj_rates=[rate1, rate2]
     model.prd_rates=[[1]]
 
-    SS = model.sim(dt, nSteps, water_sat0, implicit=False)
+    SS, PP = model.sim(dt, nSteps, water_sat0, implicit=False)
 
     kws = dict(levels=17, cmap="jet", origin=None,
                extent=(0, model.Lx, 0, model.Ly))

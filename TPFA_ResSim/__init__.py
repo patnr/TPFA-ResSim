@@ -28,7 +28,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     >>> water_sat0 = np.zeros(model.Nxy)
     >>> dt = .35
     >>> nSteps = 2
-    >>> S = model.sim(dt, nSteps, water_sat0, pbar=False)
+    >>> S, P = model.sim(dt, nSteps, water_sat0, pbar=False)
 
     This produces the following values (used for automatic testing):
     >>> S[-1, [100, 1300, 2900]]
@@ -81,6 +81,22 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     """Irreducible saturation, water."""
     sor: float = 0.
     """Irreducible saturation, oil."""
+    ct: float = 0.
+    """Total (rock + fluids) compressibility. The default, `0`, yields the
+    incompressible model, whose pressure eqn. is elliptic
+    (infinite speed of propagation), requires balanced source/sink terms,
+    and only defines pressure up to an additive constant.
+
+    Setting `ct > 0` ("slightly compressible" model) makes the pressure eqn.
+    parabolic, $ φ \\, c_t \\, ∂p/∂t - ∇ ⋅ (K λ(s) ∇p) = q $,
+    discretized by backward Euler over the same `dt` as the saturation step.
+    Then total injection and production rates need not balance
+    (storage absorbs the imbalance), enabling e.g. primary depletion.
+
+    .. note:: The corresponding $O(c_t)$ term in the *transport* (saturation)
+        equation is neglected, i.e. the total velocity is still treated as
+        divergence-free there. This is a standard simplification for small `ct`.
+    """
     K: np.ndarray = None
     """Permeabilities (in x and y directions). Array of shape `(2, Nx, Ny)`)."""
     por: np.ndarray = None
@@ -144,15 +160,18 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         return dict(inj=inj, prd=prd)
 
     # Pres() -- listing 5
-    def pressure_step(self, S):
-        """Compute permeabilities then solve Darcy's equation. Returns `[P, V]`."""
+    def pressure_step(self, S, p_prev=None, dt=None):
+        """Compute permeabilities then solve Darcy's equation. Returns `[P, V]`.
+
+        `p_prev` and `dt` are only used (and required) if `ct > 0`.
+        """
         # Compute K*λ(S)
         Mw, Mo = self.RelPerm(S)
         Mt = Mw + Mo
         Mt = Mt.reshape(self.shape)
         KM = Mt * self.K
         # Compute pressure and extract fluxes
-        [P, V] = self.TPFA(KM)
+        [P, V] = self.TPFA(KM, p_prev, dt)
         return P, V
 
     def _spdiags(self, data, diags):
@@ -178,10 +197,13 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         return dMw, dMo
 
     # TPFA() -- Listing 1
-    def TPFA(self, K):
+    def TPFA(self, K, p_prev=None, dt=None):
         """Two-point flux-approximation (TPFA) of Darcy: $ -∇(K ∇u) = q $
 
-        i.e. steady-state diffusion w/ nonlinear coefficient, $K$.
+        i.e. steady-state diffusion w/ nonlinear coefficient, $K$,
+        if `ct == 0`. Otherwise (slightly compressible model) solve
+        the backward-Euler step of $ φ c_t ∂u/∂t - ∇(K ∇u) = q $,
+        which requires `p_prev` (flat array) and `dt`.
 
         After solving for pressure `P`, extract the fluxes `V`
         by finite differences.
@@ -202,11 +224,20 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         # Setup linear system
         DiagVecs = [-x2, -y2, y1 + y2 + x1 + x2, -y1, -x1]
         DiagIndx = [-self.Ny, -1, 0, 1, self.Ny]
-        DiagVecs[2][0] += np.sum(self.K[:, 0, 0])  # ref article p. 13
+        q = self._Q
+        if self.ct > 0:
+            # Accumulation term (φ ct h²/dt) of backward Euler.
+            # Renders the system nonsingular (unlike the pure-Neumann problem).
+            assert p_prev is not None and dt is not None, \
+                "Compressible model (ct > 0) requires p_prev and dt."
+            accum = self.por.ravel() * self.ct * self.h2 / dt
+            DiagVecs[2] = DiagVecs[2] + accum
+            q = q + accum * p_prev
+        else:
+            DiagVecs[2][0] += np.sum(self.K[:, 0, 0])  # ref article p. 13
         A = self._spdiags(DiagVecs, DiagIndx)
 
         # Solve; compute A\q
-        q = self._Q
         # u = np.linalg.solve(A.A, q) # direct dense solver
         u = spsolve(A.tocsr(), q)     # direct sparse solver
         # u, _info = cg(A, q)         # conjugate gradient
@@ -328,31 +359,39 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         - `explicit`: computes sub-`dt` based on CFL esitmate.
         - `implicit`: reduces sub-`dt` until convergence is achieved.
         """
-        def integrate(S, k):
+        def integrate(S, P, k):
             self._set_Q(S, k)
 
             # Catch some common issues before they become mysterious/insidious
             # (e.g. mass imblance silently inserts deficit in SW corner).
             assert len(self.inj_rates) == len(self.inj_xy)
             assert len(self.prd_rates) == len(self.prd_xy)
-            assert np.isclose(self._Q.sum(), 0), "(inj - prd) does not sum to 0"
+            if self.ct == 0:
+                # Incompressible ⇒ no storage ⇒ src/sinks must balance
+                assert np.isclose(self._Q.sum(), 0), "(inj - prd) does not sum to 0"
             assert np.all(self.inj_rates >= 0)
             assert np.all(self.prd_rates >= 0)
             assert np.all((0 <= self.K  ) & np.isfinite(self.K))
             assert np.all((0 <= self.por) & (self.por <= 1))
 
-            [P, V] = self.pressure_step(S)
+            [P, V] = self.pressure_step(S, P, dt)
             if implicit:
                 S = self.saturation_step_implicit(S, V, dt)
             else:
                 S = self.saturation_step_upwind(S, V, dt)
-            return S
+            return S, P.ravel()
         return integrate
 
-    def sim(self, dt, nSteps, x0, pbar=True, leave=True, **kwargs):
+    def sim(self, dt, nSteps, x0, p0=None, pbar=True, leave=True, **kwargs):
         """Recursively (`nSteps` times) apply `time_stepper` with `dt`, from `x0`.
 
-        .. note:: `output[0] == x0`, hence `len(output) = nSteps + 1`.
+        Returns the saturation and pressure trajectories, `(SS, PP)`.
+
+        .. note:: `SS[0] == x0` and `PP[0] == p0`, hence both have `len = nSteps + 1`.
+            `p0` defaults to zeros. It is only consequential if `ct > 0`.
+
+        A "bottom-hole pressure"-like observable for (e.g.) producer 0
+        can be extracted by `PP[:, model.xy2ind(*model.prd_xy[0])]`.
 
         .. note::
             "Recurse" is a describes a function calling itself.
@@ -369,12 +408,15 @@ class ResSim(NicePrint, Grid2D, Plot2D):
 
         # Init
         xx = np.zeros((nSteps+1,)+x0.shape)
+        pp = np.zeros((nSteps+1, self.Nxy))
         xx[0] = x0
+        if p0 is not None:
+            pp[0] = p0
         self.actual_rates = dict(inj=np.zeros((self.nInj, nSteps)),
                                  prd=np.zeros((self.nPrd, nSteps)))
 
         # Recurse
         for k in kk:
-            xx[k+1] = step(xx[k], k)
+            xx[k+1], pp[k+1] = step(xx[k], pp[k], k)
 
-        return xx
+        return xx, pp

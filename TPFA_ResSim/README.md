@@ -1,8 +1,10 @@
 As mentioned in the [**the main README**](https://github.com/patnr/TPFA-ResSim) this is a
-2D, two-phase, black-oil, immiscible, incompressible
+2D, two-phase, black-oil, immiscible
 reservoir simulator, neglecting capillary forces and gravity,
 using TPFA (two-point flux approximation),
 equipped with explicit and implicit ode solvers.
+By default it is incompressible, but slight compressibility
+can be enabled via the `ResSim.ct` attribute.
 
 <img src="https://github.com/patnr/TPFA-ResSim/raw/main/collage.jpg" width="100%"/>
 
@@ -13,9 +15,26 @@ equipped with explicit and implicit ode solvers.
 The simulator solves eqn. (1) and (2)
 (corresponding to (42) and (43) of the [reference paper][1]) :
 
-$$- \nabla \cdot \mathbf{K} \lambda(s) \, \nabla p = q \,, \tag{1}$$
+$$\phi \, c_t \frac{\partial p}{\partial t}
+- \nabla \cdot \mathbf{K} \lambda(s) \, \nabla p = q \,, \tag{1}$$
 $$\; \phi \frac{\partial s}{\partial t} + \nabla \cdot (f(s)\, \mathbf{v})
 = \frac{q_w}{\rho_w} \,. \tag{2}$$
+
+Here, $c_t \geq 0$ is a constant total (rock + fluids) compressibility,
+in the so-called "slightly compressible" approximation
+(the reference paper treats only the incompressible case).
+The default, $c_t = 0$, recovers the incompressible model,
+where eqn. (1) is elliptic: pressure propagates infinitely fast,
+is only defined up to an additive constant,
+and sources/sinks must balance, $\sum q = 0$.
+With $c_t > 0$, eqn. (1) is parabolic (a diffusion equation for pressure,
+discretized here by backward Euler), the absolute pressure level is meaningful,
+and injection need not balance production (storage absorbs the difference).
+
+.. warning:: When $c_t > 0$, a corresponding $O(c_t)$ term should appear in the
+    transport equation (2), since the total velocity is then no longer exactly
+    divergence-free. This term is *neglected* here — a standard simplification
+    for small $c_t$ — so eqn. (2) and the saturation solvers are unchanged.
 
 The quantities involved are all 2D-spatial fields, namely
 

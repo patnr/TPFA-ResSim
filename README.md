@@ -1,9 +1,12 @@
 [![GitHub CI](https://github.com/patnr/TPFA-ResSim/actions/workflows/tests.yml/badge.svg)](https://github.com/patnr/TPFA-ResSim/actions)
 
-A 2D, two-phase, black-oil, immiscible, incompressible
+A 2D, two-phase, black-oil, immiscible
 reservoir simulator
 using TPFA (two-point flux approximation).
 Both explicit and implicit time steppers are available.
+Incompressible by default, but slight compressibility can be enabled
+(via the `ct` attribute), yielding pressure transients/dynamics,
+and permitting unbalanced injection/production (e.g. primary depletion).
 [**Documentation**](https://patnr.github.io/TPFA-ResSim/TPFA_ResSim.html).
 
 Based on [Matlab codes (2007)](http://folk.ntnu.no/andreas/papers/ResSimMatlab.pdf)
@@ -57,12 +60,3 @@ Get [poetry](https://python-poetry.org/) and do `poetry install`,
 which will give you a new venv with very same dev-environment that I used,
 after which you can run the tests with `pytest` (no args),
 and linting with `ruff check`.
-
-#### Suggestions (ToDo)
-
-- Typing: I don't know anything about it, so contributions are most welcome.
-  Must be compatible with Python 3.7 (Colab's version).
-- Compressibility: Without compressibility the pressure field propagates
-  information infinitely fast, which is a little boring.
-  It must be carefully considered whether implementing compressibility
-  would make the model too complex for its intended use.

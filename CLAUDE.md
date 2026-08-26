@@ -1,0 +1,40 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this is
+
+A 2D, two-phase (water/oil), immiscible toy reservoir simulator using two-point flux approximation (TPFA), translated from the Matlab codes of Aarnes, Gimse & Lie (kept in `matlab_codes/`, paper in `refs/aarnes2007introduction.pdf`). Incompressible by default (`ct = 0`), with optional slight compressibility (`ct > 0`, backward-Euler accumulation term in the pressure equation; the corresponding term in the transport equation is deliberately neglected). The Python code is verified to reproduce the Matlab output — the regression values in doctests and tests encode this, so do not "fix" numeric expected values unless the physics intentionally changed.
+
+## Downstream usage
+
+The main consumer is [patnr/HistoryMatching](https://github.com/patnr/HistoryMatching) (locally at `~/P/HistoryMatching`), an ensemble history-matching tutorial that uses `ResSim` as its forward model. Consequences for changes here:
+
+- It pins this repo by **git commit hash** in its `requirements.txt` (with a commented-out `-e` local-path line for development), so changes here don't break it until the pin is advanced — but breaking changes should be flagged so the pin advance can be coordinated. E.g. its notebooks call `model.sim(dt, nTime, wsat0, pbar=False)` expecting a single array; v0.2.0's `(S, P)` tuple return will require updating them.
+- Its de facto API surface is wider than `sim()`: well-config attributes (`inj_xy`, `inj_rates`, ..., incl. the singleton time-broadcast behaviour), grid conversions (`xy2ind`, `ind2xy`), `shape`/`Nxy`, and the plotting mixin (`plt_field`, `plt_production`, `anim`). Notably it **mutates `TPFA_ResSim.plotting.styles`** to register its own field styles — treat that dict and the `plt_field(style=...)` mechanism as public API.
+- Ensemble forecasting is why `ResSim` is OOP with per-instance state (see below), and why `sim` accepts `pbar=False`: many instances/runs, no shared mutable state, quiet loops.
+
+## Commands
+
+Dev environment is managed with poetry (`poetry install`), but a plain `pip install -e .` also works.
+
+- **Run all tests**: `pytest` (no args). `addopts` in pyproject.toml makes this run `tests/` **plus doctests** in all `TPFA_ResSim` modules (`--doctest-modules`). Doctests are part of the test suite.
+- **Run a single test**: override addopts, e.g. `pytest -o addopts="" tests/test_fig6.py::test_compare_matlab`
+- **Lint**: `ruff check` (config in pyproject.toml; max line length 88; deliberately permissive about operator/array alignment — preserve the aligned formatting style used in the code).
+- **Docs**: `pdoc --math -o docs/ ./TPFA_ResSim` (published to GitHub Pages by `.github/workflows/docs.yml`). Docstrings are pdoc-flavoured markdown with LaTeX math; `TPFA_ResSim/README.md` is included into the package docstring via `.. include::`.
+
+Keep code compatible with Python 3.9–3.11 (aims to work on Colab without re-installs).
+
+## Architecture
+
+The package is three files; the physics lives in `TPFA_ResSim/__init__.py`:
+
+- **`ResSim`** (`__init__.py`) is a dataclass composed by multiple inheritance: `ResSim(NicePrint, Grid2D, Plot2D)`. OOP is used (rather than passing dicts) so ensemble forecasting (as in HistoryMatching) can hold independent instances whose parameters don't influence each other.
+  - `sim(dt, nSteps, x0, p0=None)` is the entry point, returning the `(S, P)` saturation and pressure trajectories: it loops `time_stepper`, which per step solves pressure (`TPFA()` → sparse direct solve; elliptic if `ct == 0`, else parabolic backward-Euler) then transports saturation with either the explicit upwind scheme (`saturation_step_upwind`, sub-steps from a CFL estimate) or the implicit Newton–Raphson scheme (`saturation_step_implicit`, halves sub-dt until convergence).
+  - Method names reference listings in the paper (e.g. `TPFA()` = Listing 1, `RelPerm()` = Listing 6).
+  - **`__setattr__` does normalization magic**: assigning `inj_xy`/`prd_xy` snaps well positions to the nearest grid node; `inj_rates`/`prd_rates` are reshaped to `(nWell, nTime)`; scalar `K` is broadcast to shape `(2, Nx, Ny)`. Rates must be positive; when `ct == 0`, total injection must additionally equal total production at every time index (asserted in `time_stepper` — otherwise mass imbalance would silently leak in the SW corner). With `ct > 0` the imbalance is absorbed by storage (enabling e.g. primary depletion via zero-rate injectors).
+  - `dynamic_rate(S, k)` is a designed override point (patch/subclass) for e.g. shutting wells based on saturation.
+- **`Grid2D`** (`grid.py`): rectangular grid geometry and the coordinate/index conversions (`xy2ind`, `sub2xy`, ...). Index ordering is **C-major (numpy default), unlike the Matlab original**: `x` is the first axis, so printing a field matrix shows x as the row index, whereas plots show x left→right, y bottom→top. This ordering is hard-coded in the simulator via `ravel`/`reshape`.
+- **`Plot2D`** (`plotting.py`): plotting mixin (fields, streamlines, well markers).
+
+`tests/` doubles as examples: each test reproduces a figure from the reference paper (and `collage.jpg` in the README).
