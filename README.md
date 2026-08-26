@@ -56,7 +56,7 @@ Clone (or download and unzip) this repo, `cd` into it, then do `pip install -e .
 Get [poetry](https://python-poetry.org/) and do `poetry install`,
 which will give you a new venv with very same dev-environment that I used,
 after which you can run the tests with `pytest` (no args),
-and linting with `flakeheaven lint`.
+and linting with `ruff check`.
 
 #### Suggestions (ToDo)
 
