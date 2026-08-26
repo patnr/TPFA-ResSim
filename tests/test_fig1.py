@@ -3,7 +3,7 @@
 There are some discrepancies, of course, because of
 
 - The use of random numbers
-- The workings of `smooth`
+- Differences in scipy's `smooth` and matlab
 - It appears they've translated the pressure field to be positive
   (in their panels it seems to have minimum value 0).
   As a *velocity* potential, this should not matter.
