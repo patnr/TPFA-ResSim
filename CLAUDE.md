@@ -16,12 +16,12 @@ The main consumer is [patnr/HistoryMatching](https://github.com/patnr/HistoryMat
 
 ## Commands
 
-Dev environment is managed with poetry (`poetry install`), but a plain `pip install -e .` also works.
+Dev environment is managed with uv (`uv sync`), but a plain `pip install -e .` also works. Note: `mise.toml` sets `UV_PROJECT_ENVIRONMENT` so the venv lives at `~/.cache/venvs/TPFA-ResSim`, not in-project — if mise isn't active in your shell, export that variable before running uv to avoid creating a duplicate `.venv`.
 
-- **Run all tests**: `pytest` (no args). `addopts` in pyproject.toml makes this run `tests/` **plus doctests** in all `TPFA_ResSim` modules (`--doctest-modules`). Doctests are part of the test suite.
-- **Run a single test**: override addopts, e.g. `pytest -o addopts="" tests/test_fig6.py::test_compare_matlab`
-- **Lint**: `ruff check` (config in pyproject.toml; max line length 88; deliberately permissive about operator/array alignment — preserve the aligned formatting style used in the code).
-- **Docs**: `pdoc --math -o docs/ ./TPFA_ResSim` (published to GitHub Pages by `.github/workflows/docs.yml`). Docstrings are pdoc-flavoured markdown with LaTeX math; `TPFA_ResSim/README.md` is included into the package docstring via `.. include::`.
+- **Run all tests**: `uv run pytest` (no further args). `addopts` in pyproject.toml makes this run `tests/` **plus doctests** in all `TPFA_ResSim` modules (`--doctest-modules`). Doctests are part of the test suite.
+- **Run a single test**: override addopts, e.g. `uv run pytest -o addopts="" tests/test_fig6.py::test_compare_matlab`
+- **Lint**: `uv run ruff check` (config in pyproject.toml; max line length 88; deliberately permissive about operator/array alignment — preserve the aligned formatting style used in the code).
+- **Docs**: `uv run pdoc --math -o docs/ ./TPFA_ResSim` (published to GitHub Pages by `.github/workflows/docs.yml`). Docstrings are pdoc-flavoured markdown with LaTeX math; `TPFA_ResSim/README.md` is included into the package docstring via `.. include::`.
 
 Keep code compatible with Python 3.9–3.11 (aims to work on Colab without re-installs).
 

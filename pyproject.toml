@@ -1,38 +1,44 @@
-[tool.poetry]
+[project]
 name = "TPFA-ResSim"
 version = "0.2.0"
-description = """Toy petroleum reservoir simulator using TPFA."""
-authors = ["patnr <patrick.n.raanes@gmail.com>"]
-license = "MIT"
+description = "Toy petroleum reservoir simulator using TPFA."
+authors = [{name = "patnr", email = "patrick.n.raanes@gmail.com"}]
+license = {text = "MIT"}
 readme = "README.md"
-packages = [{include = "TPFA_ResSim"}]
-
-[tool.poetry.dependencies]
 # Try to keep compatible with Colab's environment, w/o needed many re-installs
-python = ">=3.9,<3.12"
-matplotlib = "~=3.7"
-scipy = "~=1.10"
-tqdm = "~=4.65"
-struct-tools = "^0.2.7"
-mpl-tools = "^0.4.0"
+requires-python = ">=3.9,<3.12"
+dependencies = [
+    "matplotlib~=3.7",
+    "scipy~=1.10",
+    "tqdm~=4.65",
+    "struct-tools>=0.2.7,<0.3",
+    "mpl-tools>=0.4.0,<0.5",
+]
 
-[tool.poetry.group.dev.dependencies]
-ipython = "*"
-pre-commit = "^2.20.0"
-pdbpp = "^0.10.3"
-pytest = "^7.1.3"
-ruff = "*"
-ipdb = "^0.13.9"
-pdoc = "^14.2"
+[dependency-groups]
+dev = [
+    "ipython",
+    "pre-commit>=2.20,<3",
+    "pdbpp>=0.10.3",
+    "pytest>=7.1.3,<8",
+    "ruff",
+    "ipdb>=0.13.9,<0.14",
+    "pdoc>=14.2,<15",
+]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["uv_build>=0.9.18,<1.0.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+# The package is at the repo root (uv_build defaults to src-layout)
+module-name = "TPFA_ResSim"
+module-root = ""
 
 
-#############
-#  Linting  #
-#############
+# ╔═════════╗
+# ║ Linting ║
+# ╚═════════╝
 [tool.autopep8]
 max_line_length = 88
 ignore = "W6"
@@ -51,9 +57,9 @@ ignore = [
 ]
 
 
-#############
-#  Testing  #
-#############
+# ╔═════════╗
+# ║ Testing ║
+# ╚═════════╝
 [tool.pytest.ini_options]
 minversion = "6.0"
 addopts = "tests --doctest-modules TPFA_ResSim"

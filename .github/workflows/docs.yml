@@ -22,34 +22,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
         with:
+          enable-cache: true
           python-version: 3.9
 
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-
-      - name: Load cached venv if exists
-        id: cached-poetry-dependencies
-        uses: actions/cache@v3
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
-
-      - name: Install dependencies if not loaded from cache
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --no-root
-
-      - name: Install package itself
-        run: poetry install --no-interaction
+      - name: Install dependencies
+        run: uv sync --locked
 
       - name: Generate docs
-        run: |
-          source .venv/bin/activate
-          pdoc --math -o docs/ ./TPFA_ResSim
+        run: uv run pdoc --math -o docs/ ./TPFA_ResSim
 
       - name: Upload docs
         uses: actions/upload-pages-artifact@v1

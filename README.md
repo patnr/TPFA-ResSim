@@ -56,7 +56,10 @@ Clone (or download and unzip) this repo, `cd` into it, then do `pip install -e .
 
 ## Contributions
 
-Get [poetry](https://python-poetry.org/) and do `poetry install`,
+Get [uv](https://docs.astral.sh/uv/) and do `uv sync`,
 which will give you a new venv with very same dev-environment that I used,
-after which you can run the tests with `pytest` (no args),
-and linting with `ruff check`.
+after which you can run the tests with `uv run pytest` (no further args),
+and linting with `uv run ruff check`.
+
+*PS*: if you use [mise](https://mise.jdx.dev/), the `mise.toml`
+places the venv under `~/.cache/venvs/` rather than in-project.
