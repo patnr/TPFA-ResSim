@@ -20,15 +20,9 @@ producing the following illustrations (with the original "jet" colour maps).
 
 ![Screenshot](collage.jpg)
 
-Still, some changes have been made. The *main* ones are:
-
-- `83293bcb`: Converted from 3D to 2D for simplicity.
-- `27208d5d`: Index ordering is C-major (numpy standard), not F-major.
-- `7543f574`: Vectors are "numpy-thonic", in using 1d arrays, not (2d) columns.
-- `cade3156`: Several linear solvers suggested.
-- `f33c571a`: OOP
-- `55ce7325`: Facilities for working on the grid.
-- `e0d12b06`: Convenient well config (ensures total sink + source = 0).
+Still, some changes have been made -- 2D instead of 3D, C-major index ordering,
+OOP, convenient well configuration, plotting, optional compressibility.
+These are itemised, along with the release history, in [CHANGELOG.md](CHANGELOG.md).
 
 ## Examples
 
