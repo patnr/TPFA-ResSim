@@ -20,7 +20,9 @@ should pin a tag (or commit hash) and advance it deliberately.
   whereas previously, depleting a water-filled one drained the saturation by the
   voidage, and an injector's cell accumulated water (`~ ct*dp_well`) until, via
   the mobility of the excess, it ran away. The limit this imposed on `ct` is
-  thereby lifted; what remains is the model's own `ct*dp << 1` premise.
+  thereby lifted (for the explicit scheme, which is monotone; the implicit
+  Newton solver can still stray outside `[0, 1]` far beyond the model's
+  premise); what remains is the model's own `ct*dp << 1` premise.
   Saturations for `ct > 0` change accordingly (the compressible examples'
   reference values are updated); `ct = 0` is bit-for-bit unaffected.
 

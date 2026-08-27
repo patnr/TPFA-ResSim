@@ -104,6 +104,11 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         equations sum to the pressure equation, so that e.g. depleting a fully
         water-saturated reservoir leaves $s = 1$, rather than conjuring oil out
         of the produced volume.
+        NB: deriving each phase equation individually would instead charge the
+        water $ s \\, (c_r + c_w) \\, φ \\, ∂p/∂t $; the proportional split
+        coincides with that iff $ c_w = c_o $, and is the natural closure when
+        only the lump-sum constant `ct` is known. The difference,
+        $ O(s (1-s) (c_w - c_o)) $, is within the fidelity discussed below.
 
     .. warning:: The model remains a *slightly* compressible one, accurate only
         to $O(c_t)$: `ct` is a single constant, rather than the
@@ -376,7 +381,16 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         nNewtonMax: int = 10,
         nTmax_log2: int = 10,
     ) -> np.ndarray:
-        """Implicit FV discretisation of conserv. of mass (water sat.)."""
+        """Implicit FV discretisation of conserv. of mass (water sat.).
+
+        .. warning:: Far outside the $ c_t \\, Δp \\ll 1 $ regime (ref `ct`),
+            the Newton iteration can converge -- silently -- to a spurious root
+            of the residual, outside $[0, 1]$: the polynomial `RelPerm` extends
+            smoothly beyond the unit interval, and the sub-`dt` halving only
+            triggers on *non*-convergence. The explicit scheme
+            (`saturation_step_upwind`), being monotone, stays within $[0, 1]$
+            even for extreme `ct`.
+        """
         # fmt: off
         A  = self.upwind_diff(V)                 # FV discretized transport operator
         pv = self.h2 * self.por.ravel()          # Pore volume = cell.vol * por
