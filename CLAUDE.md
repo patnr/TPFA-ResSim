@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A 2D, two-phase (water/oil), immiscible toy reservoir simulator using two-point flux approximation (TPFA), translated from the Matlab codes of Aarnes, Gimse & Lie (kept in `matlab_codes/`, paper in `refs/aarnes2007introduction.pdf`). Incompressible by default (`ct = 0`), with optional slight compressibility (`ct > 0`, backward-Euler accumulation term in the pressure equation; the corresponding term in the transport equation is deliberately neglected). The Python code is verified to reproduce the Matlab output — the regression values in doctests and tests encode this, so do not "fix" numeric expected values unless the physics intentionally changed.
+A 2D, two-phase (water/oil), immiscible toy reservoir simulator using two-point flux approximation (TPFA), translated from the Matlab codes of Aarnes, Gimse & Lie (kept in `matlab_codes/`, paper in `refs/aarnes2007introduction.pdf`). Incompressible by default (`ct = 0`), with optional slight compressibility (`ct > 0`, backward-Euler accumulation term in the pressure equation, and the corresponding storage term in the transport equation, charged to the phases in proportion to their saturation — ref `ResSim.storage_rate`). The Python code is verified to reproduce the Matlab output — the regression values in doctests and tests encode this, so do not "fix" numeric expected values unless the physics intentionally changed.
 
 ## Downstream usage
 

@@ -8,6 +8,22 @@ Such changes are marked **BREAKING** below.
 The package is not on PyPI; it is consumed straight from git, so downstream users
 should pin a tag (or commit hash) and advance it deliberately.
 
+## [Unreleased]
+
+### Fixed
+
+- The `O(ct)` term of the **transport** equation, previously neglected, is now
+  included: `ResSim.storage_rate` is the volume rate going into storage, and the
+  saturation steps charge it to the phases in proportion to their saturation
+  (the split that makes the water and oil equations sum to the pressure
+  equation). Consequently a single-phase reservoir now stays single-phase --
+  whereas previously, depleting a water-filled one drained the saturation by the
+  voidage, and an injector's cell accumulated water (`~ ct*dp_well`) until, via
+  the mobility of the excess, it ran away. The limit this imposed on `ct` is
+  thereby lifted; what remains is the model's own `ct*dp << 1` premise.
+  Saturations for `ct > 0` change accordingly (the compressible examples'
+  reference values are updated); `ct = 0` is bit-for-bit unaffected.
+
 ## [0.2.0] -- 2026-08-27
 
 Compressibility, and a general tooling refresh.
@@ -19,8 +35,8 @@ Compressibility, and a general tooling refresh.
   pressure propagates at finite speed, the absolute pressure level becomes
   meaningful (anchored by `p0`), and injection need no longer balance production
   -- enabling e.g. primary depletion. The corresponding `O(ct)` term in the
-  *transport* equation is deliberately neglected (documented, with the resulting
-  limit on `ct`).
+  *transport* equation was deliberately neglected in this release (documented,
+  with the resulting limit on `ct`); ref Unreleased, above.
 - `examples/`: runnable illustrations that double as the regression test suite
   (`c1873dc`). `heterogeneous.py` and `quarter_five_spot.py` are the former
   `tests/test_fig1.py` and `test_fig6.py`; `rate_scheduling.py`,

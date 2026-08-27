@@ -17,8 +17,8 @@ The simulator solves eqn. (1) and (2)
 
 $$\phi \, c_t \frac{\partial p}{\partial t}
 - \nabla \cdot \mathbf{K} \lambda(s) \, \nabla p = q \,, \tag{1}$$
-$$\; \phi \frac{\partial s}{\partial t} + \nabla \cdot (f(s)\, \mathbf{v})
-= \frac{q_w}{\rho_w} \,. \tag{2}$$
+$$\; \phi \frac{\partial s}{\partial t} + s \, \phi \, c_t \frac{\partial p}{\partial t}
++ \nabla \cdot (f(s)\, \mathbf{v}) = \frac{q_w}{\rho_w} \,. \tag{2}$$
 
 Here, $c_t \geq 0$ is a constant total (rock + fluids) compressibility,
 in the so-called "slightly compressible" approximation
@@ -31,10 +31,14 @@ With $c_t > 0$, eqn. (1) is parabolic (a diffusion equation for pressure,
 discretized here by backward Euler), the absolute pressure level is meaningful,
 and injection need not balance production (storage absorbs the difference).
 
-.. warning:: When $c_t > 0$, a corresponding $O(c_t)$ term should appear in the
-    transport equation (2), since the total velocity is then no longer exactly
-    divergence-free. This term is *neglected* here — a standard simplification
-    for small $c_t$ — so eqn. (2) and the saturation solvers are unchanged.
+.. note:: The middle term of eqn. (2) is the $O(c_t)$ counterpart of the first
+    term of eqn. (1): with $c_t > 0$ the total velocity is no longer
+    divergence-free, $\nabla \cdot \mathbf{v} = q - \phi \, c_t \, \partial p /
+    \partial t$, so the storage must be charged to the phases — here in
+    proportion to their saturation, which is what makes the water and oil
+    equations sum to eqn. (1). It vanishes for $c_t = 0$, recovering the
+    reference paper's transport equation exactly.
+    Ref `TPFA_ResSim.ResSim.ct` and `TPFA_ResSim.ResSim.storage_rate`.
 
 The quantities involved are all 2D-spatial fields, namely
 

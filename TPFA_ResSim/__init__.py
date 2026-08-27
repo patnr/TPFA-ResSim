@@ -95,17 +95,27 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     Then total injection and production rates need not balance
     (storage absorbs the imbalance), enabling e.g. primary depletion.
 
-    .. note:: The corresponding $O(c_t)$ term in the *transport* (saturation)
-        equation is neglected, i.e. the total velocity is still treated as
-        divergence-free there. This is a standard simplification for small `ct`.
+    .. note:: The corresponding term of the *transport* (saturation) equation
+        is included as well. Since the total velocity is no longer
+        divergence-free, $ ∇ ⋅ v = q - φ \\, c_t \\, ∂p/∂t $, the water eqn. reads
+        $$ φ \\, ∂s/∂t + s \\, φ \\, c_t \\, ∂p/∂t + ∇ ⋅ (f_w \\, v) = q_w $$
+        i.e. the storage is charged to the phases in proportion to their
+        saturation -- ref `storage_rate`. This is what makes the water and oil
+        equations sum to the pressure equation, so that e.g. depleting a fully
+        water-saturated reservoir leaves $s = 1$, rather than conjuring oil out
+        of the produced volume.
 
-    .. warning:: That simplification does set an upper limit on `ct` whenever an
-        injector is active: the volume that the pressure equation puts into
-        storage at the injector's cell is (inconsistently) added to its water
-        saturation, by an amount of order $c_t Δp$. Via the mobility of the
-        resulting (excessive) saturation, this can even run away. Ref
-        `examples/voidage_replacement.py`, which is stable at `ct = .1`,
-        but yields `S > 100` at `ct = 1`.
+    .. warning:: The model remains a *slightly* compressible one, accurate only
+        to $O(c_t)$: `ct` is a single constant, rather than the
+        saturation-weighted sum $ c_r + s \\, c_w + (1-s) \\, c_o $ of the rock and
+        phase compressibilities, and the densities in the fluxes and the well
+        rates are treated as constant (so reservoir and surface volumes are not
+        distinguished). Fidelity therefore requires $ c_t \\, Δp \\ll 1 $ -- and
+        note that this is *not* a matter of choosing `ct` small: summing the
+        rows of the pressure system (ref `tests/test_compressible.py`) gives
+        $ c_t \\, Δ\\bar{p} = V_\\mathrm{voidage} / V_\\mathrm{pore} $, i.e. the
+        expansion asked of the fluids is set by the *voidage* (production minus
+        injection), whatever `ct` may be.
     """
     # NB: the array attributes are typed `Any` since `__setattr__` normalizes
     # whatever array-like (nested lists, scalars) is assigned to them.
@@ -297,6 +307,24 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         A = self._spdiags(DiagVecs, DiagIndx)
         return A
 
+    def storage_rate(self, V: Any) -> np.ndarray:
+        """The volume rate, per cell, that goes into storage: $ q - ∇ ⋅ V $.
+
+        For the incompressible model this is `0`: the fluxes balance the wells
+        exactly, cell by cell. With `ct > 0` it is (by construction of the
+        linear system of `TPFA`) the accumulation term of the backward-Euler
+        step, $ φ \\, c_t \\, h^2 \\, (p^{n+1} - p^n) / Δt $, which the saturation
+        steps charge to the phases (ref `ct`).
+
+        Computing it from `V` (rather than from $p^{n+1} - p^n$) means it is
+        *exactly* the imbalance seen by the transport scheme, whose `upwind_diff`
+        is assembled from the same fluxes.
+        """
+        if self.ct == 0:
+            return np.zeros(self.Nxy)
+        divV = (V.x[1:, :] - V.x[:-1, :]) + (V.y[:, 1:] - V.y[:, :-1])
+        return self._Q - divV.ravel()
+
     # Extracted from Upstream()
     def estimate_1CFL(self, pv: np.ndarray, V: Any, fi: np.ndarray) -> float:
         """Estimate 1/CFL for use with `saturation_step_upwind`."""
@@ -308,6 +336,9 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         Vi = XP[:-1, :] + YP[:, :-1] - XN[1:, :] - YN[:, 1:]
 
         flx = max((Vi.ravel() + fi) / pv)  # estimate of influx
+        # NB: `storage_rate` is not counted here. In practice it is a small
+        # fraction of the fluxes that are (under 20% even at `ct = 10`),
+        # so the safety factor below covers it.
         sat = self.swc + self.sor
         return 3 / (1 - sat) * flx  # NB: 3-->2 since no z-dim ?
 
@@ -318,6 +349,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         A  = self.upwind_diff(V)                 # FV discretized transport operator
         pv = self.h2 * self.por.ravel()          # Pore volume = cell volume * porosity
         fi = self._Q.clip(min=0)                 # Well inflow
+        st = self.storage_rate(V)                # Storage (0 if incompressible)
 
         # Compute sub/local dt
         cfl1 = self.estimate_1CFL(pv, V, fi)
@@ -331,7 +363,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         for _ in range(nT):
             Mw, Mo = self.RelPerm(S)             # compute mobilities
             fw = Mw / (Mw + Mo)                  # compute fractional flow
-            S = S + (B@fw + fi*dtx)              # update saturation
+            S = S + (B@fw + (fi - S*st)*dtx)     # update saturation
         # fmt: on
         return S
 
@@ -349,6 +381,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         A  = self.upwind_diff(V)                 # FV discretized transport operator
         pv = self.h2 * self.por.ravel()          # Pore volume = cell.vol * por
         fi = self._Q.clip(min=0)                 # Well inflow
+        st = self.storage_rate(V)                # Storage (0 if incompressible)
 
         # For each iter, halve the sub/local dt
         for nT_log2 in range(0, nTmax_log2):
@@ -357,6 +390,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
             # Scale A
             dtx = dt / nT / pv                   # timestep / pore volume
             B   = self._spdiags(dtx, 0) @ A      # A * dt/|Omega i|
+            C   = self._spdiags(dtx*st, 0)       # storage, likewise scaled
 
             Sn = S
             for _ in range(nT):
@@ -365,10 +399,11 @@ class ResSim(NicePrint, Grid2D, Plot2D):
                     Mw, Mo   = self.RelPerm(Sn)    # mobilities
                     dMw, dMo = self.dRelPerm(Sn)   # their derivatives
                     df = dMw/(Mw+Mo) - Mw/(Mw+Mo)**2 * (dMw + dMo)        # df w/ds
-                    dG = sparse.eye(self.Nxy) - B @ self._spdiags(df, 0)  # deriv of G
+                    dG = (sparse.eye(self.Nxy) + C                        # deriv of G
+                          - B @ self._spdiags(df, 0))
 
                     fw = Mw / (Mw+Mo)               # fract. flow
-                    G  = Sn - Sp - (B@fw + fi*dtx)  # G(s)
+                    G  = Sn - Sp - (B@fw + (fi - Sn*st)*dtx)  # G(s)
                     dS = spsolve(dG, G)             # compute dS
                     Sn = Sn - dS                    # update S
 

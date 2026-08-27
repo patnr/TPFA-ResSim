@@ -15,22 +15,28 @@ compressibility affects the *saturation* history, not just the pressure:
 - The pressure declines at the rate given by material balance
   (see `examples/depletion.py`), which is the price paid for the deferral.
 
-.. warning:: Keep `ct` small when the wells are active. The transport equation
-    neglects the $O(c_t)$ term, i.e. it treats the total velocity as
-    divergence-free, so the injector's cell accumulates the water that the
-    (consistent) pressure equation instead puts into storage. That error is of
-    order $c_t Δp_\\mathrm{well}$, and -- via the mobility of the resulting
-    (excessive) saturation -- it can run away: `ct = 1` here yields `S > 100`.
+Both the pressure and the transport equation carry their $O(c_t)$ terms
+(ref `ResSim.ct`), so the saturations stay bounded and, at `VRR = 1`, converge
+to the incompressible solution as $c_t → 0$ -- verified below.
+
+.. warning:: This example is deliberately extreme: it produces two pore volumes
+    while injecting one, so the fluids are asked to expand by 100%, i.e.
+    $ c_t Δ\\bar{p} = 1 $, rather than the $ \\ll 1 $ that "slightly
+    compressible" implies. The behaviour below is self-consistent and
+    qualitatively right, but not quantitatively trustworthy. NB: lowering `ct`
+    does *not* remedy it -- that merely rescales the pressure decline, leaving
+    the demanded expansion (the voidage) unchanged. Ref `ResSim.ct`.
 
 In the figures:
 
 - "saturation": the VRR = ½ row lags from the outset (only half the water has
   gone in), and by t = 8 it has still not swept the NE corner, whereas VRR = 1
-  has (mean saturation 0.60, against 0.89). Note also the *shape*: compared at
+  has (mean saturation 0.79, against 0.89). Note also the *shape*: compared at
   equal injected volume (VRR = 1 at t = 4 against VRR = ½ at t = 8, both one
-  pore volume) the two sweeps still differ by an rms of 0.22 in saturation.
-- "histories" (left): breakthrough (dotted) is deferred from t = 2.8 to t = 4.2.
-  Measured in injected volume, though, it arrives *sooner*: after 0.53 pore
+  pore volume) the two sweeps are close, but not equal -- an rms difference of
+  0.06 in saturation.
+- "histories" (left): breakthrough (dotted) is deferred from t = 2.8 to t = 3.9.
+  Measured in injected volume, though, it arrives *sooner*: after 0.49 pore
   volumes, against 0.69. Under-injecting buys time, but sweeps less
   efficiently, the expansion drive adding a drift towards the producer.
 - "histories" (right): the price. $\\bar{p}$ falls from 15 to 5, along the
@@ -64,11 +70,13 @@ def waterflood(vrr, ct=ct, p0=15.):
 ## Simulate
 model, SS_full, PP_full = waterflood(vrr=1)
 _    , SS_half, PP_half = waterflood(vrr=.5)
-# Sanity check: with VRR = 1 there is no net storage, so we should be close to
-# the incompressible model. The (localised) discrepancy is the price of the
-# neglected O(ct) term -- see the warning above.
-_, SS_inc, _ = waterflood(vrr=1, ct=0)
-assert abs(SS_full - SS_inc).max() < .1
+# At VRR = 1 there is no net voidage, so the incompressible model is the
+# `ct → 0` limit. Check that the deviation from it is indeed O(ct), i.e. that
+# dividing `ct` by ten divides the deviation by (about) ten.
+_, SS_inc , _ = waterflood(vrr=1, ct=0)
+_, SS_lowc, _ = waterflood(vrr=1, ct=ct/10)
+dev = [abs(S - SS_inc).max() for S in [SS_full, SS_lowc]]
+assert 8 < dev[0]/dev[1] < 12, dev
 
 iprd = model.xy2ind(*model.prd_xy[0])
 breakthrough = [dt*np.argmax(S[:, iprd] > .01) for S in [SS_full, SS_half]]
