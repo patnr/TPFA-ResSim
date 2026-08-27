@@ -13,11 +13,10 @@ from mpl_tools.place import freshfig
 import numpy as np
 import numpy.random as rnd
 from scipy.ndimage import uniform_filter as smooth
-import matplotlib.pyplot as plt
 
 from TPFA_ResSim import ResSim
+from TPFA_ResSim.plotting import show
 
-plt.ion()
 # rnd.seed(4)
 fig, axs = freshfig("Fig. 1", ncols=3, nrows=2, gridspec_kw={'height_ratios': (9, 1)})
 
@@ -60,3 +59,6 @@ cb = fig.colorbar(cc, axs[1, 2], orientation="horizontal")
 cb.ax.tick_params(labelsize=8)
 
 fig.tight_layout()
+
+if __name__ == "__main__":
+    show()

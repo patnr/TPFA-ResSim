@@ -9,7 +9,7 @@ readme = "README.md"
 # (its runtime of 2026.07 uses Python 3.12)
 requires-python = ">=3.12"
 dependencies = [
-    "matplotlib~=3.7",
+    "matplotlib>=3.8,<4",
     "scipy~=1.10",
     "tqdm~=4.65",
     "struct-tools>=0.2.7,<0.3",

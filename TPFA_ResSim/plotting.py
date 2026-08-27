@@ -1,12 +1,12 @@
 """Convenient plot functions for reservoir model."""
 
-from typing import TYPE_CHECKING, Any, Callable, cast
+from typing import TYPE_CHECKING, Any, Callable, Optional, cast
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.ticker import MultipleLocator
-from mpl_tools import place, place_ax
+from mpl_tools import is_inline, place, place_ax
 from mpl_tools.misc import axprops
 
 coord_type = "absolute"
@@ -327,12 +327,13 @@ class Plot2D:
             tt = np.arange(len(wsats))
 
             def update_fig(iT):
-                # Update field
-                for c in ax2.cc.collections:
-                    try:
-                        ax2.collections.remove(c)
-                    except (AttributeError, ValueError):
-                        pass  # occurs when re-running script
+                # Update field.
+                # NB: since mpl 3.8 the `ContourSet` is itself an artist
+                # (it no longer has a `.collections` attribute).
+                try:
+                    ax2.cc.remove()
+                except ValueError:
+                    pass  # occurs when re-running script
                 kwargs.update(wells=False, colorbar=False)
                 ax2.cc = self.plt_field(ax2, wsats[iT], "oil", **kwargs)
 
@@ -362,3 +363,50 @@ def tight_show(figure: Any, enabled: bool) -> None:
     if enabled:
         figure.tight_layout()
         plt.show()
+
+
+def _get_ipython() -> Any:
+    """Return the active IPython shell, or `None` (also if IPython isn't installed)."""
+    try:
+        from IPython import get_ipython
+    except ImportError:
+        return None
+    return get_ipython()
+
+
+def _ipython_will_prompt(ip: Any) -> bool:
+    """Whether IPython returns to its (event-loop running) prompt after this script.
+
+    False for `ipython script.py` (no `-i`), which exits immediately.
+    """
+    if ip is None:
+        return False
+    return bool(getattr(ip.parent, "interact", True))
+
+
+def show(block: Optional[bool] = None) -> None:
+    """Display the figures, whether run as script, in IPython, or in a notebook.
+
+    Reasons why a plain `plt.show()` does not suffice:
+
+    - In a script (`python script.py`) it does the right thing (blocks, thereby
+      running the GUI event loop) *only* if interactive mode (`plt.ion()`) is off.
+    - In IPython (e.g. `%run script.py`) the figures stay unpainted until the GUI
+      event loop gets to run, which requires the "input hook" installed by the
+      `%matplotlib` magic (which is why they only appear upon `ctrl-d`/exit).
+      Blocking here would be wrong: it would freeze the prompt.
+    - In Jupyter/Colab with the `inline` backend there is no event loop at all:
+      the (static) figures are rendered by `plt.show()` itself.
+    """
+    ip = _get_ipython()
+
+    if ip is not None and not is_inline():
+        # I.e. the `%matplotlib` magic: activate the event loop ("input hook")
+        # of the current backend. No-op if already active.
+        ip.run_line_magic("matplotlib", "")
+
+    if block is None:
+        # Run the event loop ourselves only if nobody else will.
+        block = not is_inline() and not _ipython_will_prompt(ip)
+
+    plt.show(block=block)

@@ -16,10 +16,10 @@ the issue lies with the description in the paper, not with any error in the code
 
 from mpl_tools.place import freshfig
 import numpy as np
-import matplotlib.pyplot as plt
 import pytest
 
 from TPFA_ResSim import ResSim
+from TPFA_ResSim.plotting import show
 
 model = ResSim(Lx=1, Ly=1, Nx=64, Ny=64)
 # Change fluid properties (default: 1, 1, 0, 0)
@@ -80,8 +80,6 @@ def test_2():
 
 # ## Plot
 if __name__ == "__main__":
-    plt.ion()
-
     # nSteps = 5
     # dt = 0.2/nSteps
     rate1 = np.ones(nSteps)
@@ -129,3 +127,5 @@ if __name__ == "__main__":
     ## Animation
     prod = [model.xy2ind(*xy) for xy in model.prd_xy]
     animation = model.anim(SS, SS[1:, prod])
+
+    show()
