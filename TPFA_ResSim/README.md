@@ -29,7 +29,8 @@ is only defined up to an additive constant,
 and sources/sinks must balance, $\sum q = 0$.
 With $c_t > 0$, eqn. (1) is parabolic (a diffusion equation for pressure,
 discretized here by backward Euler), the absolute pressure level is meaningful,
-and injection need not balance production (storage absorbs the difference).
+and injection need not balance production (storage absorbs the difference),
+permitting primary depletion.
 
 .. note:: The middle term of eqn. (2) is the $O(c_t)$ counterpart of the first
     term of eqn. (1): with $c_t > 0$ the total velocity is no longer
