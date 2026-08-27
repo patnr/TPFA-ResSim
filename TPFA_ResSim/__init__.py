@@ -1,6 +1,8 @@
 """.. include:: README.md"""
 
 from dataclasses import dataclass
+from typing import Any, Callable
+
 import numpy as np
 from scipy import sparse
 from scipy.sparse.linalg import spsolve
@@ -39,7 +41,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     __repr__ = NicePrint.__repr__
     __str__ = NicePrint.__str__
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         defaults = dict(K=np.ones((2, *self.shape)), por=np.ones(self.shape))
         for k, v in defaults.items():
             if getattr(self, k) is None:
@@ -49,7 +51,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     # because @property requires the _private pattern,
     # which is pretty ugly with dataclasses,
     # and also because can unify treatment of inj/prd wells.
-    def __setattr__(self, key, val):
+    def __setattr__(self, key: str, val: Any) -> None:
         if val is not None:
             # Well positions -- collocate at some node
             if key in ["inj_xy", "prd_xy"]:
@@ -97,9 +99,11 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         equation is neglected, i.e. the total velocity is still treated as
         divergence-free there. This is a standard simplification for small `ct`.
     """
-    K: np.ndarray = None
+    # NB: the array attributes are typed `Any` since `__setattr__` normalizes
+    # whatever array-like (nested lists, scalars) is assigned to them.
+    K: Any = None
     """Permeabilities (in x and y directions). Array of shape `(2, Nx, Ny)`)."""
-    por: np.ndarray = None
+    por: Any = None
     """Porosity; Array of shape `(Nx, Ny)`)."""
 
     nInj = property(lambda self: len(self.inj_xy))
@@ -107,7 +111,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     nPrd = property(lambda self: len(self.prd_xy))
     """Num. of producer wells."""
 
-    inj_xy: np.ndarray = None
+    inj_xy: Any = None
     """Array of shape `(nWell, 2)` of x- and y-coords for `nWell` injectors.
 
     Values should be betwen `0` and `Lx` or `Ly`.
@@ -116,19 +120,19 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         This is a design choice, not a mathematical necessity.
         An alternative would be to distribute them over nearby nodes.
     """
-    prd_xy: np.ndarray = None
+    prd_xy: Any = None
     """Like `inj_xy`, but for producing wells."""
-    inj_rates: np.ndarray = None
+    inj_rates: Any = None
     """Array of shape `(nWell, nTime)` -- or `(nWell, 1)` if constant-in-time.
 
     .. note:: Both `inj_rates` and `prd_rates` are rates should be positive.
         At each time index, it is asserted that the difference of their sums is 0,
         otherwise the model would silently input deficit from SW corner.
     """
-    prd_rates: np.ndarray = None
+    prd_rates: Any = None
     """Like `prd_rates`, but for producing wells."""
 
-    def _set_Q(self, S, k):
+    def _set_Q(self, S: np.ndarray | None, k: int) -> None:
         """Populate (for time `k`) the source/sink *field*, `Q`, from well specs."""
         Q = np.zeros(self.Nxy)
         rates = self.dynamic_rate(S, k)
@@ -143,7 +147,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
                 self.actual_rates[kind][:, k] = rates[kind]
         self._Q = Q
 
-    def _wanted_rates_at(self, k):
+    def _wanted_rates_at(self, k: int) -> tuple:
         """Lookup nominal/specified rates. Allows constant-in-time (singleton) spec."""
         get_now = lambda arr: np.copy(arr[k] if (len(arr) > 1) else arr[0])
         # fmt: off
@@ -151,7 +155,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
                 get_now(self.prd_rates.T))
         # fmt: on
 
-    def dynamic_rate(self, S, k):
+    def dynamic_rate(self, S: np.ndarray | None, k: int) -> dict:
         """Compute the `actual_rates` for time index `k`.
 
         This default implementation simply reads the given well specifications.
@@ -162,7 +166,12 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         return dict(inj=inj, prd=prd)
 
     # Pres() -- listing 5
-    def pressure_step(self, S, p_prev=None, dt=None):
+    def pressure_step(
+        self,
+        S: np.ndarray,
+        p_prev: np.ndarray | None = None,
+        dt: float | None = None,
+    ) -> tuple:
         """Compute permeabilities then solve Darcy's equation. Returns `[P, V]`.
 
         `p_prev` and `dt` are only used (and required) if `ct > 0`.
@@ -176,22 +185,22 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         [P, V] = self.TPFA(KM, p_prev, dt)
         return P, V
 
-    def _spdiags(self, data, diags):
+    def _spdiags(self, data: Any, diags: Any) -> sparse.dia_matrix:
         return sparse.spdiags(data, diags, self.Nxy, self.Nxy)
 
-    def rescale_sat(self, s):
+    def rescale_sat(self, s: np.ndarray) -> np.ndarray:
         """Account for irreducible saturations. Ref paper, p. 32."""
         return (s - self.swc) / (1 - self.swc - self.sor)
 
     # RelPerm() -- listing 6
-    def RelPerm(self, s):
+    def RelPerm(self, s: np.ndarray) -> tuple:
         """Rel. permeabilities of oil and water. Return as mobilities (perm/viscocity)."""
         S = self.rescale_sat(s)
         Mw = S**2 / self.vw  # Water mobility
         Mo = (1 - S) ** 2 / self.vo  # Oil mobility
         return Mw, Mo
 
-    def dRelPerm(self, s):
+    def dRelPerm(self, s: np.ndarray) -> tuple:
         """Derivatives of `RelPerm`."""
         S = self.rescale_sat(s)
         dMw = 2 * S / self.vw / (1 - self.swc - self.sor)
@@ -199,7 +208,12 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         return dMw, dMo
 
     # TPFA() -- Listing 1
-    def TPFA(self, K, p_prev=None, dt=None):
+    def TPFA(
+        self,
+        K: np.ndarray,
+        p_prev: np.ndarray | None = None,
+        dt: float | None = None,
+    ) -> tuple:
         """Two-point flux-approximation (TPFA) of Darcy: $ -∇(K ∇u) = q $
 
         i.e. steady-state diffusion w/ nonlinear coefficient, $K$,
@@ -252,7 +266,8 @@ class ResSim(NicePrint, Grid2D, Plot2D):
 
         # Extract fluxes
         P = u.reshape(self.shape)
-        V = DotDict(
+        # `Any` coz ty cannot see that `DotDict` provides attribute access to keys
+        V: Any = DotDict(
             x=np.zeros((self.Nx + 1, self.Ny)),
             y=np.zeros((self.Nx, self.Ny + 1)),
         )
@@ -261,7 +276,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         return P, V
 
     # GenA() -- listing 7
-    def upwind_diff(self, V):
+    def upwind_diff(self, V: Any) -> sparse.dia_matrix:
         """Upwind finite-volume scheme."""
         fp = self._Q.clip(max=0)  # production
         # Flow fluxes, separated into direction (x-y) and sign
@@ -275,7 +290,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         return A
 
     # Extracted from Upstream()
-    def estimate_1CFL(self, pv, V, fi):
+    def estimate_1CFL(self, pv: np.ndarray, V: Any, fi: np.ndarray) -> float:
         """Estimate 1/CFL for use with `saturation_step_upwind`."""
         # In-/Out-flux x-/y- faces
         XP = V.x.clip(min=0)
@@ -289,7 +304,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         return 3 / (1 - sat) * flx  # NB: 3-->2 since no z-dim ?
 
     # Upstream() -- listing 8
-    def saturation_step_upwind(self, S, V, dt):
+    def saturation_step_upwind(self, S: np.ndarray, V: Any, dt: float) -> np.ndarray:
         """Explicit upwind FV discretisation of conserv. of mass (water sat.)."""
         # fmt: off
         A  = self.upwind_diff(V)                 # FV discretized transport operator
@@ -313,7 +328,14 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         return S
 
     # NewtRaph() -- listing 10
-    def saturation_step_implicit(self, S, V, dt, nNewtonMax=10, nTmax_log2=10):
+    def saturation_step_implicit(
+        self,
+        S: np.ndarray,
+        V: Any,
+        dt: float,
+        nNewtonMax: int = 10,
+        nTmax_log2: int = 10,
+    ) -> np.ndarray:
         """Implicit FV discretisation of conserv. of mass (water sat.)."""
         # fmt: off
         A  = self.upwind_diff(V)                 # FV discretized transport operator
@@ -358,7 +380,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
 
         return Sn
 
-    def time_stepper(self, dt, implicit=False):
+    def time_stepper(self, dt: float, implicit: bool = False) -> Callable:
         """Get ODE solver (integrator) for model.
 
         Whatever time step `dt` is given, both schemes will use smaller steps internally.
@@ -391,7 +413,16 @@ class ResSim(NicePrint, Grid2D, Plot2D):
 
         return integrate
 
-    def sim(self, dt, nSteps, x0, p0=None, pbar=True, leave=True, **kwargs):
+    def sim(
+        self,
+        dt: float,
+        nSteps: int,
+        x0: np.ndarray,
+        p0: np.ndarray | None = None,
+        pbar: bool = True,
+        leave: bool = True,
+        **kwargs,
+    ) -> tuple:
         """Recursively (`nSteps` times) apply `time_stepper` with `dt`, from `x0`.
 
         Returns the saturation and pressure trajectories, `(SS, PP)`.

@@ -6,7 +6,8 @@ authors = [{name = "patnr", email = "patrick.n.raanes@gmail.com"}]
 license = {text = "MIT"}
 readme = "README.md"
 # Try to keep compatible with Colab's environment, w/o needed many re-installs
-requires-python = ">=3.9,<3.12"
+# (its runtime of 2026.07 uses Python 3.12)
+requires-python = ">=3.12"
 dependencies = [
     "matplotlib~=3.7",
     "scipy~=1.10",
@@ -22,6 +23,7 @@ dev = [
     "pdbpp>=0.10.3",
     "pytest>=7.1.3,<8",
     "ruff",
+    "ty",
     "ipdb>=0.13.9,<0.14",
     "pdoc>=14.2,<15",
 ]

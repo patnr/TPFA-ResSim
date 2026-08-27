@@ -19,6 +19,7 @@ By contrast, the plotting module depicts `x` from left to right, `y` from bottom
 from dataclasses import dataclass
 
 import numpy as np
+import numpy.typing as npt
 
 
 @dataclass
@@ -57,58 +58,60 @@ class Grid2D:
     """Number of grid cells (and their centres) in y dir."""
 
     @property
-    def shape(self):
+    def shape(self) -> tuple:
         """`(Nx, Ny)`"""
         return self.Nx, self.Ny
 
     @property
-    def size(self):
+    def size(self) -> int:
         """Total number of elements."""
-        return np.prod(self.shape)
+        return int(np.prod(self.shape))
 
     @property
-    def domain(self):
+    def domain(self) -> tuple:
         """`((0, 0), (Lx, Ly))`"""
         return ((0, 0), (self.Lx, self.Ly))
 
     @property
-    def Nxy(self):
+    def Nxy(self) -> int:
         """`Nx` * `Ny`"""
-        return np.prod(self.shape)
+        return int(np.prod(self.shape))
 
     @property
-    def hx(self):
+    def hx(self) -> float:
         """x-length of cells"""
         return self.Lx / self.Nx
 
     @property
-    def hy(self):
+    def hy(self) -> float:
         """y-length of cells"""
         return self.Ly / self.Ny
 
     @property
-    def h2(self):
+    def h2(self) -> float:
         """`hx` * `hy`"""
         return self.hx * self.hy
 
     @property
-    def mesh(self):
+    def mesh(self) -> tuple:
         """Generate 2D coordinate grid of cell centres."""
         xx = np.linspace(0, self.Lx, self.Nx, endpoint=False) + self.hx / 2
         yy = np.linspace(0, self.Ly, self.Ny, endpoint=False) + self.hy / 2
         return np.meshgrid(xx, yy, indexing="ij")
 
-    def sub2ind(self, ix, iy):
+    def sub2ind(
+        self, ix: int | np.ndarray, iy: int | np.ndarray
+    ) -> np.intp | np.ndarray:
         """Convert index `(ix, iy)` to index in flattened array."""
         idx = np.ravel_multi_index((ix, iy), self.shape)
         return idx
 
-    def ind2sub(self, ind):
+    def ind2sub(self, ind: int | np.intp | np.ndarray) -> np.ndarray:
         """Inv. of `self.sub2ind`."""
         ix, iy = np.unravel_index(ind, self.shape)
         return np.asarray([ix, iy])
 
-    def xy2sub(self, x, y):
+    def xy2sub(self, x: npt.ArrayLike, y: npt.ArrayLike) -> np.ndarray:
         """Convert physical coordinate tuple to `(ix, iy)`, ix ∈ {0, ..., Nx-1}.
 
         .. warning:: `xy2sub` and `xy2ind` *round* to nearest cell center.
@@ -128,18 +131,18 @@ class Grid2D:
         iy = np.floor(y / self.Ly * self.Ny).astype(int)
         return np.asarray([ix, iy])
 
-    def xy2ind(self, x, y):
+    def xy2ind(self, x: npt.ArrayLike, y: npt.ArrayLike) -> np.intp | np.ndarray:
         """Convert physical coord to flat indx."""
         i, j = self.xy2sub(x, y)
         return self.sub2ind(i, j)
 
-    def sub2xy(self, ix, iy):
+    def sub2xy(self, ix: npt.ArrayLike, iy: npt.ArrayLike) -> np.ndarray:
         """Inverse of `self.xy2sub`."""
         x = (np.asarray(ix) + 0.5) * self.hx
         y = (np.asarray(iy) + 0.5) * self.hy
         return np.asarray([x, y])
 
-    def ind2xy(self, ind):
+    def ind2xy(self, ind: int | np.intp | np.ndarray) -> np.ndarray:
         """Inverse of `self.xy2ind`."""
         i, j = self.ind2sub(ind)
         return self.sub2xy(i, j)

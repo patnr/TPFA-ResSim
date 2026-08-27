@@ -1,5 +1,7 @@
 """Convenient plot functions for reservoir model."""
 
+from typing import TYPE_CHECKING, Any, Callable, cast
+
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
@@ -25,7 +27,7 @@ cm_ow = lin_cm("", [(0, "#1d9e97"), (0.3, "#b2e0dc"), (1, "#f48974")])
 # cm_ow = lin_cm("", [cWater, cMiddle, cOil])
 
 
-styles = dict(
+styles: dict = dict(
     default=dict(
         title="",
         transf=lambda x: x,
@@ -51,19 +53,36 @@ styles = dict(
 class Plot2D:
     """Plots specialized for 2D fields."""
 
+    if TYPE_CHECKING:
+        # This mixin is not standalone: declare (for type checkers only,
+        # lest they become dataclass fields) the attributes and methods
+        # provided by the composition with `Grid2D`/`ResSim`.
+        Lx: float
+        Ly: float
+        Nx: int
+        Ny: int
+        hx: float
+        hy: float
+        shape: tuple
+        inj_xy: Any
+        prd_xy: Any
+        xy2sub: Callable
+        sub2xy: Callable
+        ind2xy: Callable
+
     def plt_field(
         self,
-        ax,
-        Z,
-        style="default",
-        wells=True,
-        argmax=False,
-        colorbar=True,
-        labels=True,
-        grid=False,
-        finalize=True,
+        ax: Any,
+        Z: np.ndarray,
+        style: str = "default",
+        wells: Any = True,
+        argmax: bool = False,
+        colorbar: Any = True,
+        labels: bool = True,
+        grid: bool = False,
+        finalize: bool = True,
         **kwargs,
-    ):
+    ) -> Any:
         """Contour-plot of the (flat) unravelled field `Z`.
 
         `kwargs` falls back to `styles[style]`, which falls back to `styles['defaults']`.
@@ -147,7 +166,9 @@ class Plot2D:
         # Add well markers
         if wells:
             if wells == "color":
-                wells = {"color": [f"C{i}" for i in range(len(self.prd_xy))]}
+                wells = cast(
+                    dict, {"color": [f"C{i}" for i in range(len(self.prd_xy))]}
+                )
             elif wells in [True, 1]:
                 wells = {}
             self.well_scatter(ax, self.prd_xy, False, **wells)
@@ -172,7 +193,15 @@ class Plot2D:
         tight_show(ax.figure, finalize)
         return collections
 
-    def well_scatter(self, ax, ww, inj=True, text=None, color=None, size=1):
+    def well_scatter(
+        self,
+        ax: Any,
+        ww: np.ndarray,
+        inj: bool = True,
+        text: str | None = None,
+        color: Any = None,  # e.g. "k", or a list of colors (one per well)
+        size: float = 1,
+    ) -> Any:
         """Scatter-plot the wells of `ww` onto a `Plot2D.plt_field`."""
         # Well coordinates
         ww = self.sub2xy(*self.xy2sub(*ww.T)).T
@@ -229,8 +258,13 @@ class Plot2D:
         return sh
 
     def plt_production(
-        self, ax, production, obs=None, legend_outside=True, finalize=True
-    ):
+        self,
+        ax: Any,
+        production: np.ndarray,
+        obs: np.ndarray | None = None,
+        legend_outside: bool = True,
+        finalize: bool = True,
+    ) -> list:
         """Production time series. Multiple wells in 1 axes => not ensemble compat."""
         hh = []
         tt = 1 + np.arange(len(production))
@@ -264,14 +298,14 @@ class Plot2D:
     # Note: See note in mpl_setup.py about properly displaying the animation.
     def anim(
         self,
-        wsats,
-        prod,
-        title="",
-        figsize=(10, 3.5),
-        pause=200,
-        animate=True,
+        wsats: np.ndarray,
+        prod: np.ndarray,
+        title: str = "",
+        figsize: tuple = (10, 3.5),
+        pause: int = 200,
+        animate: bool = True,
         **kwargs,
-    ):
+    ) -> Any:
         """Animate the saturation and production time series."""
 
         # Create figure and axes
@@ -324,7 +358,7 @@ class Plot2D:
             return ani
 
 
-def tight_show(figure, enabled):
+def tight_show(figure: Any, enabled: bool) -> None:
     if enabled:
         figure.tight_layout()
         plt.show()

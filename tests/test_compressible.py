@@ -47,7 +47,7 @@ def test_incompressible_limit():
     """With balanced wells and tiny `ct`, the pressure *differences*
     (pressure is only defined up to a constant when incompressible)
     should approach those of the `ct = 0` model."""
-    kwargs = dict(Lx=1, Ly=1, Nx=20, Ny=20,
+    kwargs: dict = dict(Lx=1, Ly=1, Nx=20, Ny=20,
                   inj_xy=[[0, 0]], inj_rates=[[1]],
                   prd_xy=[[1, 1]], prd_rates=[[1]])
     water_sat0 = np.zeros(20 * 20)
