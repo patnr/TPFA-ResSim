@@ -37,6 +37,19 @@ should pin a tag (or commit hash) and advance it deliberately.
   meaningful, and injection need no longer balance production.
   There is no switching of control modes; a producer that would flow backwards
   raises rather than doing so silently.
+- **Well paths**: `ResSim.well_path` walks a polyline through the grid and
+  returns the traversed cells, their well indices (each scaled by how much of
+  its cell the path actually crosses), and the resulting split of the well's
+  rate. Several completions act as one well by being superimposed in `_set_Q`,
+  which already worked; what is new is the discretization, the well indices, and
+  the rate allocation. Under BHP control the completions simply share a
+  `p_bh` -- all a wellbore does, absent the gravity and friction that a 2D areal
+  model has no room for -- so their split is then *solved for* rather than
+  prescribed. A rate-controlled multi-cell well whose split is solved for would
+  need `p_bh` as an extra unknown, i.e. a bordered linear system, and is
+  deliberately not implemented.
+- `examples/well_control.py` and `examples/well_path.py` illustrate the above
+  (and, like the other examples, double as regression tests).
 
 ### Fixed
 

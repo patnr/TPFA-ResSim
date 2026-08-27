@@ -296,3 +296,83 @@ def test_backflow_is_rejected():
     model.prd_WI = model.peaceman_WI(model.prd_xy, rw)
     with pytest.raises(AssertionError, match="flow backwards"):
         model.sim(1e-3, 3, np.zeros(model.Nxy), p0=np.ones(model.Nxy), pbar=False)
+
+
+# ---------------------------------------------------------------------------
+# Well *paths*, i.e. multi-cell completions, ref `ResSim.well_path`
+# ---------------------------------------------------------------------------
+
+def path_lengths(model, vertices):
+    """The traversed length per cell, recovered from `well_path`'s `WI`."""
+    xy, WI, _ = model.well_path(vertices, rw)
+    return xy, WI / model.peaceman_WI(xy, rw) * np.sqrt(model.h2)
+
+
+@pytest.mark.parametrize("vertices", [
+    [[.05, .05], [.95, .05]],              # straight, axis-aligned
+    [[.05, .05], [.95, .95]],              # diagonal
+    [[.05, .05], [.05, .95], [.95, .95]],  # L-shaped (2 segments)
+    [[.13, .07], [.62, .41]],              # neither aligned nor through centres
+])
+def test_path_conserves_length(vertices):
+    """The per-cell traversals must partition the polyline."""
+    model = ResSim(Lx=1, Ly=1, Nx=10, Ny=10)
+    _, lengths = path_lengths(model, vertices)
+    V = np.asarray(vertices)
+    expected = np.hypot(*np.diff(V, axis=0).T).sum()
+    assert np.isclose(lengths.sum(), expected)
+
+
+def test_path_geometry():
+    """A path along a row of cells: the cells it enters, and its share of each."""
+    model = ResSim(Lx=1, Ly=1, Nx=10, Ny=10)
+    xy, WI, w = model.well_path([[.05, .05], [.45, .05]], rw)
+
+    assert np.allclose(xy[:, 0], [.05, .15, .25, .35, .45])   # 5 cells, in x
+    assert np.allclose(xy[:, 1], .05)                          # all in one row
+    assert np.allclose(w, [.125, .25, .25, .25, .125])         # ends are halved
+    assert np.isclose(w.sum(), 1)
+    # A full crossing scores the cell's undiminished well index
+    assert np.allclose(WI[1:4], model.peaceman_WI(xy[1:4], rw))
+
+
+def test_path_revisiting_a_cell_accumulates():
+    """A path that doubles back reports each cell once, with the total length."""
+    model = ResSim(Lx=1, Ly=1, Nx=10, Ny=10)
+    xy, lengths = path_lengths(model, [[.05, .05], [.35, .05], [.15, .05]])
+    assert len(xy) == 4                             # cells 0..3, not 4+3
+    assert np.isclose(lengths.sum(), .3 + .2)
+
+
+def test_path_under_rate_control_matches_a_point_well_in_total():
+    """Superimposition: the completions act as one well, of the given total rate."""
+    def run(**wells):
+        model = ResSim(Lx=1, Ly=1, Nx=20, Ny=20,
+                       prd_xy=[[1, 1]], prd_rates=[[1.]], **wells)
+        SS, _ = model.sim(.04, 12, np.zeros(model.Nxy), pbar=False)
+        return model, SS
+
+    xy, _, w = ResSim(Lx=1, Ly=1, Nx=20, Ny=20).well_path([[0, 0], [0, .5]], rw)
+    horiz, SS_h = run(inj_xy=xy, inj_rates=w[:, None])       # a 5-cell injector
+    point, SS_p = run(inj_xy=[[0, 0]], inj_rates=[[1.]])     # ... vs 1 cell
+
+    # Same total injection (else `time_stepper`'s balance assert would trip)
+    assert np.isclose(horiz.actual_rates["inj"].sum(0), 1).all()
+    # ... but a different sweep, which is the point of drilling a path
+    assert not np.allclose(SS_h[-1], SS_p[-1], atol=1e-3)
+    assert (SS_h[-1] > .01).sum() > (SS_p[-1] > .01).sum()   # broader front
+
+
+def test_path_under_bhp_control_shares_one_pressure():
+    """The completions differ in rate, but (absent wellbore effects) not in `p_bh`."""
+    model = ResSim(Lx=1, Ly=1, Nx=20, Ny=20, ct=.1,
+                   prd_xy=[[1, 1]], prd_rates=[[.5]])
+    xy, WI, _ = model.well_path([[0, 0], [0, .5]], rw)
+    model.inj_xy, model.inj_WI = xy, WI
+    model.inj_bhp = np.full((len(xy), 1), 3.)
+    model.sim(.02, 6, np.zeros(model.Nxy), p0=np.ones(model.Nxy), pbar=False)
+
+    rates, bhps = model.actual_rates["inj"], model.actual_bhp["inj"]
+    assert np.allclose(bhps, 3.)                  # one wellbore, one pressure
+    assert rates.min() > 0                        # all completions inject
+    assert rates[:, -1].std() > 1e-3              # but not equally

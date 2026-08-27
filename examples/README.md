@@ -5,6 +5,17 @@ They double as regression tests: `tests/test_examples.py` runs them all
   reference paper. The latter is what verifies our agreement with the Matlab codes.
 - `rate_scheduling.py` steers the water front using time-varying injection rates.
 
+These concern the *well model* (`ResSim.peaceman_WI`), i.e. the sub-grid
+relation between a well and the (much larger) cell that holds it:
+
+- `well_control.py`: the two ways to control a well -- prescribing its rate and
+  letting its pressure follow, or the reverse -- shown to be one model seen from
+  either end. Also why the well model is needed at all: a well's *cell* pressure
+  is a grid artefact, whereas the bottom-hole pressure derived from it is not.
+- `well_path.py`: a well completed along a polyline rather than in a single
+  cell, and the two ways its rate then gets divided among the completions --
+  statically (in proportion to the well index) or, under BHP control, solved for.
+
 The remaining ones illustrate what slight compressibility (`ct > 0`) brings:
 
 - `pressure_diffusion.py`: the pressure equation becomes parabolic, so that a

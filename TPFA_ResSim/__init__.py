@@ -382,6 +382,79 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         return 2*np.pi*np.sqrt(kx*ky) / (np.log(r_e/rw) + skin)
         # fmt: on
 
+    def _crossings(self, p0: np.ndarray, d: np.ndarray) -> np.ndarray:
+        """Parameters $t ∈ [0, 1]$ at which `p0 + t*d` crosses a cell boundary."""
+        ts = [0.0, 1.0]
+        for ax, h in enumerate([self.hx, self.hy]):
+            if d[ax] == 0:
+                continue
+            lo, hi = sorted([p0[ax], p0[ax] + d[ax]])
+            ts += [(i*h - p0[ax]) / d[ax]
+                   for i in range(int(np.floor(lo/h)) + 1, int(np.ceil(hi/h)))]
+        return np.unique(np.clip(ts, 0, 1))  # NB: `unique` also sorts
+
+    def well_path(self, vertices: Any, rw: float, skin: float = 0.0) -> tuple:
+        """Discretize a well *path* (a polyline) into 1 weighted completion per traversed cell.
+
+        Returns `(xy, WI, w)`:
+
+        - `xy`: centres of the cells that the path traverses -- i.e. a value for
+          `inj_xy`/`prd_xy`. Several completions act as a single well simply by
+          being several wells: `_set_Q` superimposes them (with `+=`).
+        - `WI`: their well indices, i.e. a value for `inj_WI`/`prd_WI`. Each is
+          `peaceman_WI` for its cell, scaled by the fraction of that cell which
+          the path actually traverses (so a cell merely clipped by the path
+          contributes proportionally less).
+        - `w`: `WI` normalized to sum to `1`, for apportioning the well's rate
+          among its completions: `inj_rates = rate * w[:, None]`. This is the
+          standard (static) allocation -- proportional to the well index, hence
+          to both the contacted length and the local permeability.
+
+        >>> model = ResSim(Lx=1, Ly=1, Nx=10, Ny=10)
+        >>> xy, WI, w = model.well_path([[.05, .05], [.45, .05]], rw=1e-2)
+        >>> xy.T[0]  # the traversed cells, in x
+        array([0.05, 0.15, 0.25, 0.35, 0.45])
+        >>> w  # the end cells, entered mid-way, get half the rate
+        array([0.125, 0.25 , 0.25 , 0.25 , 0.125])
+
+        .. note:: Under BHP control this is exact (assuming 0 gravity and friction):
+            the completions simply share a `p_bh`.
+            Under *rate* control, `w` is an approximation unless the cell pressures are equal.
+            Solving for it would make $ p_\\mathrm{bh} $ an extra
+            unknown, i.e. a bordered linear system -- which the 5-diagonal
+            assembly of `TPFA` (Listing 1) is not set up for. Use
+            `dynamic_rate` to reallocate per step, if it matters.
+
+        .. warning:: The completions are treated as independent *vertical* wells,
+            which seems reasonable in a 2D areal model. Thus `nInj`/`nPrd` count completions, not wells.
+        """
+        V = np.asarray(vertices, float).reshape((-1, 2))
+        assert len(V) >= 2, "A well path needs at least 2 vertices."
+        # Walk the polyline, accumulating traversed length per cell
+        lengths: dict = {}
+        for p0, p1 in zip(V[:-1], V[1:]):
+            d = p1 - p0
+            L = float(np.hypot(*d))
+            if L == 0:
+                continue
+            ts = self._crossings(p0, d)
+            mids = p0 + np.outer((ts[:-1] + ts[1:]) / 2, d)
+            for mid, dt in zip(mids, np.diff(ts)):
+                sub = tuple(int(i) for i in self.xy2sub(*mid))
+                lengths[sub] = lengths.get(sub, 0.0) + L*dt
+        # Discard the slivers left by corner crossings
+        total = sum(lengths.values())
+        lengths = {k: v for k, v in lengths.items() if v > 1e-9 * total}
+
+        subs = np.array(list(lengths))
+        xy = self.sub2xy(*subs.T).T
+        # Scale each WI by how much of its cell the path traverses, relative
+        # to the cell size -- so an axis-aligned full crossing scores exactly 1
+        # (and a diagonal one √2, it contacting that much more rock).
+        frac = np.array(list(lengths.values())) / np.sqrt(self.h2)
+        WI = frac * self.peaceman_WI(xy, rw, skin)
+        return xy, WI, WI / WI.sum()
+
     def bhp(self, S: np.ndarray, P: np.ndarray, rates: dict) -> dict:
         """Bottom-hole pressures implied by `rates`, via the well indices.
 
