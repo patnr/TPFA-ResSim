@@ -34,7 +34,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: uv sync --locked
+        run: uv sync --locked --no-default-groups --group test
 
       - name: Run tests
-        run: uv run pytest
+        run: uv run --no-sync pytest

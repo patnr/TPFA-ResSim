@@ -18,6 +18,14 @@ The main consumer is [patnr/HistoryMatching](https://github.com/patnr/HistoryMat
 
 Dev environment is managed with uv (`uv sync`), but a plain `pip install -e .` also works. Note: `mise.toml` sets `UV_PROJECT_ENVIRONMENT` so the venv lives at `~/.cache/venvs/TPFA-ResSim`, not in-project — if mise isn't active in your shell, export that variable before running uv to avoid creating a duplicate `.venv`.
 
+Plain `uv sync` installs the default (`dev`) group, i.e. everything. CI instead installs
+only what it runs, via the narrower `test` and `docs` groups that `dev` includes
+(`uv sync --no-default-groups --group test`) — which keeps the interactive tools out of
+the CI environment, notably `pdbpp`, whose shadowing of the stdlib `pdb` that pytest and
+`doctest` import can break *collection* on an interpreter it dislikes. The subsequent step
+is then `uv run --no-sync`, since `uv run` would otherwise re-sync the default group and
+reinstall what the sync step just excluded.
+
 - **Run all tests**: `uv run pytest` (no further args). `addopts` in pyproject.toml makes this run `tests/` **plus doctests** in all `TPFA_ResSim` modules (`--doctest-modules`). Doctests are part of the test suite.
 - **Run a single test**: override addopts, e.g. `uv run pytest -o addopts="" "tests/test_examples.py::test_example[quarter_five_spot]"`
 - **Lint**: `uv run ruff check` (config in pyproject.toml; max line length 88; deliberately permissive about operator/array alignment — preserve the aligned formatting style used in the code).
