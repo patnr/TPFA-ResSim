@@ -47,25 +47,31 @@ def test_depletion():
 
 
 def test_incompressible_limit():
-    """With balanced wells and tiny `ct`, the pressure *differences*
-    (pressure is only defined up to a constant when incompressible)
-    should approach those of the `ct = 0` model."""
+    """With balanced wells, the `ct = 0` model is recovered as `ct → 0`,
+    at first order. Compare the pressure *differences*, since pressure is
+    only defined up to a constant when incompressible.
+    """
     kwargs: dict = dict(Lx=1, Ly=1, Nx=20, Ny=20,
                   inj_xy=[[0, 0]], inj_rates=[[1]],
                   prd_xy=[[1, 1]], prd_rates=[[1]])
     water_sat0 = np.zeros(20 * 20)
+    # NB: not the module-level `dt = .05`, for which `dt * estimate_1CFL` is
+    # *exactly* 60 here, leaving the (integer) sub-step count of the explicit
+    # scheme to be settled by the last bits of the flux computation. It then
+    # differs between the two models -- and between platforms -- imposing a
+    # `ct`-independent floor of ~1e-4 on the discrepancies below.
+    dt = .0505
 
     model0 = ResSim(**kwargs)
     SS0, PP0 = model0.sim(dt, nSteps, water_sat0, pbar=False)
 
-    model1 = ResSim(ct=1e-8, **kwargs)
-    SS1, PP1 = model1.sim(dt, nSteps, water_sat0, pbar=False)
-
     center = lambda P: P - P.mean(axis=1, keepdims=True)
-    assert np.allclose(center(PP0[1:]), center(PP1[1:]), atol=1e-4)
-    # Saturations differ a bit more: tiny flux differences can flip the
-    # (integer) number of CFL-derived sub-steps of the explicit scheme.
-    assert np.allclose(SS0, SS1, atol=1e-3)
+    for ct in [1e-8, 1e-6, 1e-4]:
+        SS1, PP1 = ResSim(ct=ct, **kwargs).sim(dt, nSteps, water_sat0, pbar=False)
+        # Both are O(ct) (with a coefficient < 2), so the smallest `ct`
+        # would fail were there any floor, as with `dt = .05`.
+        assert np.allclose(center(PP0[1:]), center(PP1[1:]), rtol=0, atol=10*ct)
+        assert np.allclose(SS0, SS1, rtol=0, atol=10*ct)
 
 
 def test_storage_rate():
