@@ -62,10 +62,14 @@ class ResSim(NicePrint, Grid2D, Plot2D):
             if key in ["inj_rates", "prd_rates"]:
                 nWell = len(getattr(self, key.replace("rates", "xy")))
                 val = np.array(val, float).reshape((nWell, -1))
+            # Well indices
+            if key in ["inj_WI", "prd_WI"]:
+                nWell = len(getattr(self, key.replace("WI", "xy")))
+                val = np.broadcast_to(np.ravel(np.asarray(val, float)), nWell).copy()
             # Permeabilities
             if key == "K":
                 if np.isscalar(val):
-                    val = np.full_like(self.shape, val, dtype=float)
+                    val = np.full(self.shape, val, dtype=float)
                 if val.size == self.size:
                     val = np.stack([val, val])  # both components
                 val = val.reshape((2, *self.shape))
@@ -154,6 +158,24 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     """
     prd_rates: Any = None
     """Like `prd_rates`, but for producing wells."""
+    inj_WI: Any = None
+    """Well indices (`None`, or an array of shape `(nWell,)`) for the injectors.
+
+    The well index, $ WI $, is the *sub-grid* well model: the constant of
+    proportionality relating a well's flow rate to the drawdown between the
+    wellbore and its (necessarily much larger) grid cell,
+    $$ q = WI \\, λ_t \\, (p_\\mathrm{cell} - p_\\mathrm{bh}) \\,, $$
+    with $ λ_t $ the total mobility (ref `RelPerm`) of the well's cell.
+    Compute it with `peaceman_WI`, or set it directly (it need not come from
+    any particular formula). Leaving it as `None` simply means that `bhp`
+    is not available (it yields `nan`).
+
+    .. note:: It is a *diagnostic* only: the wells remain rate-controlled
+        (ref `inj_rates`), and `sim` merely records the implied bottom-hole
+        pressures in `actual_bhp`. Nothing in the flow solution depends on it.
+    """
+    prd_WI: Any = None
+    """Like `inj_WI`, but for producing wells."""
 
     def _set_Q(self, S: np.ndarray | None, k: int) -> None:
         """Populate (for time `k`) the source/sink *field*, `Q`, from well specs."""
@@ -187,6 +209,81 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         """
         inj, prd = self._wanted_rates_at(k)
         return dict(inj=inj, prd=prd)
+
+    def peaceman_WI(self, xy: Any, rw: float, skin: float = 0.0) -> np.ndarray:
+        """Peaceman's well index for wells at `xy`, of radius `rw`.
+
+        $$ WI = \\frac{2 π \\sqrt{k_x k_y}}{\\ln(r_e / r_w) + \\mathrm{skin}} $$
+
+        where the *equivalent radius*, $ r_e $, is the distance from the well at
+        which the (analytic, radial) pressure equals the (numerical) pressure of
+        the well's cell:
+        $$ r_e = 0.28 \\,
+           \\frac{\\sqrt{\\sqrt{k_y/k_x} \\, h_x^2
+                          + \\sqrt{k_x/k_y} \\, h_y^2}}
+                  {(k_y/k_x)^{1/4} + (k_x/k_y)^{1/4}} \\,, $$
+        which reduces to the familiar $ r_e = 0.198 \\, h $ on an isotropic,
+        square grid. That constant is not a fudge factor: it is a property of
+        the 5-point stencil that `TPFA` assembles, and this model reproduces it
+        (`tests/test_wells.py` recovers $ r_e / h → 0.198 $ from the simulated
+        drawdown, and thereby the analytic, radial well pressure to within 0.2%,
+        on grids from 16² to 64²).
+
+        >>> model = ResSim(Lx=1, Ly=1, Nx=32, Ny=32)
+        >>> model.peaceman_WI([[.5, .5]], rw=1e-3).round(4)
+        array([3.4476])
+
+        .. note:: There is no thickness factor because the model is 2D *areal*,
+            i.e. of unit thickness -- as is already implicit in `TPFA`, whose
+            transmissibilities read $ k \\, h_y / h_x $, and in `h2` serving as
+            the cell volume.
+
+        .. warning:: `rw` is a *physical length*, whereas the rest of the model
+            is scale-free (ref the `Lx`, `K` and `vw` defaults). Only the ratio
+            $ r_e / r_w $ enters, so this is consistent -- but it does mean that
+            `rw` must be given in the same (arbitrary) length unit as `Lx`.
+        """
+        xy = np.asarray(xy, float).reshape((-1, 2))
+        ix, iy = self.xy2sub(*xy.T)
+        kx, ky = self.K[0][ix, iy], self.K[1][ix, iy]
+        # fmt: off
+        a, b = np.sqrt(ky/kx), np.sqrt(kx/ky)
+        r_e  = .28 * np.sqrt(a*self.hx**2 + b*self.hy**2) / (a**.5 + b**.5)
+        return 2*np.pi*np.sqrt(kx*ky) / (np.log(r_e/rw) + skin)
+        # fmt: on
+
+    def bhp(self, S: np.ndarray, P: np.ndarray, rates: dict) -> dict:
+        """Bottom-hole pressures implied by `rates`, via the well indices.
+
+        I.e. invert the well model of `inj_WI`:
+        $ p_\\mathrm{bh} = p_\\mathrm{cell} ∓ q / (WI \\, λ_t) $,
+        with the sign such that injectors are *above*, and producers *below*,
+        their cell pressure. Wells whose well index is `None` yield `nan`.
+
+        `S` and `P` (both flat) should be the saturation and the pressure of the
+        *same* `pressure_step`, i.e. `SS[k]` and `PP[k+1]` of `sim` -- which is
+        what `actual_bhp` records, so prefer reading that.
+
+        .. warning:: Unlike the cell pressure, this is (to the accuracy of the
+            well model) independent of the grid resolution -- which is the whole
+            point. But it inherits the model's premises: in particular $ λ_t $
+            is that of the well's *cell*, so an injector's injectivity is
+            governed by the mobility of whatever the cell currently holds,
+            rather than by that of the injectant.
+        """
+        Mw, Mo = self.RelPerm(S)
+        Mt = Mw + Mo
+        out = {}
+        for kind in ["inj", "prd"]:
+            WI = getattr(self, f"{kind}_WI")
+            xy = getattr(self, f"{kind}_xy")
+            if WI is None:
+                out[kind] = np.full(len(xy), np.nan)
+                continue
+            ii = self.xy2ind(*np.asarray(xy).T)
+            sgn = +1 if kind == "inj" else -1
+            out[kind] = P[ii] + sgn * rates[kind] / (WI * Mt[ii])
+        return out
 
     # Pres() -- listing 5
     def pressure_step(
@@ -462,6 +559,10 @@ class ResSim(NicePrint, Grid2D, Plot2D):
             assert np.all((0 <= self.por) & (self.por <= 1))
 
             [P, V] = self.pressure_step(S, P, dt)
+            if hasattr(self, "actual_bhp"):
+                now = {kd: self.actual_rates[kd][:, k] for kd in ["inj", "prd"]}
+                for kd, p_bh in self.bhp(S, P.ravel(), now).items():
+                    self.actual_bhp[kd][:, k] = p_bh
             if implicit:
                 S = self.saturation_step_implicit(S, V, dt)
             else:
@@ -487,8 +588,11 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         .. note:: `SS[0] == x0` and `PP[0] == p0`, hence both have `len = nSteps + 1`.
             `p0` defaults to zeros. It is only consequential if `ct > 0`.
 
-        A "bottom-hole pressure"-like observable for (e.g.) producer 0
-        can be extracted by `PP[:, model.xy2ind(*model.prd_xy[0])]`.
+        The *cell* pressure of (e.g.) producer 0 is
+        `PP[:, model.xy2ind(*model.prd_xy[0])]`. But note that it is a grid
+        artefact: refining the grid moves it, without limit. For an actual
+        bottom-hole pressure, set `prd_WI` (ref `peaceman_WI`) and read
+        `self.actual_bhp["prd"][0]`, alongside `self.actual_rates`.
 
         .. note::
             "Recurse" is a describes a function calling itself.
@@ -512,6 +616,8 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         # fmt: off
         self.actual_rates = dict(inj=np.zeros((self.nInj, nSteps)),
                                  prd=np.zeros((self.nPrd, nSteps)))
+        self.actual_bhp   = dict(inj=np.full((self.nInj, nSteps), np.nan),
+                                 prd=np.full((self.nPrd, nSteps), np.nan))
         # fmt: on
 
         # Recurse

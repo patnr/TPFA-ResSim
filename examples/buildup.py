@@ -18,7 +18,9 @@ defined up to a constant, ref `examples/pressure_diffusion.py`) instantly
 becomes uniform. NB: since `ct = 0` demands balanced rates, that run needs an
 active injector, whose rate is switched off at the same time.
 
-As in `examples/depletion.py`, no water is present, so `S = 0` throughout.
+As in `examples/depletion.py`, no water is present, so `S = 0` throughout --
+and, likewise, every pressure plotted here is a *cell* pressure, not a wellbore
+one; ref that example's note on the well model.
 
 In the figures:
 
@@ -75,7 +77,7 @@ fig, (ax1, ax2) = freshfig("Buildup -- time series", ncols=2, figsize=(10, 4))
 
 for r in [0, .1, .25, .5]:
     i = model.xy2ind(.5 + r, .5)
-    ax1.plot(tt, PP[:, i], label=f"r = {r}")
+    ax1.plot(tt, PP[:, i], label=f"r = {r}")  # r = 0 is the well's cell
 ax1.plot(tt, p_mean, "k--", lw=1, label="Mean, $\\bar{p}$")
 ax1.axvline(kShut*dt, c="k", lw=1, alpha=.4)
 ax1.annotate("shut-in", (kShut*dt, PP.min()), fontsize="small",
@@ -89,7 +91,7 @@ drawdown_inc = PP_inc.mean(axis=1) - PP_inc[:, iw]
 ax2.plot(tt[1:], drawdown[1:]    , label="$c_t > 0$")
 ax2.plot(tt[1:], drawdown_inc[1:], label="$c_t = 0$")
 ax2.axvline(kShut*dt, c="k", lw=1, alpha=.4)
-ax2.set(title="Drawdown, $\\bar{p} - p_\\mathrm{well}$", xlabel="Time",
+ax2.set(title="Drawdown, $\\bar{p} - p_\\mathrm{cell}$", xlabel="Time",
         ylabel="$\\Delta p$")
 ax2.legend()
 for ax in (ax1, ax2):
@@ -114,7 +116,7 @@ assert np.ptp(PP[-1]) < .01 * np.ptp(PP[kShut])
 assert np.allclose(PP_inc[kShut + 1:], 0)
 
 # Regression values, checked by `tests/test_examples.py`.
-__digest__ = dict(p_well  = PP[:, iw],
+__digest__ = dict(p_cell  = PP[:, iw],
                   p_far   = PP[:, model.xy2ind(1, .5)],
                   p_mean  = p_mean,
                   p_final = PP[-1])

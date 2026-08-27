@@ -15,7 +15,7 @@ Two flow regimes are visible:
 
   $$ dp̄/dt = -q / (c_t V_p) $$
 
-  ($V_p$ = pore volume), and the drawdown $p̄ - p_\\mathrm{well}$ is constant.
+  ($V_p$ = pore volume), and the drawdown $p̄ - p_\\mathrm{cell}$ is constant.
 
 There is no water anywhere here (`S = 0` throughout), so this is effectively a
 single-phase example. NB: the model requires at least one injector to be
@@ -27,11 +27,18 @@ In the figures:
   changing shape, while the entire field subsides (t = 0.025 → 0.1).
   The colour scale is shared, so that late, uniform darkening *is* the decline.
 - "decline" (left): $\\bar{p}$ falls exactly along the material-balance line
-  (dashed), and the well pressure runs parallel to it, one drawdown below.
+  (dashed), and the producer's *cell* pressure runs parallel to it, one drawdown
+  below.
 - "decline" (right): that drawdown (note the logarithmic time axis) grows
   throughout the transient, and then settles at 0.15 -- the transition
   occurring at about the time $r^2/η$ that the disturbance needs to reach the
   boundary (dotted).
+
+Throughout, $p_\\mathrm{cell}$ is the pressure of the *cell* that holds the well,
+not the pressure in the wellbore: it is an average over an area of $h^2$, so
+refining the grid deepens it without limit (here, 0.15 at 32² but 0.18 at 64²).
+Converting it to a bottom-hole pressure is the job of the *well model* -- set
+`prd_WI` (ref `ResSim.peaceman_WI`) and read `model.actual_bhp` instead.
 """
 
 from mpl_tools.place import freshfig
@@ -58,7 +65,7 @@ assert SS.max() == 0, "No water is injected, so none should appear."
 
 iw = model.xy2ind(*model.prd_xy[0])
 p_mean = PP.mean(axis=1)
-p_well = PP[:, iw]
+p_cell = PP[:, iw]
 pore_volume = model.h2 * model.por.sum()
 
 ## Plot: the pressure field, subsiding
@@ -75,16 +82,16 @@ fig.colorbar(cc, ax=axs, shrink=.6, label="p")
 fig, (ax1, ax2) = freshfig("Depletion -- decline", ncols=2, figsize=(10, 4))
 
 ax1.plot(tt, p_mean, label="Mean, $\\bar{p}$")
-ax1.plot(tt, p_well, label="At the producer")
+ax1.plot(tt, p_cell, label="Producer cell, $p_\\mathrm{cell}$")
 ax1.plot(tt, 1 - q*tt/(model.ct*pore_volume), "k--", lw=1,
          label="$p_0 - q t / (c_t V_p)$")
 ax1.set(title="Pressure decline", xlabel="Time", ylabel="p")
 ax1.legend()
 
-ax2.plot(tt[1:], (p_mean - p_well)[1:], "-o", ms=3)
-ax2.set(title="Drawdown, $\\bar{p} - p_\\mathrm{well}$", xlabel="Time",
+ax2.plot(tt[1:], (p_mean - p_cell)[1:], "-o", ms=3)
+ax2.set(title="Drawdown, $\\bar{p} - p_\\mathrm{cell}$", xlabel="Time",
         xscale="log", ylabel="$\\Delta p$")
-ax2.axhline((p_mean - p_well)[-1], c="k", ls="--", lw=1,
+ax2.axhline((p_mean - p_cell)[-1], c="k", ls="--", lw=1,
             label="Boundary-dominated value")
 ax2.axvline(.25/(1/model.ct), c="C1", ls=":", lw=1,
             label="$r^2/η$, $r$ = ½ (to the boundary)")
@@ -96,7 +103,7 @@ assert np.allclose(p_mean, 1 - q*tt/(model.ct*pore_volume))
 
 # Regression values, checked by `tests/test_examples.py`.
 __digest__ = dict(p_mean = p_mean,
-                  p_well = p_well,
+                  p_cell = p_cell,
                   p_last = PP[-1])
 
 if __name__ == "__main__":

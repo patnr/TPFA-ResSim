@@ -10,6 +10,20 @@ should pin a tag (or commit hash) and advance it deliberately.
 
 ## [Unreleased]
 
+### Added
+
+- A **well model**: `ResSim.peaceman_WI` computes Peaceman's well index from the
+  grid, the (possibly anisotropic) permeability, the well radius and the skin;
+  assigning it to the new `inj_WI`/`prd_WI` attributes makes `sim` record the
+  implied bottom-hole pressures in `actual_bhp` (via the new `ResSim.bhp`).
+  Unlike the cell pressure -- which `sim`'s docstring could only advertise as a
+  "bottom-hole pressure-*like* observable", and which varies by some 45% over a
+  16² -> 64² refinement -- this is grid-independent, matching the analytic
+  (Dietz) drawdown to within 0.2% on every grid (`tests/test_wells.py`).
+  The wells remain **rate**-controlled: the well index is a diagnostic, does not
+  enter the flow solution, and defaults to `None` (whereupon `actual_bhp` is
+  `nan`), so this changes no existing result.
+
 ### Fixed
 
 - The `O(ct)` term of the **transport** equation, previously neglected, is now
@@ -25,6 +39,10 @@ should pin a tag (or commit hash) and advance it deliberately.
   premise); what remains is the model's own `ct*dp << 1` premise.
   Saturations for `ct > 0` change accordingly (the compressible examples'
   reference values are updated); `ct = 0` is bit-for-bit unaffected.
+- Scalar `K` (e.g. `ResSim(..., K=3.)`) now broadcasts as documented, instead of
+  raising `ValueError: cannot reshape array of size 2`. Broken since `4643295`
+  ("Reshape K in setter", v0.1.1), which used `np.full_like(self.shape, ...)`
+  -- i.e. filling an array shaped like the *tuple* `(Nx, Ny)`, not like the grid.
 
 ## [0.2.0] -- 2026-08-27
 
