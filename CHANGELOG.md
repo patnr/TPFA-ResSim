@@ -20,9 +20,23 @@ should pin a tag (or commit hash) and advance it deliberately.
   "bottom-hole pressure-*like* observable", and which varies by some 45% over a
   16² -> 64² refinement -- this is grid-independent, matching the analytic
   (Dietz) drawdown to within 0.2% on every grid (`tests/test_wells.py`).
-  The wells remain **rate**-controlled: the well index is a diagnostic, does not
-  enter the flow solution, and defaults to `None` (whereupon `actual_bhp` is
-  `nan`), so this changes no existing result.
+  The well index is also a diagnostic in its own right: it defaults to `None`
+  (whereupon `actual_bhp` is `nan`), and a rate-controlled well is unaffected by
+  it, so adding one changes no existing result.
+- **BHP-controlled wells**, opt-in via the new `inj_bhp`/`prd_bhp` attributes
+  (shaped like the rates, so likewise time-varying; `nan` entries stay
+  rate-controlled, hence the two modes may be mixed across wells and in time).
+  The rate is solved for *simultaneously* with the pressure -- `TPFA` puts
+  $WI λ_t$ on its diagonal and $WI λ_t p_{bh}$ on its right-hand side -- rather
+  than lagged by a step: prescribing the `actual_bhp` of a rate-controlled run
+  reproduces it to machine precision (`tests/test_wells.py`). The realized rates
+  are reported in `actual_rates`, so `inj_rates` may be left `None`.
+  A BHP well also *anchors* the incompressible (`ct == 0`) pressure equation,
+  which is otherwise a pure-Neumann problem: the arbitrary pin at the SW corner
+  (ref article p. 13) is then skipped, the absolute pressure level becomes
+  meaningful, and injection need no longer balance production.
+  There is no switching of control modes; a producer that would flow backwards
+  raises rather than doing so silently.
 
 ### Fixed
 

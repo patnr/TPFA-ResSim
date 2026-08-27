@@ -154,3 +154,145 @@ def test_skin():
     model = ResSim(Lx=1, Ly=1, Nx=32, Ny=32)
     WI = [model.peaceman_WI([[.5, .5]], rw, skin=s)[0] for s in [-1, 0, 3]]
     assert WI[0] > WI[1] > WI[2] > 0
+
+
+# ---------------------------------------------------------------------------
+# BHP *control* (as opposed to the diagnostic above), ref `ResSim.inj_bhp`
+# ---------------------------------------------------------------------------
+
+def test_bhp_control_reproduces_rate_control():
+    """Rate control and BHP control are two views of the same well model.
+
+    So: run a rate-controlled well, note the `actual_bhp` it implies, then
+    prescribe *that* as `prd_bhp` -- and recover the original run. To machine
+    precision, which is what shows that the coupling is solved for
+    simultaneously with the pressure, rather than lagged by a time step.
+    """
+    def run(**ctrl):
+        model = ResSim(Lx=1, Ly=1, Nx=32, Ny=32, ct=.1,
+                       inj_xy=[[0, 0]], inj_rates=[[0]], prd_xy=[[.5, .5]], **ctrl)
+        model.prd_WI = model.peaceman_WI(model.prd_xy, rw)
+        _, PP = model.sim(1e-3, 60, np.zeros(model.Nxy),
+                          p0=np.ones(model.Nxy), pbar=False)
+        return model, PP
+
+    ref, PP = run(prd_rates=[[q]])
+    bhp, PP2 = run(prd_bhp=ref.actual_bhp["prd"])      # NB: `prd_rates` unset
+
+    assert np.allclose(PP2, PP, rtol=0, atol=1e-12)
+    assert np.allclose(bhp.actual_rates["prd"], q, rtol=0, atol=1e-12)
+    # And the diagnostic inverts the control, exactly
+    assert np.array_equal(bhp.actual_bhp["prd"], ref.actual_bhp["prd"])
+
+
+@pytest.mark.parametrize("N", [32, 64])
+def test_bhp_depletion_declines_exponentially(N):
+    """At constant $ p_\\mathrm{bh} $, material balance gives $ q ∝ e^{-t/τ} $.
+
+    Combining $ c_t V_p \\, d\\bar{p}/dt = -q $ with $ q = J (\\bar{p} - p_bh) $
+    yields $ τ = c_t V_p / J $, where the productivity index $ J $ is
+    `drawdown_analytic` inverted. Note that this tests the *rate* that the model
+    solves for -- and that, like the drawdown, it is grid-independent.
+    """
+    ct = .1
+    J = q / drawdown_analytic(rw)
+    model = ResSim(Lx=1, Ly=1, Nx=N, Ny=N, ct=ct,
+                   inj_xy=[[0, 0]], inj_rates=[[0]],
+                   prd_xy=[[.5, .5]], prd_bhp=[[.5]])
+    model.prd_WI = model.peaceman_WI(model.prd_xy, rw)
+    dt, nSteps = 2e-3, 150
+    _, PP = model.sim(dt, nSteps, np.zeros(model.Nxy),
+                      p0=np.ones(model.Nxy), pbar=False)
+
+    rate = model.actual_rates["prd"][0]
+    tt = dt * np.arange(1, nSteps + 1)
+    late = tt > .1                                   # past the transient
+    tau = -1 / np.polyfit(tt[late], np.log(rate[late]), 1)[0]
+    assert np.isclose(tau, ct / J, rtol=.03)         # $ V_p = 1 $
+    # The instantaneous rate obeys the same J (once boundary-dominated)
+    pbar = PP[1:].mean(axis=1)
+    assert np.allclose(rate[late], J * (pbar - .5)[late], rtol=.02)
+
+
+def test_bhp_anchors_the_incompressible_pressure():
+    """With `ct == 0`, a BHP well removes *both* of the pure-Neumann caveats.
+
+    I.e. the rates need no longer balance (the well finds its own), and the
+    pressure is no longer defined merely up to a constant -- so `TPFA` must skip
+    the pin that it would otherwise apply at the SW corner. That pin is exactly
+    what the balance assertion below would detect: it acts as a spurious well,
+    draining to `p = 0`, so production would fall short of injection.
+    """
+    model = ResSim(Lx=1, Ly=1, Nx=32, Ny=32,   # NB: ct = 0
+                   inj_xy=[[0, 0]], inj_rates=[[1.]],
+                   prd_xy=[[1, 1]], prd_bhp=[[5.]])
+    model.prd_WI = model.peaceman_WI(model.prd_xy, rw)
+    _, PP = model.sim(.02, 10, np.zeros(model.Nxy), pbar=False)
+
+    # Incompressible => no storage => the BHP well must produce all that is injected
+    assert np.allclose(model.actual_rates["prd"], 1.)
+    # The level is set by p_bh, not by the (skipped) pin
+    assert PP[-1].min() > 5.
+    assert np.isclose(model.actual_bhp["prd"][0, -1], 5.)
+
+
+def test_control_modes_may_be_mixed():
+    """Across wells, and in time: `nan` entries of `*_bhp` fall back to `*_rates`."""
+    nSteps = 8
+    schedule = np.where(np.arange(nSteps) < 4, .3, np.nan)  # BHP, then rate
+    model = ResSim(Lx=1, Ly=1, Nx=24, Ny=24, ct=.1,
+                   inj_xy=[[0, 0]], inj_rates=[[.5]],
+                   prd_xy=[[1, 1], [1, 0]],
+                   prd_rates=[[.2], [.2]], prd_bhp=[schedule, nSteps*[np.nan]])
+    model.prd_WI = model.peaceman_WI(model.prd_xy, rw)
+    _, PP = model.sim(.02, nSteps, np.zeros(model.Nxy),
+                      p0=np.ones(model.Nxy), pbar=False)
+
+    rates, bhps = model.actual_rates["prd"], model.actual_bhp["prd"]
+    assert np.allclose(bhps[0, :4], .3)          # well 0: BHP-controlled...
+    assert not np.allclose(rates[0, :4], .2)     # ...so its rate is not the spec
+    assert np.allclose(rates[0, 4:], .2)         # ...then rate-controlled
+    assert np.allclose(rates[1], .2)             # well 1: always rate-controlled
+    assert np.isfinite(bhps).all()               # but with a WI, so bhp is known
+
+
+def test_bhp_keeps_the_transport_consistent():
+    """`_realize_bhp` leaves `_Q` equal to the *total* flux, as `storage_rate` needs.
+
+    Cf. `tests/test_compressible.py::test_storage_is_shared`, which asserts the
+    same thing for rate control. It is what keeps the saturation step consistent
+    with the pressure solution (ref `ResSim.ct`).
+    """
+    dt = .05
+    model = ResSim(Lx=1, Ly=1, Nx=20, Ny=20, ct=1e-2,
+                   inj_xy=[[0, 0]], inj_rates=[[.5]],
+                   prd_xy=[[1, 1]], prd_bhp=[[.4]])
+    model.prd_WI = model.peaceman_WI(model.prd_xy, rw)
+    S0 = np.zeros(model.Nxy)
+    p_prev = np.ones(model.Nxy)
+
+    model._set_Q(S0, 0)                       # (as `time_stepper` does)
+    P, V = model.pressure_step(S0, p_prev, dt)
+    model._realize_bhp(P.ravel(), 0)
+
+    accum = model.por.ravel() * model.ct * model.h2 / dt
+    assert np.allclose(model.storage_rate(V), accum * (P.ravel() - p_prev))
+
+
+def test_bhp_requires_a_well_index():
+    """Without a `WI` there is no well model, hence no rate to solve for."""
+    model = ResSim(Lx=1, Ly=1, Nx=16, Ny=16, ct=.1,
+                   inj_xy=[[0, 0]], inj_rates=[[0]],
+                   prd_xy=[[1, 1]], prd_bhp=[[.5]])
+    with pytest.raises(AssertionError, match="requires `prd_WI`"):
+        model.sim(.02, 2, np.zeros(model.Nxy), p0=np.ones(model.Nxy), pbar=False)
+
+
+def test_backflow_is_rejected():
+    """A producer whose `p_bh` exceeds its cell pressure would inject. Ref `inj_bhp`."""
+    model = ResSim(Lx=1, Ly=1, Nx=16, Ny=16, ct=.1,
+                   inj_xy=[[0, 0]], inj_rates=[[0]],
+                   prd_xy=[[.5, .5]], prd_bhp=[[2.]])   # above the initial p = 1
+    model.prd_WI = model.peaceman_WI(model.prd_xy, rw)
+    with pytest.raises(AssertionError, match="flow backwards"):
+        model.sim(1e-3, 3, np.zeros(model.Nxy), p0=np.ones(model.Nxy), pbar=False)
