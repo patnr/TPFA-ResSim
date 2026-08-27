@@ -1,8 +1,9 @@
 """Tests of the slightly compressible model (`ct > 0`).
 
-Unlike `test_fig1` and `test_fig6`, there is no Matlab reference to compare with.
-Instead we verify structural properties: exact discrete material balance,
-pressure decline under depletion, and recovery of the incompressible limit.
+Unlike the examples (run by `test_examples`), there is no Matlab reference to
+compare with, and no figures. Instead we verify structural properties: exact
+discrete material balance, pressure decline under depletion, and recovery of
+the incompressible limit.
 """
 
 import numpy as np

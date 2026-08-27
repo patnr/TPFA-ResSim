@@ -98,6 +98,14 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     .. note:: The corresponding $O(c_t)$ term in the *transport* (saturation)
         equation is neglected, i.e. the total velocity is still treated as
         divergence-free there. This is a standard simplification for small `ct`.
+
+    .. warning:: That simplification does set an upper limit on `ct` whenever an
+        injector is active: the volume that the pressure equation puts into
+        storage at the injector's cell is (inconsistently) added to its water
+        saturation, by an amount of order $c_t Δp$. Via the mobility of the
+        resulting (excessive) saturation, this can even run away. Ref
+        `examples/voidage_replacement.py`, which is stable at `ct = .1`,
+        but yields `S > 100` at `ct = 1`.
     """
     # NB: the array attributes are typed `Any` since `__setattr__` normalizes
     # whatever array-like (nested lists, scalars) is assigned to them.

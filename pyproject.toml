@@ -49,7 +49,7 @@ ignore = "W6"
 line-length = 88
 
 [tool.ruff.format]
-exclude = ["tests/*"]
+exclude = ["tests/*", "examples/*"]
 
 [tool.ruff.lint]
 # Pinned to the classic pyflakes + pycodestyle-errors selection (the coverage
@@ -68,3 +68,5 @@ ignore = [
 [tool.pytest.ini_options]
 minversion = "6.0"
 addopts = "tests --doctest-modules TPFA_ResSim"
+# The examples are run (as regression tests) by tests/test_examples.py
+filterwarnings = ["ignore:Animation was deleted:UserWarning"]

@@ -19,7 +19,7 @@ The main consumer is [patnr/HistoryMatching](https://github.com/patnr/HistoryMat
 Dev environment is managed with uv (`uv sync`), but a plain `pip install -e .` also works. Note: `mise.toml` sets `UV_PROJECT_ENVIRONMENT` so the venv lives at `~/.cache/venvs/TPFA-ResSim`, not in-project — if mise isn't active in your shell, export that variable before running uv to avoid creating a duplicate `.venv`.
 
 - **Run all tests**: `uv run pytest` (no further args). `addopts` in pyproject.toml makes this run `tests/` **plus doctests** in all `TPFA_ResSim` modules (`--doctest-modules`). Doctests are part of the test suite.
-- **Run a single test**: override addopts, e.g. `uv run pytest -o addopts="" tests/test_fig6.py::test_compare_matlab`
+- **Run a single test**: override addopts, e.g. `uv run pytest -o addopts="" "tests/test_examples.py::test_example[quarter_five_spot]"`
 - **Lint**: `uv run ruff check` (config in pyproject.toml; max line length 88; deliberately permissive about operator/array alignment — preserve the aligned formatting style used in the code).
 - **Docs**: `uv run pdoc --math -o docs/ ./TPFA_ResSim` (published to GitHub Pages by `.github/workflows/docs.yml`). Docstrings are pdoc-flavoured markdown with LaTeX math; `TPFA_ResSim/README.md` is included into the package docstring via `.. include::`.
 
@@ -37,4 +37,11 @@ The package is three files; the physics lives in `TPFA_ResSim/__init__.py`:
 - **`Grid2D`** (`grid.py`): rectangular grid geometry and the coordinate/index conversions (`xy2ind`, `sub2xy`, ...). Index ordering is **C-major (numpy default), unlike the Matlab original**: `x` is the first axis, so printing a field matrix shows x as the row index, whereas plots show x left→right, y bottom→top. This ordering is hard-coded in the simulator via `ravel`/`reshape`.
 - **`Plot2D`** (`plotting.py`): plotting mixin (fields, streamlines, well markers).
 
-`tests/` doubles as examples: each test reproduces a figure from the reference paper (and `collage.jpg` in the README).
+`examples/` holds the runnable illustrations (incl. the figures of `collage.jpg`); they
+double as the regression tests. Each is a plain top-to-bottom script whose only concession
+to the harness is a final `__digest__` dict of the values to be checked, and the guarded
+`if __name__ == "__main__": show()`. `tests/test_examples.py` runs them all with `runpy`
+(so `show()` is skipped, but the plotting *is* exercised) and compares a fingerprint of
+`__digest__` with `tests/references.py` (regenerate that table with
+`uv run python tests/test_examples.py`, but only if the change is intended).
+`tests/test_compressible.py` is different: structural/physics properties, no figures.
