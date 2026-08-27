@@ -21,6 +21,7 @@ Dev environment is managed with uv (`uv sync`), but a plain `pip install -e .` a
 - **Run all tests**: `uv run pytest` (no further args). `addopts` in pyproject.toml makes this run `tests/` **plus doctests** in all `TPFA_ResSim` modules (`--doctest-modules`). Doctests are part of the test suite.
 - **Run a single test**: override addopts, e.g. `uv run pytest -o addopts="" "tests/test_examples.py::test_example[quarter_five_spot]"`
 - **Lint**: `uv run ruff check` (config in pyproject.toml; max line length 88; deliberately permissive about operator/array alignment — preserve the aligned formatting style used in the code).
+- **Type check**: `uv run ty check` (clean, except that ty cannot verify `**dict` splatting into a typed signature (used in examples. Not run in CI — CI lints with `uvx ruff check` only.
 - **Docs**: `uv run pdoc --math -o docs/ ./TPFA_ResSim` (published to GitHub Pages by `.github/workflows/docs.yml`). Docstrings are pdoc-flavoured markdown with LaTeX math; `TPFA_ResSim/README.md` is included into the package docstring via `.. include::`.
 
 The supported Python range is whatever `requires-python` in pyproject.toml says (currently `>=3.12`); the floor tracks Colab's Python so the package installs there without re-installs. CI tests 3.12–3.14 on ubuntu + macos.

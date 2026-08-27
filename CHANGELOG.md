@@ -26,7 +26,8 @@ Compressibility, and a general tooling refresh.
   `tests/test_fig1.py` and `test_fig6.py`; `rate_scheduling.py`,
   `pressure_diffusion.py`, `depletion.py`, `buildup.py` and
   `voidage_replacement.py` are new.
-- Type hints throughout, checked by `ty` in CI (`dac8634`).
+- Type hints throughout, checkable with `ty` (a dev dependency; not wired into CI)
+  (`dac8634`).
 
 ### Changed
 
@@ -117,7 +118,7 @@ randomness differences), as verified by `examples/quarter_five_spot.py`.
   animation) as a mixin.
 - `9300beb`: Optional slight compressibility (`ct > 0`); the Matlab codes are
   strictly incompressible.
-- `dac8634`: Type hints, checked in CI.
+- `dac8634`: Type hints, checkable with `ty`.
 
 [0.2.0]: https://github.com/patnr/TPFA-ResSim/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/patnr/TPFA-ResSim/compare/v0.1.0...v0.1.1
