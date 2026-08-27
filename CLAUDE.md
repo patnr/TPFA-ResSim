@@ -23,7 +23,7 @@ Dev environment is managed with uv (`uv sync`), but a plain `pip install -e .` a
 - **Lint**: `uv run ruff check` (config in pyproject.toml; max line length 88; deliberately permissive about operator/array alignment — preserve the aligned formatting style used in the code).
 - **Docs**: `uv run pdoc --math -o docs/ ./TPFA_ResSim` (published to GitHub Pages by `.github/workflows/docs.yml`). Docstrings are pdoc-flavoured markdown with LaTeX math; `TPFA_ResSim/README.md` is included into the package docstring via `.. include::`.
 
-Keep code compatible with Python 3.9–3.11 (aims to work on Colab without re-installs).
+The supported Python range is whatever `requires-python` in pyproject.toml says (currently `>=3.12`); the floor tracks Colab's Python so the package installs there without re-installs. CI tests 3.12–3.14 on ubuntu + macos.
 
 ## Architecture
 

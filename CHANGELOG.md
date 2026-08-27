@@ -45,7 +45,7 @@ Compressibility, and a general tooling refresh.
   `anim()` works on matplotlib >= 3.10, where `ContourSet` is itself an artist
   (`60e1813`).
 
-## [0.1.1] -- 2026-08-26
+## [0.1.1] -- 2023-10-24
 
 Mostly an API-ergonomics release: well configuration, plotting and the grid
 became attributes/methods of the model rather than free functions and setup
