@@ -278,8 +278,140 @@ Despite consisting of water, the expansion is generally significant
 because the base volume is so big,
 or the aquifer might even be connected to the ocean.
 
+#### Compressibility
+
+The **compressibility** of anything (rock or fluid) is the relative change of its
+volume per unit change of pressure, $c = -\frac{1}{V} \frac{\partial V}{\partial p}$,
+equivalently $+\frac{1}{\rho} \frac{\partial \rho}{\partial p}$ for a fluid.
+For the rock it is the *pore* volume that is meant, so that $c_r$ is the
+(relative) gradient of the porosity, as already stated above.
+The **total compressibility** of a grid block sums the rock and the (saturation
+weighted) fluid contributions, $c_t = c_r + s_w c_w + s_o c_o$,
+which is what `TPFA_ResSim.ResSim.ct` holds (as a single constant).
+Water is around $5 \cdot 10^{-10}\, \mathrm{Pa}^{-1}$, oil a few times more,
+the rock of the same order, but *gas* is around $1/p$,
+i.e. two orders of magnitude larger at reservoir pressures (and more as they drop)
+-- which is why the presence of free gas dominates everything.
+The **slightly compressible** approximation takes $c$ to be *constant*,
+so that $\rho \propto e^{c (p - p_0)} \approx \rho_0 [1 + c (p - p_0)]$;
+this keeps eqn. (1) linear, and is reasonable for liquids, but not for gas.
+
+Since compressibility relates volumes to pressure, a volume must be qualified by
+where it is measured. The **formation volume factor**, $B$, is the ratio of the
+volume at reservoir conditions to that of the same mass at the surface
+("stock tank"), and is how field rates (measured at the surface) are converted
+to the reservoir rates that a simulator works in.
+This model has $B = 1$: all of its rates and volumes are reservoir ones.
+Related **PVT** (pressure-volume-temperature) vocabulary:
+the **bubble point** is the pressure below which gas comes out of solution;
+an oil above it is **undersaturated**, and the amount of gas it holds is the
+*solution gas-oil ratio*, $R_s$.
+
+The **drive mechanism** is whatever supplies the energy that pushes the
+hydrocarbons to the well. *Fluid and rock expansion* (a.k.a. **depletion drive**)
+is the weakest, recovering only a few percent, because $c_t$ is so small:
+this is what $c_t > 0$ enables here, in the absence of injection.
+Stronger ones are *solution gas drive* (gas evolving as $p$ drops below the
+bubble point), *gas cap drive*, *water drive* (the aquifers mentioned below),
+*gravity drainage*, and *compaction drive* (which manifests as seabed subsidence).
+Recovery is staged: **primary** production runs on the native drive;
+**secondary** adds *pressure support* by injecting water or gas
+(**waterflooding** being the case simulated here);
+**tertiary**, or **EOR** (enhanced oil recovery), alters the flow physics itself,
+e.g. by polymer, surfactant, or CO₂ injection.
+The **voidage replacement ratio** is the injected reservoir volume divided by the
+produced one; $\mathrm{VRR} = 1$ is exactly the balance, $\sum q = 0$,
+that the incompressible model is obliged to impose.
+The zero-dimensional (single tank) accounting of all of the above,
+used to estimate reserves without a grid, is called **material balance**.
+
+Compressibility is also what makes pressure *transient* rather than instantaneous.
+Eqn. (1) being a diffusion equation, its coefficient
+$\eta = \mathbf{K} \lambda / (\phi c_t)$ is the (pressure, or hydraulic)
+**diffusivity**, and $\sqrt{\eta t}$ is the *radius of investigation*:
+how far a well has "felt" after time $t$. Flow is called **transient** while that
+radius is still growing, and **pseudo-steady state** (or boundary-dominated) once
+it has reached the whole of the drainage volume, whereafter the pressure declines
+uniformly. **Well testing** is the inverse problem of inferring $\mathbf{K}$ and
+the skin (below) from a measured transient, typically during the *build-up* after
+shutting a well in.
+
+#### Wells
+
+A well is either an **injector** or a **producer** -- the terminal states of the
+sources and sinks, $q$, of the governing equations.
+Its **completion** is the equipment that connects the **wellbore** to the rock,
+whose interface is the **sandface**; it may be *open hole*, or cased and
+**perforated**. A well may have several completions, e.g. one per layer,
+or (here) one per grid cell traversed by the well path.
+
+Because a wellbore (radius $r_w \sim 0.1$ m) is orders of magnitude smaller than a
+grid block, its pressure is not resolved by the grid: the radial solution
+$p \sim \ln r$ spends most of its variation within the well's own cell.
+The **bottom-hole pressure** (BHP), $p_\mathrm{bh}$, is the pressure at the
+sandface, which is thus a *sub-grid* quantity;
+measured at the surface instead, it is the *tubing head pressure* (THP), the
+difference being hydrostatic and friction losses in the tubing -- neither of which
+a 2D areal model has, which is why BHP is where this model stops.
+The **drawdown** is the pressure difference driving the flow,
+$p_\mathrm{cell} - p_\mathrm{bh}$: positive for a producer (whence its name),
+while for an injector it is negative, being an *overpressure*.
+
+The **productivity index** (PI) is the resulting constant of proportionality,
+$q = \mathrm{PI} \cdot \Delta p$ (the *injectivity index* for injectors),
+familiar from well testing. Its counterpart in a simulator is the
+**well index** (WI), which is the same relation with the fluid factored out,
+$q = \mathrm{WI} \, \lambda_t \, \Delta p$,
+so that $\mathrm{WI}$ depends only on geometry and rock,
+and the mobility $\lambda_t$ carries the (time-varying) fluid dependence.
+It is the well's analogue of the transmissibility $t_{ij}$ of eqn. (10).
+Two things enter it, beyond $r_w$ and $\mathbf{K}$:
+
+- The **skin**, $S$, is a dimensionless lumping of all *near-wellbore* effects that
+  the model does not resolve. It is *positive* for damage (drilling mud invasion,
+  fines migration, scale) and *negative* for stimulation (acidizing, or hydraulic
+  **fracturing**), and enters additively to a logarithm, so a skin of $5$ is a lot.
+- The **equivalent radius**, $r_e$, is the purely *numerical* ingredient: the radius
+  at which the analytic radial pressure equals the numerical *cell* pressure,
+  $r_e \approx 0.2 h$ for the 5-point stencil of TPFA. Beware that the same symbol
+  is used, in well testing, for the (physical) *drainage radius*.
+
+Ref `TPFA_ResSim.ResSim.peaceman_WI` for the formula combining these.
+
+A well is **controlled** either by prescribing its rate, or its BHP,
+the other then being an outcome (ref `TPFA_ResSim.ResSim.inj_bhp`).
+Reality is closer to the latter -- one sets a pump speed or a **choke** opening,
+and the reservoir decides the rate -- but the *rate* is what is usually planned for.
+Field practice is therefore rate control subject to a BHP *constraint*
+(from the fracture pressure of an injector, or the lift capacity, or the bubble
+point, of a producer), **switching** control mode whenever the constraint binds.
+A well producing at a rate too low to be worthwhile is **shut in**;
+if it cannot flow unaided it needs **artificial lift** (gas lift, or a downhole pump).
+
+The **water cut** of a producer is the water fraction of what it produces,
+i.e. the $f(s)$ of its cell; **breakthrough** is when the injected water first
+arrives, after which the water cut climbs and the well eventually becomes uneconomic.
+How much of the oil the flood has contacted by then is the **sweep efficiency**,
+which is governed by the **mobility ratio**, $M = \lambda_w / \lambda_o$
+evaluated behind and ahead of the front. $M > 1$ is *unfavourable*:
+the (less viscous) water outruns the oil in **viscous fingering**,
+and even more so along the high-permeability *channels* -- the motivation for
+polymer injection, which fixes $M$ by thickening the water.
+The corresponding vertical phenomenon (which a 2D areal model cannot see)
+is **coning**, of water up, or gas down, into the completion.
+
+Wells are drilled in repeated **patterns**, of which the *five-spot* (a producer
+at the centre of four injectors, or vice-versa if *inverted*) is the classic;
+by symmetry it suffices to simulate the *quarter five-spot*, as in the examples here.
+They need not be vertical: *deviated*, *horizontal* and *multilateral* wells
+contact more rock per well, at the price of an **allocation** problem,
+namely how the total rate distributes itself among the completions
+(ref `TPFA_ResSim.ResSim.well_path`).
+Later interventions to restore or improve a well are **workovers**,
+and drilling extra wells between the existing ones is **infill drilling**.
+
 Other lingo:
-water table, facies, channels, water cut, fissures, fractures.
+water table, facies, channels, fissures, fractures.
 
 <!-- markdownlint-configure-file
 {
