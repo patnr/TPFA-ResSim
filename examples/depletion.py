@@ -57,10 +57,10 @@ dt = 1e-3
 nSteps = 100
 tt = dt*np.arange(nSteps + 1)
 oil_only = np.zeros(model.Nxy)
-p0 = np.ones(model.Nxy)
+P0 = np.ones(model.Nxy)
 
 ## Simulate
-SS, PP = model.sim(dt, nSteps, oil_only, p0=p0, pbar=False)
+SS, PP = model.sim(dt, nSteps, oil_only, P0=P0, pbar=False)
 assert SS.max() == 0, "No water is injected, so none should appear."
 
 iw = model.xy2ind(*model.prd_xy[0])

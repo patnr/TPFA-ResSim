@@ -225,13 +225,11 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         """Populate (for time `k`) the source/sink *field*, `Q`, from well specs.
 
         Rate-controlled wells contribute their rate to `Q` directly.
-        BHP-controlled ones (ref `inj_bhp`) cannot: their rate is not yet known.
-        They instead contribute to the *well model* arrays `_J` and `_Jp`, which
-        `TPFA` adds to its diagonal and its right-hand side respectively, so
-        that the rate is solved for along with the pressure. It is folded into
-        `Q` afterwards, by `_realize_bhp`.
+        BHP-controlled ones (ref `inj_bhp`) cannot: their rate is not yet known,
+        but instead contribute to the TPFA pressure equation system.
+        The resulting rates are then folded into `Q` by `_realize_bhp`.
         """
-        Q, J, Jp = (np.zeros(self.Nxy) for _ in range(3))
+        Q, bhp_diag, bhp_rhs = np.zeros((3, self.Nxy))
         rates = self.dynamic_rate(S, k)
         bhps = self._wanted_bhp_at(k)
         self._WI_lam = {}
@@ -251,11 +249,11 @@ class ResSim(NicePrint, Grid2D, Plot2D):
                 WI_lam[on_bhp] = WI[on_bhp] * (Mw + Mo)[inds[on_bhp]]
             self._WI_lam[kind] = WI_lam
 
-            # Populate Q (or, for the BHP wells, J and Jp). += superimposes.
+            # Populate Q (or, for the BHP wells, the well model). += superimposes.
             for i, ind in enumerate(inds):
                 if on_bhp[i]:
-                    J[ind]  += WI_lam[i]
-                    Jp[ind] += WI_lam[i] * bhps[kind][i]
+                    bhp_diag[ind] += WI_lam[i]
+                    bhp_rhs[ind] += WI_lam[i] * bhps[kind][i]
                 else:
                     Q[ind] += sgn * rates[kind][i]
 
@@ -263,7 +261,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
             # Those of the BHP wells are only known to `_realize_bhp`.
             if hasattr(self, "actual_rates"):
                 self.actual_rates[kind][:, k] = np.where(on_bhp, np.nan, rates[kind])
-        self._Q, self._J, self._Jp = Q, J, Jp
+        self._Q, self._bhp_diag, self._bhp_rhs = Q, bhp_diag, bhp_rhs
         self._bhp_wanted = bhps
 
     def _realize_bhp(self, P: np.ndarray, k: int) -> None:
@@ -277,7 +275,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         to the *total* well flux, which is what keeps `storage_rate` -- and
         hence the transport step -- consistent with the pressure solution.
         """
-        self._Q = self._Q + self._Jp - self._J * P
+        self._Q = self._Q + self._bhp_rhs - self._bhp_diag * P
         for kind in ["inj", "prd"]:
             WI_lam = self._WI_lam[kind]
             on_bhp = np.isfinite(WI_lam)
@@ -289,7 +287,8 @@ class ResSim(NicePrint, Grid2D, Plot2D):
             assert np.all(q > -1e-8 * (1 + np.abs(q).max())), (
                 f"A BHP-controlled '{kind}' well would flow backwards, its"
                 " `p_bh` having ended up on the wrong side of its cell pressure."
-                " This model does not switch control modes; ref `inj_bhp`.")
+                " This model does not switch control modes; ref `inj_bhp`."
+            )
             if hasattr(self, "actual_rates"):
                 self.actual_rates[kind][on_bhp, k] = q
 
@@ -382,8 +381,10 @@ class ResSim(NicePrint, Grid2D, Plot2D):
             if d[ax] == 0:
                 continue
             lo, hi = sorted([p0[ax], p0[ax] + d[ax]])
-            ts += [(i*h - p0[ax]) / d[ax]
-                   for i in range(int(np.floor(lo/h)) + 1, int(np.ceil(hi/h)))]
+            ts += [
+                (i * h - p0[ax]) / d[ax]
+                for i in range(int(np.floor(lo / h)) + 1, int(np.ceil(hi / h)))
+            ]
         return np.unique(np.clip(ts, 0, 1))  # NB: `unique` also sorts
 
     def well_path(self, vertices: Any, rw: float, skin: float = 0.0) -> tuple:
@@ -434,7 +435,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
             mids = p0 + np.outer((ts[:-1] + ts[1:]) / 2, d)
             for mid, dt in zip(mids, np.diff(ts)):
                 sub = tuple(int(i) for i in self.xy2sub(*mid))
-                lengths[sub] = lengths.get(sub, 0.0) + L*dt
+                lengths[sub] = lengths.get(sub, 0.0) + L * dt
         # Discard the slivers left by corner crossings
         total = sum(lengths.values())
         lengths = {k: v for k, v in lengths.items() if v > 1e-9 * total}
@@ -482,12 +483,13 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     def pressure_step(
         self,
         S: np.ndarray,
-        p_prev: np.ndarray | None = None,
+        P: np.ndarray | None = None,
         dt: float | None = None,
     ) -> tuple:
         """Compute permeabilities then solve Darcy's equation. Returns `[P, V]`.
 
-        `p_prev` and `dt` are only used (and required) if `ct > 0`.
+        `P` (flat, like `S`) is the *previous* step's pressure: used (and
+        required) only if `ct > 0`, along with `dt`. The new one replaces it.
         """
         # Compute K*λ(S)
         Mw, Mo = self.RelPerm(S)
@@ -495,7 +497,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         Mt = Mt.reshape(self.shape)
         KM = Mt * self.K
         # Compute pressure and extract fluxes
-        [P, V] = self.TPFA(KM, p_prev, dt)
+        [P, V] = self.TPFA(KM, P, dt)  # NB: updates `P`
         return P, V
 
     def _spdiags(self, data: Any, diags: Any) -> sparse.dia_matrix:
@@ -524,7 +526,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     def TPFA(
         self,
         K: np.ndarray,
-        p_prev: np.ndarray | None = None,
+        P: np.ndarray | None = None,
         dt: float | None = None,
     ) -> tuple:
         """Two-point flux-approximation (TPFA) of Darcy: $ -∇(K ∇u) = q $
@@ -532,7 +534,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         i.e. steady-state diffusion w/ nonlinear coefficient, $K$,
         if `ct == 0`. Otherwise (slightly compressible model) solve
         the backward-Euler step of $ φ c_t ∂u/∂t - ∇(K ∇u) = q $,
-        which requires `p_prev` (flat array) and `dt`.
+        which requires the previous pressure, `P`, and `dt`.
 
         After solving for pressure `P`, extract the fluxes `V`
         by finite differences.
@@ -557,40 +559,40 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         if self.ct > 0:
             # Accumulation term (φ ct h²/dt) of backward Euler.
             # Renders the system nonsingular (unlike the pure-Neumann problem).
-            assert p_prev is not None and dt is not None, (
-                "Compressible model (ct > 0) requires p_prev and dt."
+            assert P is not None and dt is not None, (
+                "Compressible model (ct > 0) requires the previous P, and dt."
             )
             accum = self.por.ravel() * self.ct * self.h2 / dt
             DiagVecs[2] = DiagVecs[2] + accum
-            q = q + accum * p_prev
-        elif not self._J.any():
+            q = q + accum * P
+        elif not self._bhp_diag.any():
             # Pin the (otherwise pure-Neumann, hence singular) problem.
             # Unnecessary -- and wrong -- if a BHP well already anchors it.
             DiagVecs[2][0] += np.sum(self.K[:, 0, 0])  # ref article p. 13
         # Well model of the BHP-controlled wells (`0` if there are none)
-        DiagVecs[2] = DiagVecs[2] + self._J
-        q = q + self._Jp
+        DiagVecs[2] = DiagVecs[2] + self._bhp_diag
+        q = q + self._bhp_rhs
         A = self._spdiags(DiagVecs, DiagIndx)
 
-        # Solve; compute A\q
-        # u = np.linalg.solve(A.A, q) # direct dense solver
-        u = spsolve(A.tocsr(), q)  # direct sparse solver
-        # u, _info = cg(A, q)         # conjugate gradient
+        # Solve; compute A\q to update P
+        # P = np.linalg.solve(A.A, q) # direct dense solver
+        P = spsolve(A.tocsr(), q)  # direct sparse solver.
+        # P, _info = cg(A, q)         # conjugate gradient
         # Could also try scipy.linalg.solveh_banded which, according to
         # https://scicomp.stackexchange.com/a/30074 uses the Thomas algorithm,
         # as recommended by Aziz and Settari ("Petro. Res. simulation").
         # NB: stackexchange also mentions that solve_banded does not work well
         # when the band offsets large, i.e. higher-dimensional problems.
 
-        # Extract fluxes
-        P = u.reshape(self.shape)
+        # Extract fluxes, via a grid-shaped view of the (flat) pressure.
+        P2d = P.reshape(self.shape)
         # `Any` coz ty cannot see that `DotDict` provides attribute access to keys
         V: Any = DotDict(
             x=np.zeros((self.Nx + 1, self.Ny)),
             y=np.zeros((self.Nx, self.Ny + 1)),
         )
-        V.x[1:-1, :] = (P[:-1, :] - P[1:, :]) * TX[1:-1, :]
-        V.y[:, 1:-1] = (P[:, :-1] - P[:, 1:]) * TY[:, 1:-1]
+        V.x[1:-1, :] = (P2d[:-1, :] - P2d[1:, :]) * TX[1:-1, :]
+        V.y[:, 1:-1] = (P2d[:, :-1] - P2d[:, 1:]) * TY[:, 1:-1]
         return P, V
 
     # GenA() -- listing 7
@@ -751,24 +753,24 @@ class ResSim(NicePrint, Grid2D, Plot2D):
                 if rates is not None:  # `None` ⇒ purely BHP-controlled
                     assert len(rates) == len(getattr(self, f"{kind}_xy"))
                     assert np.all(rates >= 0)
-            if self.ct == 0 and not self._J.any():
+            if self.ct == 0 and not self._bhp_diag.any():
                 # Incompressible ⇒ no storage ⇒ src/sinks must balance.
                 # Unless a BHP well absorbs the imbalance, ref `inj_bhp`.
                 assert np.isclose(self._Q.sum(), 0), "(inj - prd) does not sum to 0"
             assert np.all((0 <= self.K) & np.isfinite(self.K))
             assert np.all((0 <= self.por) & (self.por <= 1))
 
-            [P, V] = self.pressure_step(S, P, dt)
-            self._realize_bhp(P.ravel(), k)
+            [P, V] = self.pressure_step(S, P, dt)  # NB: `P` in ⇒ old, out ⇒ new
+            self._realize_bhp(P, k)
             if hasattr(self, "actual_bhp"):
                 now = {kd: self.actual_rates[kd][:, k] for kd in ["inj", "prd"]}
-                for kd, p_bh in self.bhp(S, P.ravel(), now).items():
+                for kd, p_bh in self.bhp(S, P, now).items():
                     self.actual_bhp[kd][:, k] = p_bh
             if implicit:
                 S = self.saturation_step_implicit(S, V, dt)
             else:
                 S = self.saturation_step_upwind(S, V, dt)
-            return S, P.ravel()
+            return S, P
 
         return integrate
 
@@ -776,18 +778,18 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         self,
         dt: float,
         nSteps: int,
-        x0: np.ndarray,
-        p0: np.ndarray | None = None,
+        S0: np.ndarray,
+        P0: np.ndarray | None = None,
         pbar: bool = True,
         leave: bool = True,
         **kwargs,
     ) -> tuple:
-        """Recursively (`nSteps` times) apply `time_stepper` with `dt`, from `x0`.
+        """Recursively (`nSteps` times) apply `time_stepper` with `dt`, from `S0`.
 
         Returns the saturation and pressure trajectories, `(SS, PP)`.
 
-        .. note:: `SS[0] == x0` and `PP[0] == p0`, hence both have `len = nSteps + 1`.
-            `p0` defaults to zeros. It is only consequential if `ct > 0`.
+        .. note:: `SS[0] == S0` and `PP[0] == P0`, hence both have `len = nSteps + 1`.
+            `P0` defaults to zeros. It is only consequential if `ct > 0`.
         """
         step = self.time_stepper(dt, **kwargs)
 
@@ -796,12 +798,9 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         if pbar:
             kk = tqdm(kk, "Simulation", leave=leave, mininterval=1e-2)
 
-        # Init
-        xx = np.zeros((nSteps + 1,) + x0.shape)
-        pp = np.zeros((nSteps + 1, self.Nxy))
-        xx[0] = x0
-        if p0 is not None:
-            pp[0] = p0
+        # Allocate
+        SS = np.zeros((nSteps + 1,) + S0.shape)
+        PP = np.zeros((nSteps + 1, self.Nxy))
         # fmt: off
         self.actual_rates = dict(inj=np.zeros((self.nInj, nSteps)),
                                  prd=np.zeros((self.nPrd, nSteps)))
@@ -809,8 +808,13 @@ class ResSim(NicePrint, Grid2D, Plot2D):
                                  prd=np.full((self.nPrd, nSteps), np.nan))
         # fmt: on
 
+        # Init
+        SS[0] = S0
+        if P0 is not None:
+            PP[0] = P0
+
         # Recurse
         for k in kk:
-            xx[k + 1], pp[k + 1] = step(xx[k], pp[k], k)
+            SS[k + 1], PP[k + 1] = step(SS[k], PP[k], k)
 
-        return xx, pp
+        return SS, PP

@@ -64,7 +64,7 @@ def depleter(N=32, **control):
 
 def run(model):
     SS, PP = model.sim(dt, nSteps, np.zeros(model.Nxy),
-                       p0=np.ones(model.Nxy), pbar=False)
+                       P0=np.ones(model.Nxy), pbar=False)
     assert SS.max() == 0, "No water is injected, so none should appear."
     return PP
 

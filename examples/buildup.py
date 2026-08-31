@@ -63,10 +63,10 @@ model_inc = ResSim(Lx=1, Ly=1, Nx=32, Ny=32,
                    prd_xy=[[.5, .5]], prd_rates=[schedule])
 
 oil_only = np.zeros(model.Nxy)
-p0 = np.ones(model.Nxy)
+P0 = np.ones(model.Nxy)
 
 ## Simulate
-SS, PP = model.sim(dt, nSteps, oil_only, p0=p0, pbar=False)
+SS, PP = model.sim(dt, nSteps, oil_only, P0=P0, pbar=False)
 _ , PP_inc = model_inc.sim(dt, nSteps, oil_only, pbar=False)
 
 iw = model.xy2ind(*model.prd_xy[0])

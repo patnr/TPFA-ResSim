@@ -58,12 +58,12 @@ tt = dt*np.arange(nSteps + 1)
 oil_only = np.zeros(32*32)
 
 
-def waterflood(vrr, ct=ct, p0=15.):
+def waterflood(vrr, ct=ct, P0=15.):
     """Produce at rate `q`, inject at `vrr*q`."""
     model = ResSim(Lx=1, Ly=1, Nx=32, Ny=32, ct=ct,
                    inj_xy=[[0, 0]], inj_rates=[[vrr*q]],
                    prd_xy=[[1, 1]], prd_rates=[[q]])
-    kwargs = dict(p0=p0*np.ones(model.Nxy)) if ct else {}
+    kwargs = dict(P0=P0*np.ones(model.Nxy)) if ct else {}
     return (model,) + model.sim(dt, nSteps, oil_only, pbar=False, **kwargs)
 
 

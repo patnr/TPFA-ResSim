@@ -51,6 +51,18 @@ should pin a tag (or commit hash) and advance it deliberately.
 - `examples/well_control.py` and `examples/well_path.py` illustrate the above
   (and, like the other examples, double as regression tests).
 
+### Changed
+
+- **BREAKING**: `sim`'s initial-condition arguments are renamed `x0, p0` ->
+  `S0, P0`, matching the `(SS, PP)` trajectories it returns. Only `p0` was
+  likely passed by keyword; `S0` is positional in practice.
+- **BREAKING**: `TPFA` and `pressure_step` now return the pressure *flat*
+  (`Nxy`), i.e. shaped like the saturation state, rather than grid-shaped --
+  reshaping only internally, for the flux extraction. Callers that plot it (or
+  `reshape`/`ravel` it) are unaffected; those that index it in 2D must reshape.
+  Their `p_prev` argument is likewise renamed `P`, the pressure now being a
+  state variable that the call advances in time.
+
 ### Fixed
 
 - The `O(ct)` term of the **transport** equation, previously neglected, is now

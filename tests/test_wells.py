@@ -44,7 +44,7 @@ def depleted(N, ct=.1):
                    prd_xy=[[.5, .5]], prd_rates=[[q]])
     model.prd_WI = model.peaceman_WI(model.prd_xy, rw)
     SS, PP = model.sim(1e-3, 120, np.zeros(model.Nxy),
-                       p0=np.ones(model.Nxy), pbar=False)
+                       P0=np.ones(model.Nxy), pbar=False)
     assert SS.max() == 0, "No water is injected, so none should appear."
     dd = PP.mean(axis=1) - PP[:, model.xy2ind(*model.prd_xy[0])]
     assert np.isclose(dd[-1], dd[-2], rtol=1e-3), "Not yet boundary-dominated."
@@ -173,7 +173,7 @@ def test_bhp_control_reproduces_rate_control():
                        inj_xy=[[0, 0]], inj_rates=[[0]], prd_xy=[[.5, .5]], **ctrl)
         model.prd_WI = model.peaceman_WI(model.prd_xy, rw)
         _, PP = model.sim(1e-3, 60, np.zeros(model.Nxy),
-                          p0=np.ones(model.Nxy), pbar=False)
+                          P0=np.ones(model.Nxy), pbar=False)
         return model, PP
 
     ref, PP = run(prd_rates=[[q]])
@@ -202,7 +202,7 @@ def test_bhp_depletion_declines_exponentially(N):
     model.prd_WI = model.peaceman_WI(model.prd_xy, rw)
     dt, nSteps = 2e-3, 150
     _, PP = model.sim(dt, nSteps, np.zeros(model.Nxy),
-                      p0=np.ones(model.Nxy), pbar=False)
+                      P0=np.ones(model.Nxy), pbar=False)
 
     rate = model.actual_rates["prd"][0]
     tt = dt * np.arange(1, nSteps + 1)
@@ -246,7 +246,7 @@ def test_control_modes_may_be_mixed():
                    prd_rates=[[.2], [.2]], prd_bhp=[schedule, nSteps*[np.nan]])
     model.prd_WI = model.peaceman_WI(model.prd_xy, rw)
     _, PP = model.sim(.02, nSteps, np.zeros(model.Nxy),
-                      p0=np.ones(model.Nxy), pbar=False)
+                      P0=np.ones(model.Nxy), pbar=False)
 
     rates, bhps = model.actual_rates["prd"], model.actual_bhp["prd"]
     assert np.allclose(bhps[0, :4], .3)          # well 0: BHP-controlled...
@@ -269,14 +269,14 @@ def test_bhp_keeps_the_transport_consistent():
                    prd_xy=[[1, 1]], prd_bhp=[[.4]])
     model.prd_WI = model.peaceman_WI(model.prd_xy, rw)
     S0 = np.zeros(model.Nxy)
-    p_prev = np.ones(model.Nxy)
+    P0 = np.ones(model.Nxy)
 
     model._set_Q(S0, 0)                       # (as `time_stepper` does)
-    P, V = model.pressure_step(S0, p_prev, dt)
-    model._realize_bhp(P.ravel(), 0)
+    P, V = model.pressure_step(S0, P0, dt)
+    model._realize_bhp(P, 0)
 
     accum = model.por.ravel() * model.ct * model.h2 / dt
-    assert np.allclose(model.storage_rate(V), accum * (P.ravel() - p_prev))
+    assert np.allclose(model.storage_rate(V), accum * (P - P0))
 
 
 def test_bhp_requires_a_well_index():
@@ -285,7 +285,7 @@ def test_bhp_requires_a_well_index():
                    inj_xy=[[0, 0]], inj_rates=[[0]],
                    prd_xy=[[1, 1]], prd_bhp=[[.5]])
     with pytest.raises(AssertionError, match="requires `prd_WI`"):
-        model.sim(.02, 2, np.zeros(model.Nxy), p0=np.ones(model.Nxy), pbar=False)
+        model.sim(.02, 2, np.zeros(model.Nxy), P0=np.ones(model.Nxy), pbar=False)
 
 
 def test_backflow_is_rejected():
@@ -295,7 +295,7 @@ def test_backflow_is_rejected():
                    prd_xy=[[.5, .5]], prd_bhp=[[2.]])   # above the initial p = 1
     model.prd_WI = model.peaceman_WI(model.prd_xy, rw)
     with pytest.raises(AssertionError, match="flow backwards"):
-        model.sim(1e-3, 3, np.zeros(model.Nxy), p0=np.ones(model.Nxy), pbar=False)
+        model.sim(1e-3, 3, np.zeros(model.Nxy), P0=np.ones(model.Nxy), pbar=False)
 
 
 # ---------------------------------------------------------------------------
@@ -370,7 +370,7 @@ def test_path_under_bhp_control_shares_one_pressure():
     xy, WI, _ = model.well_path([[0, 0], [0, .5]], rw)
     model.inj_xy, model.inj_WI = xy, WI
     model.inj_bhp = np.full((len(xy), 1), 3.)
-    model.sim(.02, 6, np.zeros(model.Nxy), p0=np.ones(model.Nxy), pbar=False)
+    model.sim(.02, 6, np.zeros(model.Nxy), P0=np.ones(model.Nxy), pbar=False)
 
     rates, bhps = model.actual_rates["inj"], model.actual_bhp["inj"]
     assert np.allclose(bhps, 3.)                  # one wellbore, one pressure

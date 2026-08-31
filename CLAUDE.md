@@ -39,7 +39,7 @@ The supported Python range is whatever `requires-python` in pyproject.toml says 
 The package is three files; the physics lives in `TPFA_ResSim/__init__.py`:
 
 - **`ResSim`** (`__init__.py`) is a dataclass composed by multiple inheritance: `ResSim(NicePrint, Grid2D, Plot2D)`. OOP is used (rather than passing dicts) so ensemble forecasting (as in HistoryMatching) can hold independent instances whose parameters don't influence each other.
-  - `sim(dt, nSteps, x0, p0=None)` is the entry point, returning the `(S, P)` saturation and pressure trajectories: it loops `time_stepper`, which per step solves pressure (`TPFA()` → sparse direct solve; elliptic if `ct == 0`, else parabolic backward-Euler) then transports saturation with either the explicit upwind scheme (`saturation_step_upwind`, sub-steps from a CFL estimate) or the implicit Newton–Raphson scheme (`saturation_step_implicit`, halves sub-dt until convergence).
+  - `sim(dt, nSteps, S0, P0=None)` is the entry point, returning the `(S, P)` saturation and pressure trajectories: it loops `time_stepper`, which per step solves pressure (`TPFA()` → sparse direct solve; elliptic if `ct == 0`, else parabolic backward-Euler) then transports saturation with either the explicit upwind scheme (`saturation_step_upwind`, sub-steps from a CFL estimate) or the implicit Newton–Raphson scheme (`saturation_step_implicit`, halves sub-dt until convergence).
   - Method names reference listings in the paper (e.g. `TPFA()` = Listing 1, `RelPerm()` = Listing 6).
   - **`__setattr__` does normalization magic**: assigning `inj_xy`/`prd_xy` snaps well positions to the nearest grid node; `inj_rates`/`prd_rates` are reshaped to `(nWell, nTime)`; scalar `K` is broadcast to shape `(2, Nx, Ny)`. Rates must be positive; when `ct == 0`, total injection must additionally equal total production at every time index (asserted in `time_stepper` — otherwise mass imbalance would silently leak in the SW corner). With `ct > 0` the imbalance is absorbed by storage (enabling e.g. primary depletion via zero-rate injectors).
   - `dynamic_rate(S, k)` is a designed override point (patch/subclass) for e.g. shutting wells based on saturation.
@@ -54,3 +54,5 @@ to the harness is a final `__digest__` dict of the values to be checked, and the
 `__digest__` with `tests/references.py` (regenerate that table with
 `uv run python tests/test_examples.py`, but only if the change is intended).
 `tests/test_compressible.py` is different: structural/physics properties, no figures.
+
+Don't touch `todo.md`.

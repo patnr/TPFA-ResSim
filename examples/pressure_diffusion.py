@@ -10,7 +10,7 @@ $$ η = K λ / (φ c_t) $$
 
 so a rate change is felt only after a delay of the order $ r^2/η $ at distance $r$.
 The elliptic solution is recovered as $ t → ∞ $ (or $ c_t → 0 $), as shown below.
-Moreover, the pressure level is now pinned by the initial condition `p0`
+Moreover, the pressure level is now pinned by the initial condition `P0`
 (the model keeps track of *absolute* pressure, not just its gradients).
 
 Notes on the setup:
@@ -22,14 +22,14 @@ Notes on the setup:
   proportion to their saturation (ref `ResSim.ct`), $s = 1$ is a fixed point of
   the transport step, whatever the wells do. Asserted below.
 - The rates are balanced (as they must be for the `ct = 0` comparison run),
-  whence the storage terms cancel and the *mean* pressure stays at `p0` exactly.
+  whence the storage terms cancel and the *mean* pressure stays at `P0` exactly.
   This conveniently fixes the (otherwise arbitrary) level of the elliptic solution:
   we centre it on its own mean.
 
 In the figures:
 
 - "Pressure diffusion": at t = 0.0002 only the immediate surroundings of the
-  two wells have responded -- the middle of the domain is still at `p0` (white)
+  two wells have responded -- the middle of the domain is still at `P0` (white)
   -- while by t = 0.005 the field is barely distinguishable from the elliptic
   one (bottom right). The four panels share their colour scale.
 - "profiles & gauge" (left): the same, quantified along the y = 0 edge. At the
@@ -38,9 +38,9 @@ In the figures:
   verticals mark the diffusion length $\\sqrt{ηt}$: an indication of scale,
   not a sharp front.
 - "profiles & gauge" (right): the two `ct > 0` curves are separated by exactly
-  the difference of their `p0` (asserted below) -- the absolute level is
+  the difference of their `P0` (asserted below) -- the absolute level is
   meaningful, and remembered. The two `ct = 0` curves instead coincide, at 0:
-  `p0` is ignored, and the level is merely that of the grounded cell.
+  `P0` is ignored, and the level is merely that of the grounded cell.
 """
 
 from mpl_tools.place import freshfig
@@ -61,15 +61,15 @@ eta = 1/model.ct  # Diffusivity (since K = por = λ = 1)
 dt = 2e-4
 nSteps = 25
 water_sat0 = np.ones(model.Nxy)
-p0 = np.ones(model.Nxy)
+P0 = np.ones(model.Nxy)
 
 ## Simulate
-SS, PP = model.sim(dt, nSteps, water_sat0, p0=p0, pbar=False)
+SS, PP = model.sim(dt, nSteps, water_sat0, P0=P0, pbar=False)
 assert (SS == 1).all(), "The reservoir should remain fully water-saturated."
 _, PP_inc = model_inc.sim(dt, nSteps, water_sat0, pbar=False)
 # Same, but starting from a higher pressure level
-_, PP_hi = model.sim(dt, nSteps, water_sat0, p0=p0 + 1, pbar=False)
-_, PP_inc_hi = model_inc.sim(dt, nSteps, water_sat0, p0=p0 + 1, pbar=False)
+_, PP_hi = model.sim(dt, nSteps, water_sat0, P0=P0 + 1, pbar=False)
+_, PP_inc_hi = model_inc.sim(dt, nSteps, water_sat0, P0=P0 + 1, pbar=False)
 
 # The elliptic solution is the same at all times here (mobility is constant).
 # Its level is arbitrary: centre it, matching the (conserved) mean of `PP`.
@@ -87,7 +87,7 @@ for ax, k in zip(axs.ravel(), snapshots + [None]):
     if k is None:
         cc = model.plt_field(ax, elliptic, **kws, title="$c_t = 0$: instant")
     else:
-        cc = model.plt_field(ax, PP[k] - p0, **kws,
+        cc = model.plt_field(ax, PP[k] - P0, **kws,
                              title=f"t = {k*dt:.4f}   "
                                    f"($\\sqrt{{ηt}}$ = {np.sqrt(eta*k*dt):.2f})")
     ax.title.set_fontsize("medium")
@@ -103,7 +103,7 @@ xx = np.linspace(0, .75, 13)
 line = [model.xy2ind(x, 0) for x in xx]
 
 for k in [1, 3, 9, nSteps]:
-    h, = ax1.plot(xx, ((PP[k] - p0)/elliptic)[line], "-o", ms=3,
+    h, = ax1.plot(xx, ((PP[k] - P0)/elliptic)[line], "-o", ms=3,
                   label=f"t = {k*dt:.4f}")
     # The diffusion length -- an indication of scale, not a sharp front
     ax1.axvline(np.sqrt(eta*k*dt), c=h.get_color(), ls=":", lw=1)
@@ -124,17 +124,17 @@ ax2.set(title="Pressure at the injector", xlabel="Time", ylabel="p")
 ax2.legend(fontsize="small")
 fig.tight_layout()
 
-# With ct > 0 the two curves are offset by exactly the offset in `p0`:
+# With ct > 0 the two curves are offset by exactly the offset in `P0`:
 assert np.allclose(PP_hi - PP, 1)
-# With ct = 0, `p0` is simply ignored, and the level is that of the "grounding"
+# With ct = 0, `P0` is simply ignored, and the level is that of the "grounding"
 # of cell 0 (ref article p. 13). Indeed, summing all rows of that (modified)
 # system leaves `2 K p[0] = sum(Q) = 0`, i.e. it pins the pressure of cell (0,0):
 assert np.allclose(PP_inc[1:], PP_inc_hi[1:])
 assert np.allclose(PP_inc[1:, 0], 0)
 
 # Regression values, checked by `tests/test_examples.py`.
-__digest__ = dict(dp_early = PP[1] - p0,
-                  dp_late  = PP[nSteps] - p0,
+__digest__ = dict(dp_early = PP[1] - P0,
+                  dp_late  = PP[nSteps] - P0,
                   elliptic = elliptic,
                   p_inj    = PP[:, iw])
 

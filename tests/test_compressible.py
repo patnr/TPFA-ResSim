@@ -39,8 +39,8 @@ def test_depletion():
                    inj_xy=[[0, 0]], inj_rates=[[0]],
                    prd_xy=[[1, 1]], prd_rates=[[1]])
     water_sat0 = np.zeros(model.Nxy)
-    p0 = np.ones(model.Nxy)
-    SS, PP = model.sim(dt, nSteps, water_sat0, p0=p0, pbar=False)
+    P0 = np.ones(model.Nxy)
+    SS, PP = model.sim(dt, nSteps, water_sat0, P0=P0, pbar=False)
 
     means = PP.mean(axis=1)
     assert np.all(np.diff(means) < 0)
@@ -84,12 +84,12 @@ def test_storage_rate():
                    inj_xy=[[0, 0]], inj_rates=[[.5]],
                    prd_xy=[[1, 1]], prd_rates=[[1]])
     water_sat0 = np.zeros(model.Nxy)
-    p_prev = np.ones(model.Nxy)
+    P0 = np.ones(model.Nxy)
     model._set_Q(water_sat0, 0)  # (as `time_stepper` does)
-    P, V = model.pressure_step(water_sat0, p_prev, dt)
+    P, V = model.pressure_step(water_sat0, P0, dt)
 
     accum = model.por.ravel() * model.ct * model.h2 / dt
-    assert np.allclose(model.storage_rate(V), accum * (P.ravel() - p_prev))
+    assert np.allclose(model.storage_rate(V), accum * (P - P0))
     # Globally, the storage is the well imbalance (cf. `test_material_balance`)
     assert np.isclose(model.storage_rate(V).sum(), .5 - 1)
 
@@ -110,8 +110,8 @@ def test_single_phase_is_exact(implicit, ct, vrr):
     model = ResSim(Lx=1, Ly=1, Nx=20, Ny=20, ct=ct,
                    inj_xy=[[0, 0]], inj_rates=[[vrr]],
                    prd_xy=[[1, 1]], prd_rates=[[1]])
-    p0 = 10*np.ones(model.Nxy)
+    P0 = 10*np.ones(model.Nxy)
     for s in ([0, 1] if vrr == 0 else [1]):  # only water is injected
-        SS, PP = model.sim(dt, nSteps, s*np.ones(model.Nxy), p0=p0,
+        SS, PP = model.sim(dt, nSteps, s*np.ones(model.Nxy), P0=P0,
                            pbar=False, implicit=implicit)
         assert np.allclose(SS, s, atol=1e-12)
