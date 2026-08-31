@@ -58,7 +58,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
                 val = np.array(val, float).reshape((-1, 2))
                 for i, (x, y) in enumerate(val):
                     val[i] = self.ind2xy(self.xy2ind(x, y))
-            # Well rates, and (like them, in shape) the BHP specifications
+            # Well rates and/or pressures
             if key in ["inj_rates", "prd_rates", "inj_bhp", "prd_bhp"]:
                 kind, spec = key.split("_")
                 nWell = len(getattr(self, f"{kind}_xy"))
@@ -162,29 +162,25 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     inj_WI: Any = None
     """Well indices (`None`, or an array of shape `(nWell,)`) for the injectors.
 
+    Compute $ WI $ with `peaceman_WI`, or set it directly
+    (it need not come from any particular formula).
+    Without it, `actual_bhp` is `nan` and BHP control (`inj_bhp`) unavailable.
+
     The well index, $ WI $, is the *sub-grid* well model: the constant of
-    proportionality relating a well's flow rate to the drawdown between the
-    wellbore and its (necessarily much larger) grid cell,
-    $$ q = WI \\, λ_t \\, (p_\\mathrm{cell} - p_\\mathrm{bh}) \\,, $$
+    proportionality relating a well's flow rate to $ \\Delta p $
+    $$ q = WI \\, λ_t \\, \\Delta p \\,,$$
     with $ λ_t $ the total mobility (ref `RelPerm`) of the well's cell.
-    Compute it with `peaceman_WI`, or set it directly (it need not come from
-    any particular formula).
+    Here the pressure difference is $ \\Delta p = p_\\mathrm{cell} - p_\\mathrm{bh} $
+    known as the "drawdown", with sign reversed for an injector. Re-arranging,
+    $$ p_\\mathrm{bh} = p_\\mathrm{cell} ∓ q / (WI \\, λ_t) \\,. $$
 
-    Used to compute the BHP from the flow rate (or vice-versa).
-    NB: cannot use plain cell pressure because that is a cell average,
-    which is highly sensitive to the chosen discretisation size around a point
-    source/sink (an idealized, theoretical singularity).
+    NB: the drawdown cannot be replaced by plain cell pressure,
+    because that is a cell average, which is highly sensitive to the
+    chosen discretisation size around a point source/sink (an idealized,
+    theoretical singularity).
 
-    .. note:: The well index has two distinct uses. Left to itself it is a
-        *diagnostic*: the wells stay rate-controlled (ref `inj_rates`), `sim`
-        merely records the bottom-hole pressures they imply in `actual_bhp`,
-        and the flow solution is unaffected. Setting `inj_bhp` promotes it to a
-        *control*, the rate then being solved for. Without any well index,
-        neither is available, and `actual_bhp` is `nan`.
-
-    .. warning:: The gap $ p_\\mathrm{cell} - p_\\mathrm{bh} $ is *not* a fixed
-        offset that one could calibrate away once and for all. Being
-        $ q / (WI \\, λ_t) $, it tracks the mobility -- which, in a waterflood,
+    .. warning:: The drawdown is *not* a fixed offset that one could calibrate away once and for all.
+        Being $ q / (WI \\, λ_t) $, it tracks the mobility -- which, in a waterflood,
         dips as the front arrives (by half, for equal viscosities). So the gap
         doubles at breakthrough: precisely when the well is most interesting.
     """
@@ -194,15 +190,12 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     """Bottom-hole pressures for the injectors. `None`, or an array shaped like
     `inj_rates`, i.e. `(nWell, nTime)` -- or `(nWell, 1)` if constant-in-time.
 
-    A well whose entry is finite is **BHP-controlled** at that time: instead of
-    being told its rate, it is told its pressure, and flows whatever the well
-    model of `inj_WI` implies,
-    $$ q = WI \\, λ_t \\, (p_\\mathrm{cell} - p_\\mathrm{bh}) \\,. $$
-    This is solved *simultaneously* with the pressure field, rather than lagged
-    by a time step: `TPFA` puts $ WI λ_t $ on its diagonal and
-    $ WI λ_t \\, p_\\mathrm{bh} $ on its right-hand side. Only once $ p $ is known
-    is the resulting rate folded into the source field, `_Q`, for the transport
-    step -- ref `_set_Q` and `_realize_bhp`.
+    A well whose entry is finite is **BHP-controlled** at that time. This is
+    solved *simultaneously* with the pressure field (not lagged by a time step):
+    `TPFA` puts $ WI λ_t $ on its diagonal and $ WI λ_t \\, p_\\mathrm{bh} $
+    on its right-hand side.
+    Only once $ p $ is known is the resulting rate folded into the source field,
+    `_Q`, for the transport step -- ref `_set_Q` and `_realize_bhp`.
 
     Entries left as `nan` -- which is the default, for every well -- keep the
     well rate-controlled, per `inj_rates`. So the two mechanisms can be mixed
@@ -405,10 +398,10 @@ class ResSim(NicePrint, Grid2D, Plot2D):
           `peaceman_WI` for its cell, scaled by the fraction of that cell which
           the path actually traverses (so a cell merely clipped by the path
           contributes proportionally less).
-        - `w`: `WI` normalized to sum to `1`, for apportioning the well's rate
-          among its completions: `inj_rates = rate * w[:, None]`. This is the
-          standard (static) allocation -- proportional to the well index, hence
-          to both the contacted length and the local permeability.
+        - `w`: `WI / WI.sum()`, for apportioning the rate among its completions:
+          `inj_rates = rate * w[:, None]`.
+          This is the standard (static) allocation -- proportional to the well index,
+          hence to both the contacted length and the local permeability.
 
         >>> model = ResSim(Lx=1, Ly=1, Nx=10, Ny=10)
         >>> xy, WI, w = model.well_path([[.05, .05], [.45, .05]], rw=1e-2)
@@ -417,7 +410,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         >>> w  # the end cells, entered mid-way, get half the rate
         array([0.125, 0.25 , 0.25 , 0.25 , 0.125])
 
-        .. note:: Under BHP control this is exact (assuming 0 gravity and friction):
+        .. note:: Under BHP control this `w` is exact (assuming 0 gravity and friction):
             the completions simply share a `p_bh`.
             Under *rate* control, `w` is an approximation unless the cell pressures are equal.
             Solving for it would make $ p_\\mathrm{bh} $ an extra
@@ -458,8 +451,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     def bhp(self, S: np.ndarray, P: np.ndarray, rates: dict) -> dict:
         """Bottom-hole pressures implied by `rates`, via the well indices.
 
-        I.e. invert the well model of `inj_WI`:
-        $ p_\\mathrm{bh} = p_\\mathrm{cell} ∓ q / (WI \\, λ_t) $.
+        I.e. the well model of `inj_WI`, solved for $ p_\\mathrm{bh} $.
         Wells whose well index is `None` yield `nan`.
 
         `S` and `P` (both flat) should be the saturation and the pressure of the
