@@ -13,6 +13,7 @@ $$ \\bar{p} - p(r) = \\frac{q}{2 π k λ_t} \\,
                      \\frac{1}{2} \\ln \\frac{4 A}{e^γ \\, C_A \\, r^2} \\,. $$
 """
 
+import warnings
 from functools import cache
 
 import numpy as np
@@ -250,6 +251,27 @@ def test_control_modes_may_be_mixed():
     assert np.allclose(rates[2], -.2)            # well 2: always rate-controlled
     assert np.isfinite(bhps[1:]).all()           # but with a WI, so bhp is known
     assert np.isnan(bhps[0]).all()               # the injector has no WI
+
+
+def test_nan_rate_is_a_placeholder_only_under_bhp_control():
+    """`nan` stands in for a BHP-controlled well's (ignored) rate -- and only there.
+
+    Left to a rate-controlled well it would spread through the pressure solve,
+    to surface far away as an inscrutable failure; ref `assemble_wells`.
+    """
+    nSteps = 4
+    def run(schedule):
+        model = ResSim(Lx=1, Ly=1, Nx=16, Ny=16, ct=.1,
+                       well_xy=[[0, 0], [1, 1]],
+                       well_rates=[[.5], [np.nan]], well_bhp=[nSteps*[np.nan], schedule])
+        model.well_WI = [np.nan, model.peaceman_WI([[1, 1]], rw)[0]]
+        return model.sim(.02, nSteps, np.zeros(model.Nxy),
+                         P0=np.ones(model.Nxy), pbar=False)
+
+    _, PP = run(nSteps*[.5])                      # BHP-controlled throughout: fine
+    assert np.isfinite(PP).all()
+    with pytest.raises(AssertionError, match="non-finite rate"):
+        run([.5, .5, np.nan, np.nan])             # ... but then the `nan` is exposed
 
 
 def test_bhp_keeps_the_transport_consistent():
@@ -539,3 +561,61 @@ def test_well_controls_switch_lags_by_a_step():
     coarse = overshoot(4e-3, 75)
     fine = overshoot(1e-3, 300)
     assert 0 < fine < coarse / 3
+
+
+# ---------------------------------------------------------------------------
+# The wells on a plot, i.e. their sign, ref `TPFA_ResSim.plotting._well_signs`
+# ---------------------------------------------------------------------------
+
+def test_well_signs_read_the_spec():
+    """Injector `+1`, producer `-1`, undecided `0` -- by the sign of the rates."""
+    model = ResSim(Lx=1, Ly=1, Nx=8, Ny=8,
+                   well_xy=[[0, 0], [1, 1], [1, 0]],
+                   well_rates=[[1.], [-.5], [0]])
+    assert list(model._well_signs()) == [+1, -1, 0]
+
+
+def test_well_signs_skip_nan_placeholders():
+    """A BHP well's `nan` rate leaves it undecided -- rather than cast to garbage.
+
+    NB: `np.sign(nan).astype(int)` is not merely `nan`-valued, but *undefined*
+    (and warns), which is why the sum ignores the `nan`s.
+    """
+    model = ResSim(Lx=1, Ly=1, Nx=8, Ny=8,
+                   well_xy=[[0, 0], [1, 1]],
+                   well_rates=[[np.nan], [-1.]], well_bhp=[[3.], [np.nan]])
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert list(model._well_signs()) == [0, -1]
+
+
+def test_well_signs_fall_back_on_the_realized_rates():
+    """What a well the spec leaves undecided (pure BHP control) actually did."""
+    model = ResSim(Lx=1, Ly=1, Nx=16, Ny=16, ct=.1,
+                   well_xy=[[0, 0], [1, 1]],
+                   well_rates=[[0], [-.5]], well_bhp=[[3.], [np.nan]])
+    model.well_WI = [model.peaceman_WI([[0, 0]], rw)[0], np.nan]
+    assert list(model._well_signs()) == [0, -1]     # before the sim: undecided
+    model.sim(.02, 4, np.zeros(model.Nxy), P0=np.ones(model.Nxy), pbar=False)
+    assert list(model._well_signs()) == [+1, -1]    # after it: it injected
+    assert np.all(model.actual_rates[0] > 0)
+
+
+def test_well_markers_are_numbered_per_sign():
+    """As `plt_production` numbers them: per sign, not as in the unified `well_xy`."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    model = ResSim(Lx=1, Ly=1, Nx=8, Ny=8,
+                   well_xy=[[0, 0], [1, 1], [1, 0]],
+                   well_rates=[[1.], [-.5], [-.5]])
+    _, ax = plt.subplots()
+    try:
+        model.plt_field(ax, np.zeros(model.Nxy), finalize=False)
+        labels = sorted(t.get_text() for t in ax.texts)
+    finally:
+        plt.close("all")
+    # I.e. producers 0 and 1, and injector 0 -- not wells 0, 1 and 2
+    assert labels == ["0", "0", "1"]

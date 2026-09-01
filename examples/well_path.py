@@ -103,7 +103,7 @@ ax1.set(title="Injection rate per completion", xlabel="y (along the path)",
         ylabel="q", ylim=0)
 ax1.legend(fontsize="small")
 
-prd = [point.xy2ind(1, 1)]
+prd = [point.xy2ind(*point.well_xy[-1])]
 for name, SS in [("Point", SS_point), ("Path", SS_path), ("Path, on BHP", SS_onbhp)]:
     ax2.plot(tt, 1 - SS[1:, prd[0]], label=name)
 ax2.set(title="Oil saturation at the producer", xlabel="Time", ylabel="1 - s")

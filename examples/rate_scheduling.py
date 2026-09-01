@@ -63,7 +63,7 @@ for i, rate in enumerate(model.actual_rates[:2]):
 axs[0].set(title="Injection rates", xlabel="Time", ylabel="Rate", ylim=(-.05, 1.05))
 axs[0].legend()
 
-prd = [model.xy2ind(1, 1)]
+prd = [model.xy2ind(*model.well_xy[2])]
 model.plt_production(axs[1], SS[1:, prd], finalize=False)
 fig.tight_layout()
 

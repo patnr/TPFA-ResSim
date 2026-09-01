@@ -340,6 +340,10 @@ shutting a well in.
 
 A well is either an **injector** or a **producer** -- the terminal states of the
 sources and sinks, $q$, of the governing equations.
+The two are not distinct objects here: a well is an injector or a producer
+merely by the *sign* of its rate (ref `TPFA_ResSim.ResSim.well_rates`), and
+under BHP control not even by that, the direction being left to the pressures
+(ref `TPFA_ResSim.ResSim.well_bhp`).
 Its **completion** is the equipment that connects the **wellbore** to the rock,
 whose interface is the **sandface**; it may be *open hole*, or cased and
 **perforated**. A well may have several completions, e.g. one per layer,

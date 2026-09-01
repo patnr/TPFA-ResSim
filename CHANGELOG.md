@@ -38,7 +38,8 @@ should pin a tag (or commit hash) and advance it deliberately.
   meaningful, and injection need no longer balance production.
   There is no switching of control modes, nor a declared flow direction: a BHP
   well flows whichever way `p_bh` vs. its cell pressure dictates, an inflow
-  injecting water like any other.
+  injecting water like any other -- with a `UserWarning` if that direction
+  flips mid-`sim`, such a reversal being more often a mistake than an intent.
 - **Well paths**: `ResSim.well_path` walks a polyline through the grid and
   returns the traversed cells, their well indices (each scaled by how much of
   its cell the path actually crosses), and the resulting split of the well's
@@ -79,14 +80,20 @@ should pin a tag (or commit hash) and advance it deliberately.
     whole trick: the transport step already discriminated by the sign of the
     assembled source field, so with the sign in the spec, nothing anywhere
     needs to know a well's kind. The positivity assertion is gone; the
-    incompressible balance assertion is now that the rates sum to 0.
+    incompressible balance assertion is now that the rates sum to 0, and
+    `assemble_wells` asserts that a *rate*-controlled well has a finite rate
+    (`nan` being tolerated only as a BHP-controlled well's placeholder).
   - `actual_rates` is a single `(nWell, nSteps)` array (signed), no longer a
     dict by kind -- likewise the rates handed out by the feedback hook (ref
     the `dynamic_rate` -> `well_controls` entry below).
-  - Plot markers are inferred from the sign of each well's rate spec (mean
-    over time); wells with no net sign -- e.g. purely BHP-controlled ones --
-    get a neutral marker. `well_scatter`'s `inj: bool` parameter becomes
-    `sgn: int` (+1/-1/0).
+  - Plot markers are inferred from the sign of each well's rates: the spec,
+    `well_rates`, falling back on the realized `actual_rates` for the wells it
+    leaves undecided (as pure BHP control does); only the still-undecided get
+    the new neutral marker. Their *numbering* is unchanged, being per sign, so
+    the producers are still numbered (and coloured) as in `plt_production`.
+    `well_scatter`'s `inj: bool` parameter becomes `sgn: int` (+1/-1/0) --
+    which, `bool` being an `int`, silently reinterprets an old positional
+    `False` (producer) as `0` (neutral) rather than raising.
   - A lone well no longer needs a zero-rate partner of the other kind
     (e.g. `examples/depletion.py` sheds its idle injector).
   - The regression values are all unaffected (the physics is unchanged);

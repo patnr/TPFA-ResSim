@@ -97,7 +97,7 @@ axs[0].set_ylabel("y")
 fig.tight_layout()
 
 ## Animation
-prod = [model.xy2ind(1, 1)]
+prod = [model.xy2ind(*model.well_xy[1])]
 animation = model.anim(SS_exp, SS_exp[1:, prod])
 
 # Regression values, checked by `tests/test_examples.py`.

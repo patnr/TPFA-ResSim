@@ -66,6 +66,7 @@ class Plot2D:
         shape: tuple
         well_xy: Any
         well_rates: Any
+        actual_rates: Any
         xy2sub: Callable
         sub2xy: Callable
         ind2xy: Callable
@@ -163,9 +164,9 @@ class Plot2D:
                 ax.set_xlabel(f"x ({coord_type})")
                 ax.set_ylabel(f"y ({coord_type})")
 
-        # Add well markers, distinguished by the sign of their rate spec
-        # (mean over time; wells with no net sign -- e.g. purely
-        # BHP-controlled ones -- get a neutral marker).
+        # Add well markers, grouped (and numbered) by the sign of their rates,
+        # ref `_well_signs`. The producers come first, so that their numbers
+        # and colors match those of `plt_production`.
         if wells and self.well_xy is not None:
             sgn = self._well_signs()
             if wells == "color":
@@ -175,11 +176,10 @@ class Plot2D:
                 )
             elif wells in [True, 1]:
                 wells = {}
-            self.well_scatter(ax, self.well_xy[sgn < 0], -1, **wells)
-            wells.pop("color", None)
-            for s in [+1, 0]:
-                if np.any(sgn == s):
+            for s in [-1, +1, 0]:
+                if np.any(sgn == s):  # NB: skip, lest empty artists upset the layout
                     self.well_scatter(ax, self.well_xy[sgn == s], s, **wells)
+                wells.pop("color", None)  # producers only
 
         # Add argmax marker
         if argmax:
@@ -200,10 +200,20 @@ class Plot2D:
         return collections
 
     def _well_signs(self) -> np.ndarray:
-        """The sign (+1 inject, -1 produce, 0 unknown) of each well's rate spec."""
-        if getattr(self, "well_rates", None) is None:
-            return np.zeros(len(self.well_xy), int)
-        return np.sign(self.well_rates.mean(axis=1)).astype(int)
+        """The sign (`+1` inject, `-1` produce, `0` unknown) of each well's rate.
+
+        Read off the *spec*, `well_rates`, summed over time (`nan` entries --
+        which a BHP-controlled well may well have -- being skipped). Wells left
+        undecided by it, i.e. those with no spec or a vanishing one (as under
+        pure BHP control), fall back on the `actual_rates` of the latest `sim`,
+        if there has been one. Only the truly undecided are then `0`.
+        """
+        sgn = np.zeros(len(self.well_xy), int)
+        for rates in [self.well_rates, self.actual_rates]:
+            if rates is not None:
+                q = np.nansum(rates, axis=1)
+                sgn = np.where(sgn, sgn, (q > 0).astype(int) - (q < 0))
+        return sgn
 
     def well_scatter(
         self,
@@ -217,7 +227,12 @@ class Plot2D:
         """Scatter-plot the wells of `ww` onto a `Plot2D.plt_field`.
 
         The marker reflects `sgn`: injector (`+1`), producer (`-1`),
-        or neutral (`0`, e.g. purely BHP-controlled wells).
+        or neutral (`0`, i.e. of undecided sign, ref `_well_signs`).
+
+        .. note:: The wells are labelled by their index *within* `ww`, so that
+            (as `plt_field` calls this, once per sign) the producers are
+            numbered as `plt_production` numbers them -- separately from the
+            injectors, and not as in the unified `well_xy`.
         """
         # Well coordinates
         ww = self.sub2xy(*self.xy2sub(*ww.T)).T

@@ -152,6 +152,9 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     .. note:: When `ct == 0` (and no well is BHP-controlled) it is asserted
         that the rates sum to 0 at each time index, otherwise the model
         would silently input the deficit from the SW corner.
+
+    .. note:: Since the array is shared by all the wells, prefer `0` as (ignored)
+        fill value where control is by `well_bhp`.
     """
     well_WI: Any = None
     """Well indices: `None`, or an array of shape `(nWell,)`, `nan` allowed.
@@ -248,12 +251,15 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         ctrl = self.well_controls(S, P, k)
         # `Any` coz ty cannot see that `DotDict` provides attribute access to keys
         wls: Any = DotDict(
-            # per well
             inds  = self.xy2ind(*self.well_xy.T),
             rates = ctrl["rates"],
             p_bh  = ctrl["bhp"],
         )  # fmt: off
         is_bhp = np.isfinite(wls.p_bh)
+        assert np.isfinite(wls.rates[~is_bhp]).all(), (
+            "A rate-controlled well has a non-finite rate. Give it a number"
+            " (`0` shuts it in), or put it on BHP control; ref `well_rates`."
+        )
 
         # The well model's constant of proportionality, WI * λ_t.
         # NB: `nan` marks the rate-controlled wells, throughout.
