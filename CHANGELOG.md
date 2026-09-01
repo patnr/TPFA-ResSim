@@ -53,6 +53,12 @@ should pin a tag (or commit hash) and advance it deliberately.
 
 ### Changed
 
+- `actual_rates` and `actual_bhp` are now declared (and documented) attributes,
+  `None` until `sim` allocates them -- rather than springing into existence
+  mid-simulation, guarded by `hasattr`. The recording itself moved out of
+  `_set_Q`/`_realize_bhp` (which now return the rates, the latter filling in
+  those it solved for) and into `time_stepper`, so that the well physics no
+  longer knows about the bookkeeping.
 - **BREAKING**: `sim`'s initial-condition arguments are renamed `x0, p0` ->
   `S0, P0`, matching the `(SS, PP)` trajectories it returns. Only `p0` was
   likely passed by keyword; `S0` is positional in practice.

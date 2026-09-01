@@ -271,9 +271,9 @@ def test_bhp_keeps_the_transport_consistent():
     S0 = np.zeros(model.Nxy)
     P0 = np.ones(model.Nxy)
 
-    model._set_Q(S0, 0)                       # (as `time_stepper` does)
+    rates = model._set_Q(S0, 0)                       # (as `time_stepper` does)
     P, V = model.pressure_step(S0, P0, dt)
-    model._realize_bhp(P, 0)
+    model._realize_bhp(P, rates)
 
     accum = model.por.ravel() * model.ct * model.h2 / dt
     assert np.allclose(model.storage_rate(V), accum * (P - P0))

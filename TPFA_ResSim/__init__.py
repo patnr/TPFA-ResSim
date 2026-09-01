@@ -221,21 +221,38 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     prd_bhp: Any = None
     """Like `inj_bhp`, but for producing wells."""
 
-    def _set_Q(self, S: np.ndarray | None, k: int) -> None:
+    actual_rates: Any = None
+    """The *realized* well rates: `dict` of `(nWell, nSteps)` arrays, by kind.
+
+    Allocated (and filled in) by `sim`; `None` before that. Unlike the
+    *specified* `inj_rates`, this is what actually happened -- i.e. it includes
+    the adjustments of `dynamic_rate`, and the rates that BHP control
+    (ref `inj_bhp`) solved for.
+    """
+    actual_bhp: Any = None
+    """Like `actual_rates`, but the bottom-hole pressures (ref `bhp`).
+
+    `nan` wherever the well index (`inj_WI`) is unset.
+    """
+
+    def _set_Q(self, S: np.ndarray | None, k: int) -> dict:
         """Populate (for time `k`) the source/sink *field*, `Q`, from well specs.
 
         Rate-controlled wells contribute their rate to `Q` directly.
         BHP-controlled ones (ref `inj_bhp`) cannot: their rate is not yet known,
         but instead contribute to the TPFA pressure equation system.
         The resulting rates are then folded into `Q` by `_realize_bhp`.
+
+        Returns the rates (ref `dynamic_rate`), `nan` for the BHP-controlled
+        wells -- which is what `_realize_bhp` fills in.
         """
         Q, bhp_diag, bhp_rhs = np.zeros((3, self.Nxy))
         rates = self.dynamic_rate(S, k)
-        bhps = self._wanted_bhp_at(k)
-        self._WI_lam = {}
+        bhps = self._at_time("bhp", k)
+        self._well_model = {}
         for kind in ["inj", "prd"]:
             sgn = +1 if kind == "inj" else -1
-            inds = self._well_inds(kind)
+            inds = self.xy2ind(*getattr(self, f"{kind}_xy").T)
             on_bhp = np.isfinite(bhps[kind])
 
             # The well model's constant of proportionality, WI * λ_t.
@@ -247,25 +264,20 @@ class ResSim(NicePrint, Grid2D, Plot2D):
                 assert S is not None, "BHP control requires `S` (for λ_t)."
                 Mw, Mo = self.RelPerm(S)
                 WI_lam[on_bhp] = WI[on_bhp] * (Mw + Mo)[inds[on_bhp]]
-            self._WI_lam[kind] = WI_lam
+            # Keep the *per-well* coefficients too -- for `_realize_bhp`.
+            self._well_model[kind] = (WI_lam, bhps[kind])
 
-            # Populate Q (or, for the BHP wells, the well model). += superimposes.
-            for i, ind in enumerate(inds):
-                if on_bhp[i]:
-                    bhp_diag[ind] += WI_lam[i]
-                    bhp_rhs[ind] += WI_lam[i] * bhps[kind][i]
-                else:
-                    Q[ind] += sgn * rates[kind][i]
-
-            # Store the computed/dynamic rates.
-            # Those of the BHP wells are only known to `_realize_bhp`.
-            if hasattr(self, "actual_rates"):
-                self.actual_rates[kind][:, k] = np.where(on_bhp, np.nan, rates[kind])
+            # Translate well conditions for cells.
+            # NB: Dont use `Q[inds] += ...` since `inds` may contain dupes
+            np.add.at(Q, inds[~on_bhp], sgn * rates[kind][~on_bhp])
+            np.add.at(bhp_diag, inds[on_bhp], WI_lam[on_bhp])
+            np.add.at(bhp_rhs, inds[on_bhp], (WI_lam * bhps[kind])[on_bhp])
+            rates[kind][on_bhp] = np.nan  # only `_realize_bhp` knows these
         self._Q, self._bhp_diag, self._bhp_rhs = Q, bhp_diag, bhp_rhs
-        self._bhp_wanted = bhps
+        return rates
 
-    def _realize_bhp(self, P: np.ndarray, k: int) -> None:
-        """Fold the (now solved-for) rates of the BHP wells into `_Q`.
+    def _realize_bhp(self, P: np.ndarray, rates: dict) -> dict:
+        """Fold the (now solved-for) rates of the BHP wells into `_Q` and `rates`.
 
         Must run between `pressure_step` and the saturation step: the transport
         scheme reads `_Q` (in `upwind_diff`, `storage_rate`, `estimate_1CFL`),
@@ -277,50 +289,38 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         """
         self._Q = self._Q + self._bhp_rhs - self._bhp_diag * P
         for kind in ["inj", "prd"]:
-            WI_lam = self._WI_lam[kind]
-            on_bhp = np.isfinite(WI_lam)
+            WI_lam, p_bh = self._well_model[kind]
+            on_bhp = np.isfinite(WI_lam)  # `nan` marks the rate-controlled wells
             if not on_bhp.any():
                 continue
-            inds = self._well_inds(kind)[on_bhp]
             sgn = +1 if kind == "inj" else -1
-            q = sgn * WI_lam[on_bhp] * (self._bhp_wanted[kind][on_bhp] - P[inds])
+            inds = self.xy2ind(*getattr(self, f"{kind}_xy").T)[on_bhp]
+            # The well model's own rate -- as in `_Q` above, but per well
+            q = sgn * WI_lam[on_bhp] * (p_bh[on_bhp] - P[inds])
             assert np.all(q > -1e-8 * (1 + np.abs(q).max())), (
                 f"A BHP-controlled '{kind}' well would flow backwards, its"
                 " `p_bh` having ended up on the wrong side of its cell pressure."
                 " This model does not switch control modes; ref `inj_bhp`."
             )
-            if hasattr(self, "actual_rates"):
-                self.actual_rates[kind][on_bhp, k] = q
+            rates[kind][on_bhp] = q
+        return rates
 
-    def _at_time(self, arr: Any, k: int, nWell: int, absent: float) -> np.ndarray:
-        """Lookup a `(nWell, nTime)` well spec at time `k`.
+    def _at_time(self, spec: str, k: int) -> dict:
+        """Lookup the well `spec` (`"rates"`/`"bhp"`) at time `k`, for both kinds.
 
         Allows a constant-in-time (singleton) spec, and an unset (`None`) one,
-        which yields `absent` -- `0` for a rate, `nan` for a BHP.
+        which yields `0` for the rates, and `nan` (⇒ rate-controlled) for `bhp`.
         """
-        if arr is None:
-            return np.full(nWell, absent)
-        arr = arr.T
-        return np.copy(arr[k] if (len(arr) > 1) else arr[0])
-
-    def _wanted_rates_at(self, k: int) -> tuple:
-        """Lookup nominal/specified rates. Allows constant-in-time (singleton) spec."""
-        # fmt: off
-        return (self._at_time(self.inj_rates, k, self.nInj, 0.),
-                self._at_time(self.prd_rates, k, self.nPrd, 0.))
-        # fmt: on
-
-    def _wanted_bhp_at(self, k: int) -> dict:
-        """Like `_wanted_rates_at`, but for `inj_bhp` (`nan` ⇒ rate-controlled)."""
-        # fmt: off
-        return dict(inj=self._at_time(self.inj_bhp, k, self.nInj, np.nan),
-                    prd=self._at_time(self.prd_bhp, k, self.nPrd, np.nan))
-        # fmt: on
-
-    def _well_inds(self, kind: str) -> np.ndarray:
-        """Flat indices of the cells holding the `kind` (`"inj"`/`"prd"`) wells."""
-        xy = np.asarray(getattr(self, f"{kind}_xy"))
-        return np.atleast_1d(self.xy2ind(*xy.T))
+        absent = 0.0 if spec == "rates" else np.nan
+        out = {}
+        for kind in ["inj", "prd"]:
+            arr = getattr(self, f"{kind}_{spec}")
+            if arr is None:
+                out[kind] = np.full(len(getattr(self, f"{kind}_xy")), absent)
+            else:
+                # Copy, lest `dynamic_rate` (or `_set_Q`) write into the spec
+                out[kind] = np.copy(arr[:, k if arr.shape[1] > 1 else 0])
+        return out
 
     def dynamic_rate(self, S: np.ndarray | None, k: int) -> dict:
         """Compute the `actual_rates` for time index `k`.
@@ -329,8 +329,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         But you can overwrite (patch/inherit) it, for example to halt production wells
         if water saturation is too high or simply if the suggested rate is near 0.
         """
-        inj, prd = self._wanted_rates_at(k)
-        return dict(inj=inj, prd=prd)
+        return self._at_time("rates", k)
 
     def peaceman_WI(self, xy: Any, rw: float, skin: float = 0.0) -> np.ndarray:
         """Peaceman's well index for wells at `xy`, of radius `rw`.
@@ -470,11 +469,12 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         Mt = Mw + Mo
         out = {}
         for kind in ["inj", "prd"]:
+            xy = getattr(self, f"{kind}_xy")
             WI = getattr(self, f"{kind}_WI")
             if WI is None:
-                out[kind] = np.full(len(getattr(self, f"{kind}_xy")), np.nan)
+                out[kind] = np.full(len(xy), np.nan)
                 continue
-            ii = self._well_inds(kind)
+            ii = self.xy2ind(*xy.T)
             sgn = +1 if kind == "inj" else -1
             out[kind] = P[ii] + sgn * rates[kind] / (WI * Mt[ii])
         return out
@@ -497,7 +497,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         Mt = Mt.reshape(self.shape)
         KM = Mt * self.K
         # Compute pressure and extract fluxes
-        [P, V] = self.TPFA(KM, P, dt)  # NB: updates `P`
+        [P, V] = self.TPFA(KM, P, dt)
         return P, V
 
     def _spdiags(self, data: Any, diags: Any) -> sparse.dia_matrix:
@@ -744,15 +744,15 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         """
 
         def integrate(S, P, k):
-            self._set_Q(S, k)
+            rates = self._set_Q(S, k)
 
             # Catch some common issues before they become mysterious/insidious
             # (e.g. mass imblance silently inserts deficit in SW corner).
             for kind in ["inj", "prd"]:
-                rates = getattr(self, f"{kind}_rates")
-                if rates is not None:  # `None` ⇒ purely BHP-controlled
-                    assert len(rates) == len(getattr(self, f"{kind}_xy"))
-                    assert np.all(rates >= 0)
+                spec = getattr(self, f"{kind}_rates")
+                if spec is not None:  # `None` ⇒ purely BHP-controlled
+                    assert len(spec) == len(getattr(self, f"{kind}_xy"))
+                    assert np.all(spec >= 0)
             if self.ct == 0 and not self._bhp_diag.any():
                 # Incompressible ⇒ no storage ⇒ src/sinks must balance.
                 # Unless a BHP well absorbs the imbalance, ref `inj_bhp`.
@@ -760,12 +760,13 @@ class ResSim(NicePrint, Grid2D, Plot2D):
             assert np.all((0 <= self.K) & np.isfinite(self.K))
             assert np.all((0 <= self.por) & (self.por <= 1))
 
-            [P, V] = self.pressure_step(S, P, dt)  # NB: `P` in ⇒ old, out ⇒ new
-            self._realize_bhp(P, k)
-            if hasattr(self, "actual_bhp"):
-                now = {kd: self.actual_rates[kd][:, k] for kd in ["inj", "prd"]}
-                for kd, p_bh in self.bhp(S, P, now).items():
-                    self.actual_bhp[kd][:, k] = p_bh
+            [P, V] = self.pressure_step(S, P, dt)
+            rates = self._realize_bhp(P, rates)
+            if self.actual_rates is not None:
+                for kind, q in rates.items():
+                    self.actual_rates[kind][:, k] = q
+                for kind, p_bh in self.bhp(S, P, rates).items():
+                    self.actual_bhp[kind][:, k] = p_bh
             if implicit:
                 S = self.saturation_step_implicit(S, V, dt)
             else:

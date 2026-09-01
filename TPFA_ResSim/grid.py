@@ -17,6 +17,7 @@ By contrast, the plotting module depicts `x` from left to right, `y` from bottom
 """
 
 from dataclasses import dataclass
+from typing import overload
 
 import numpy as np
 import numpy.typing as npt
@@ -130,6 +131,12 @@ class Grid2D:
         ix = np.floor(x / self.Lx * self.Nx).astype(int)
         iy = np.floor(y / self.Ly * self.Ny).astype(int)
         return np.asarray([ix, iy])
+
+    # Overloaded so that the (array-valued) well lookups of `ResSim` type-check
+    @overload
+    def xy2ind(self, x: float, y: float) -> np.intp: ...
+    @overload
+    def xy2ind(self, x: np.ndarray, y: np.ndarray) -> np.ndarray: ...
 
     def xy2ind(self, x: npt.ArrayLike, y: npt.ArrayLike) -> np.intp | np.ndarray:
         """Convert physical coord to flat indx."""
