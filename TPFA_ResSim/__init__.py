@@ -290,10 +290,9 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         for kind, sgn in [("inj", +1), ("prd", -1)]:
             inds, WI_lam, p_bh = wls.inds[kind], wls.WI_lam[kind], wls.p_bh[kind]
             is_bhp = np.isfinite(WI_lam)  # `nan` marks the rate-controlled wells
-            if not is_bhp.any():
-                continue
+            # NB: sign it *before* asserting: both kinds' rates are positive
             q = sgn * WI_lam[is_bhp] * (p_bh[is_bhp] - P[inds[is_bhp]])
-            assert np.all(q > -1e-8 * (1 + np.abs(q).max())), (
+            assert np.all(q > -1e-8 * (1 + np.abs(q).max(initial=0))), (
                 f"A BHP-controlled '{kind}' well would flow backwards, its"
                 " `p_bh` having ended up on the wrong side of its cell pressure."
                 " This model does not switch control modes; ref `inj_bhp`."
