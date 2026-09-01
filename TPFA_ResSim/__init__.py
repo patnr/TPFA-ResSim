@@ -216,7 +216,9 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         cell's fractional flow); rather than let that pass silently,
         `realize_bhp` asserts against it. Rate control with a BHP limit -- the
         industrial default -- would mean iterating each well's mode within each
-        step; `dynamic_rate` is the intended place to approximate it.
+        step. `dynamic_rate` can approximate it, but only in lagged fashion:
+        it may throttle a rate in response to the previous step's `actual_bhp`,
+        not set `p_bh`, nor switch a well's mode.
     """
     prd_bhp: Any = None
     """Like `inj_bhp`, but for producing wells."""
@@ -224,10 +226,9 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     actual_rates: Any = None
     """The *realized* well rates: `dict` of `(nWell, nSteps)` arrays, by kind.
 
-    Allocated (and filled in) by `sim`; `None` before that. Unlike the
-    *specified* `inj_rates`, this is what actually happened -- i.e. it includes
-    the adjustments of `dynamic_rate`, and the rates that BHP control
-    (ref `inj_bhp`) solved for.
+    `inj_rates` are what's desired. This is what actually happened
+    -- i.e. it includes the adjustments of `dynamic_rate`,
+    and the rates that BHP control (ref `inj_bhp`) solved for.
     """
     actual_bhp: Any = None
     """Like `actual_rates`, but the bottom-hole pressures (ref `bhp`).
@@ -319,9 +320,44 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     def dynamic_rate(self, S: np.ndarray | None, k: int) -> dict:
         """Compute the `actual_rates` for time index `k`.
 
-        This default implementation simply reads the given well specifications.
-        But you can overwrite (patch/inherit) it, for example to halt production wells
-        if water saturation is too high or simply if the suggested rate is near 0.
+        This default implementation simply reads the given well specifications,
+        i.e. the *schedules* `inj_rates`/`prd_rates`, which are open-loop: fixed
+        before the simulation begins. Overriding (patching/subclassing) this
+        method is therefore the way to do *feedback* control, the rates being
+        free to depend on the current saturation, `S` -- for example to shut a
+        producer upon water breakthrough (below), or to re-allocate a well
+        path's rate among its completions (ref `well_path`).
+        The returned arrays are copies, so they may be modified in place.
+
+        >>> class Shutter(ResSim):
+        ...     def dynamic_rate(self, S, k):
+        ...         rates = super().dynamic_rate(S, k)
+        ...         if S is not None and S[self.xy2ind(1, 1)] > .5:
+        ...             rates["inj"][:] = rates["prd"][:] = 0  # NB: both! See warning
+        ...         return rates
+        >>> model = Shutter(Lx=1, Ly=1, Nx=16, Ny=16,
+        ...                 inj_xy=[[0, 0]], inj_rates=[[1]],
+        ...                 prd_xy=[[1, 1]], prd_rates=[[1]])
+        >>> SS, PP = model.sim(.05, 20, model.swc*np.ones(model.Nxy), pbar=False)
+        >>> int((model.actual_rates["prd"][0] == 0).argmax())  # step of breakthrough
+        16
+
+        .. warning:: With `ct == 0` the rates must still balance at every step
+            (ref `inj_rates`), so shutting one well requires matching it on the
+            other side -- as above -- else `time_stepper` complains that
+            "(inj - prd) does not sum to 0". Only with `ct > 0` (where storage
+            absorbs the imbalance), or under BHP control (ref `inj_bhp`, where
+            the well finds its own rate), may a well act alone.
+
+        .. note:: `S` is `None` if the caller has no saturation to offer
+            (as when `assemble_wells` is used merely to set up a plot),
+            so an override should tolerate it.
+
+        .. note:: Only the *rates* are dynamic here: `inj_bhp`/`prd_bhp` are
+            read separately by `assemble_wells`, which also discards whatever
+            this returns for a BHP-controlled well. Nor is the pressure passed,
+            so a BHP *limit* (ref the `inj_bhp` warning) can only be
+            approximated, lagged by a step, from `actual_bhp[kind][:, k-1]`.
         """
         return self._at_time("rates", k)
 

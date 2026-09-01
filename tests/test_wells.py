@@ -376,3 +376,75 @@ def test_path_under_bhp_control_shares_one_pressure():
     assert np.allclose(bhps, 3.)                  # one wellbore, one pressure
     assert rates.min() > 0                        # all completions inject
     assert rates[:, -1].std() > 1e-3              # but not equally
+
+
+# ---------------------------------------------------------------------------
+# Feedback control, i.e. state-dependent rates, ref `ResSim.dynamic_rate`
+# ---------------------------------------------------------------------------
+
+class Shutter(ResSim):
+    """Shuts the producer (and, for balance, the injector) upon water arrival."""
+
+    def dynamic_rate(self, S, k):
+        rates = super().dynamic_rate(S, k)
+        if S is not None and S[self.xy2ind(*self.prd_xy[0])] > .5:
+            rates["inj"][:] = rates["prd"][:] = 0
+        return rates
+
+
+def waterflood(cls=ResSim, **kwargs):
+    """A quarter-five-spot, run past breakthrough. Cf. `examples/quarter_five_spot.py`."""
+    model = cls(Lx=1, Ly=1, Nx=16, Ny=16,
+                inj_xy=[[0, 0]], inj_rates=[[1.]],
+                prd_xy=[[1, 1]], prd_rates=[[1.]], **kwargs)
+    SS, _ = model.sim(.05, 20, model.swc*np.ones(model.Nxy), pbar=False)
+    return model, SS
+
+
+def test_dynamic_rate_shuts_the_well():
+    """The hook overrides the schedule, and the shut-in shows up in `actual_rates`."""
+    _, SS0 = waterflood()
+    model, SS = waterflood(Shutter)
+
+    kShut = int((model.actual_rates["prd"][0] == 0).argmax())
+    assert 0 < kShut < 20                            # it did happen, mid-run
+    assert np.allclose(model.actual_rates["prd"][0, :kShut], 1.)   # ... and only then
+    assert np.allclose(model.actual_rates["prd"][0, kShut:], 0.)
+    assert np.allclose(model.actual_rates["inj"], model.actual_rates["prd"])
+    # Once shut, nothing more moves; whereas the reference floods on
+    assert np.allclose(SS[-1], SS[kShut])
+    assert SS0[-1].sum() > SS[-1].sum()
+
+
+def test_dynamic_rate_does_not_modify_the_spec():
+    """The hook gets copies, so an in-place override cannot corrupt the schedule."""
+    model, _ = waterflood(Shutter)
+    assert np.all(model.inj_rates == 1.)
+    assert np.all(model.prd_rates == 1.)
+
+
+def test_dynamic_rate_must_balance_when_incompressible():
+    """Shutting only one side of an incompressible model is caught, not leaked."""
+    class HalfShutter(Shutter):
+        def dynamic_rate(self, S, k):
+            rates = super().dynamic_rate(S, k)
+            rates["inj"][:] = 1.       # undo the injector's share of the shut-in
+            return rates
+
+    with pytest.raises(AssertionError, match="does not sum to 0"):
+        waterflood(HalfShutter)
+
+
+def test_dynamic_rate_may_act_alone_when_compressible():
+    """With `ct > 0` storage absorbs the imbalance, so the producer needs no partner."""
+    class Producer(ResSim):
+        def dynamic_rate(self, S, k):
+            rates = super().dynamic_rate(S, k)
+            if S is not None and S[self.xy2ind(*self.prd_xy[0])] > .5:
+                rates["prd"][:] = 0    # NB: injector left flowing
+            return rates
+
+    model, _ = waterflood(Producer, ct=1e-2)
+    kShut = int((model.actual_rates["prd"][0] == 0).argmax())
+    assert 0 < kShut < 20
+    assert np.allclose(model.actual_rates["inj"], 1.)
