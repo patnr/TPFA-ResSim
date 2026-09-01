@@ -49,8 +49,21 @@ should pin a tag (or commit hash) and advance it deliberately.
   prescribed. A rate-controlled multi-cell well whose split is solved for would
   need `p_bh` as an extra unknown, i.e. a bordered linear system, and is
   deliberately not implemented.
+- `ResSim.well_controls(S, P, k)`: the feedback-control hook, replacing
+  `dynamic_rate` (ref Changed, below). It returns `dict(rates=..., bhp=...)`,
+  and is handed the pressure as well as the saturation, so an override governs
+  the wells' *modes* as well as their rates -- which is what it takes to
+  approximate the mode *switching* that the model does not do natively (ref
+  `inj_bhp`): e.g. rate control with a BHP limit, wherein a producer holds its
+  rate only until that would draw it below some `p_min` (worked examples in its
+  docstring). Being judged from the previous step's pressure, the switch lags:
+  the limit is breached for the one step in which it comes to bind, by less the
+  shorter `dt` is (`tests/test_wells.py`).
 - `examples/well_control.py` and `examples/well_path.py` illustrate the above
-  (and, like the other examples, double as regression tests).
+  (and, like the other examples, double as regression tests). The former's
+  "modes" figure now contrasts all three: rate control, BHP control, and the
+  rate target with a BHP limit -- whose curve traces the first until the limit
+  binds, and the second thereafter.
 
 ### Changed
 
@@ -66,6 +79,19 @@ should pin a tag (or commit hash) and advance it deliberately.
   `None` until `sim` allocates them -- rather than springing into existence
   mid-simulation, guarded by `hasattr`. The recording itself moved out of the
   well physics (`assemble_wells`/`realize_bhp`) and into `time_stepper`.
+- **BREAKING**: `dynamic_rate` is removed in favour of `well_controls`, which
+  is a superset of it: the rates are one of the two controls it returns.
+  Porting an override means unwrapping that dict --
+  `rates = super().dynamic_rate(S, k)` becomes
+  `ctrl = super().well_controls(S, P, k)`, and `rates` becomes `ctrl["rates"]`
+  -- as `tests/test_wells.py` illustrates. Keeping it as a shim was considered,
+  but the hook had no known downstream overriders, and a rate-only hook cannot
+  express a control-mode switch.
+- **BREAKING**: `assemble_wells(S, k)` -> `assemble_wells(S, P, k)`, with `P`
+  the pressure at the *start* of the step, which it passes on to
+  `well_controls`. This affects only the direct callers that set up a pressure
+  solve without `sim` (`examples/heterogeneous.py` and two tests, all updated);
+  pass `None` if there is no pressure to offer.
 - **BREAKING**: `sim`'s initial-condition arguments are renamed `x0, p0` ->
   `S0, P0`, matching the `(SS, PP)` trajectories it returns. Only `p0` was
   likely passed by keyword; `S0` is positional in practice.
@@ -201,7 +227,8 @@ randomness differences), as verified by `examples/quarter_five_spot.py`.
 - `e0d12b0`, `988b47e`: Convenient well config, with rates that may vary in
   time. Total injection must equal total production only in the incompressible
   case; see `ct` below.
-- `e3d4026`: `dynamic_rate()` hook for state-dependent well control.
+- `e3d4026`: A hook for state-dependent (feedback) well control:
+  `dynamic_rate()`, since generalized to `well_controls()`.
 - `d827ce8`, `70c19e5`: Plotting facilities (fields, streamlines, wells,
   animation) as a mixin.
 - `9300beb`: Optional slight compressibility (`ct > 0`); the Matlab codes are

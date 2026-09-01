@@ -271,7 +271,7 @@ def test_bhp_keeps_the_transport_consistent():
     S0 = np.zeros(model.Nxy)
     P0 = np.ones(model.Nxy)
 
-    model.assemble_wells(S0, 0)  # (as `time_stepper` does)
+    model.assemble_wells(S0, P0, 0)  # (as `time_stepper` does)
     P, V = model.pressure_step(S0, P0, dt)
     model.realize_bhp(P)
 
@@ -379,17 +379,17 @@ def test_path_under_bhp_control_shares_one_pressure():
 
 
 # ---------------------------------------------------------------------------
-# Feedback control, i.e. state-dependent rates, ref `ResSim.dynamic_rate`
+# Feedback control, i.e. state-dependent controls, ref `ResSim.well_controls`
 # ---------------------------------------------------------------------------
 
 class Shutter(ResSim):
     """Shuts the producer (and, for balance, the injector) upon water arrival."""
 
-    def dynamic_rate(self, S, k):
-        rates = super().dynamic_rate(S, k)
+    def well_controls(self, S, P, k):
+        ctrl = super().well_controls(S, P, k)
         if S is not None and S[self.xy2ind(*self.prd_xy[0])] > .5:
-            rates["inj"][:] = rates["prd"][:] = 0
-        return rates
+            ctrl["rates"]["inj"][:] = ctrl["rates"]["prd"][:] = 0
+        return ctrl
 
 
 def waterflood(cls=ResSim, **kwargs):
@@ -401,7 +401,7 @@ def waterflood(cls=ResSim, **kwargs):
     return model, SS
 
 
-def test_dynamic_rate_shuts_the_well():
+def test_rate_feedback_shuts_the_well():
     """The hook overrides the schedule, and the shut-in shows up in `actual_rates`."""
     _, SS0 = waterflood()
     model, SS = waterflood(Shutter)
@@ -416,35 +416,106 @@ def test_dynamic_rate_shuts_the_well():
     assert SS0[-1].sum() > SS[-1].sum()
 
 
-def test_dynamic_rate_does_not_modify_the_spec():
+def test_rate_feedback_does_not_modify_the_spec():
     """The hook gets copies, so an in-place override cannot corrupt the schedule."""
     model, _ = waterflood(Shutter)
     assert np.all(model.inj_rates == 1.)
     assert np.all(model.prd_rates == 1.)
 
 
-def test_dynamic_rate_must_balance_when_incompressible():
+def test_rate_feedback_must_balance_when_incompressible():
     """Shutting only one side of an incompressible model is caught, not leaked."""
     class HalfShutter(Shutter):
-        def dynamic_rate(self, S, k):
-            rates = super().dynamic_rate(S, k)
-            rates["inj"][:] = 1.       # undo the injector's share of the shut-in
-            return rates
+        def well_controls(self, S, P, k):
+            ctrl = super().well_controls(S, P, k)
+            ctrl["rates"]["inj"][:] = 1.   # undo the injector's share of the shut-in
+            return ctrl
 
     with pytest.raises(AssertionError, match="does not sum to 0"):
         waterflood(HalfShutter)
 
 
-def test_dynamic_rate_may_act_alone_when_compressible():
+def test_rate_feedback_may_act_alone_when_compressible():
     """With `ct > 0` storage absorbs the imbalance, so the producer needs no partner."""
     class Producer(ResSim):
-        def dynamic_rate(self, S, k):
-            rates = super().dynamic_rate(S, k)
+        def well_controls(self, S, P, k):
+            ctrl = super().well_controls(S, P, k)
             if S is not None and S[self.xy2ind(*self.prd_xy[0])] > .5:
-                rates["prd"][:] = 0    # NB: injector left flowing
-            return rates
+                ctrl["rates"]["prd"][:] = 0    # NB: injector left flowing
+            return ctrl
 
     model, _ = waterflood(Producer, ct=1e-2)
     kShut = int((model.actual_rates["prd"][0] == 0).argmax())
     assert 0 < kShut < 20
     assert np.allclose(model.actual_rates["inj"], 1.)
+
+
+def test_well_controls_reads_the_specs():
+    """The default hook is a pure lookup, and reports both kinds of control."""
+    model = ResSim(Lx=1, Ly=1, Nx=8, Ny=8,
+                   inj_xy=[[0, 0]], inj_rates=[[1.]],
+                   prd_xy=[[1, 1], [1, 0]], prd_bhp=[[.5], [np.nan]])
+    ctrl = model.well_controls(None, None, 0)
+
+    assert set(ctrl) == {"rates", "bhp"}
+    assert np.array_equal(ctrl["rates"]["inj"], [1.])
+    assert np.array_equal(ctrl["rates"]["prd"], [0., 0.])   # unset ⇒ 0
+    assert np.isnan(ctrl["bhp"]["inj"]).all()               # unset ⇒ rate control
+    assert np.array_equal(ctrl["bhp"]["prd"], [.5, np.nan], equal_nan=True)
+
+
+class Limited(ResSim):
+    """Rate control with a BHP limit: the (approximate) mode switch of `inj_bhp`."""
+
+    p_min = .5
+
+    def well_controls(self, S, P, k):
+        ctrl = super().well_controls(S, P, k)
+        if P is None:
+            return ctrl
+        p_bh = self.bhp(S, P, ctrl["rates"])["prd"]   # what the rate would require
+        ctrl["bhp"]["prd"] = np.where(p_bh < self.p_min, self.p_min, np.nan)
+        return ctrl
+
+
+def deplete(cls=ResSim, dt=2e-3, nSteps=150, **kwargs):
+    """Deplete a closed square at a fixed rate. Cf. `examples/well_control.py`."""
+    model = cls(Lx=1, Ly=1, Nx=32, Ny=32, ct=.1,
+                inj_xy=[[0, 0]]  , inj_rates=[[0]],
+                prd_xy=[[.5, .5]], prd_rates=[[q]], **kwargs)
+    model.prd_WI = model.peaceman_WI(model.prd_xy, rw)
+    model.sim(dt, nSteps, np.zeros(model.Nxy), P0=np.ones(model.Nxy), pbar=False)
+    return model.actual_rates["prd"][0], model.actual_bhp["prd"][0]
+
+
+def test_well_controls_may_switch_the_mode():
+    """A well may thus be *rate*-controlled until its BHP limit binds."""
+    rate0, bhp0 = deplete()             # for reference: no limit
+    rate, bhp = deplete(Limited)
+    p_min = Limited.p_min
+
+    assert bhp0.min() < p_min           # the unlimited run does breach the limit
+    kSwitch = int((bhp0 < p_min).argmax())
+    assert 0 < kSwitch < len(bhp0)
+    # Up to and including the switch step -- which the lag leaves rate-controlled
+    # -- the run is identical to the unlimited one, and breaches the limit as it did
+    assert np.allclose(rate[:kSwitch + 1], q)
+    assert np.allclose(bhp[:kSwitch + 1], bhp0[:kSwitch + 1])
+    # Thereafter: BHP-controlled at the limit, and the rate must give way
+    assert np.allclose(bhp[kSwitch + 1:], p_min)
+    assert np.all(rate[kSwitch + 1:] < q)
+    assert rate[-1] < q/2
+
+
+def test_well_controls_switch_lags_by_a_step():
+    """Being decided from the previous pressure, the limit is breached briefly.
+
+    But only for the one step, and by less the smaller `dt` is.
+    """
+    def overshoot(dt, nSteps):
+        _, bhp = deplete(Limited, dt, nSteps)
+        return Limited.p_min - bhp.min()
+
+    coarse = overshoot(4e-3, 75)
+    fine = overshoot(1e-3, 300)
+    assert 0 < fine < coarse / 3

@@ -51,7 +51,7 @@ tt = dt*np.arange(nSteps + 1)
 
 schedule = np.where(np.arange(nSteps) < kShut, q, 0)
 # Aside: feedback control (e.g. shut-in upon water breakthrough) would instead
-# be implemented by overriding `ResSim.dynamic_rate`.
+# be implemented by overriding `ResSim.well_controls`.
 
 model = ResSim(Lx=1, Ly=1, Nx=32, Ny=32, ct=.1,
                inj_xy=[[0, 0]]  , inj_rates=[[0]],

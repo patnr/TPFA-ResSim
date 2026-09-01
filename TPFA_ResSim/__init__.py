@@ -216,9 +216,9 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         cell's fractional flow); rather than let that pass silently,
         `realize_bhp` asserts against it. Rate control with a BHP limit -- the
         industrial default -- would mean iterating each well's mode within each
-        step. `dynamic_rate` can approximate it, but only in lagged fashion:
-        it may throttle a rate in response to the previous step's `actual_bhp`,
-        not set `p_bh`, nor switch a well's mode.
+        step. But `well_controls` sets the modes as well as the rates, and sees
+        the previous step's pressure, so it can approximate the switch (as its
+        docstring demonstrates) -- to within the lag thereby incurred.
     """
     prd_bhp: Any = None
     """Like `inj_bhp`, but for producing wells."""
@@ -227,7 +227,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     """The *realized* well rates: `dict` of `(nWell, nSteps)` arrays, by kind.
 
     `inj_rates` are what's desired. This is what actually happened
-    -- i.e. it includes the adjustments of `dynamic_rate`,
+    -- i.e. it includes the adjustments of `well_controls`,
     and the rates that BHP control (ref `inj_bhp`) solved for.
     """
     actual_bhp: Any = None
@@ -236,20 +236,25 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     `nan` wherever the well index (`inj_WI`) is unset.
     """
 
-    def assemble_wells(self, S: np.ndarray | None, k: int) -> None:
+    def assemble_wells(
+        self, S: np.ndarray | None, P: np.ndarray | None, k: int
+    ) -> None:
         """Set up (for time `k`) the wells' contributions to the equations.
 
+        The controls are those of `well_controls`, to which `S` and `P` (the
+        state at the *start* of the step) are simply passed on.
         Rate-controlled wells enter the source/sink *field*, `_Q`, directly.
         BHP-controlled ones (ref `inj_bhp`) cannot: their rate is not yet known.
         They instead enter the pressure equations in `TPFA`, after which
         `realize_bhp` folds the resulting rate into `_Q`.
         """
+        ctrl = self.well_controls(S, P, k)
         # `Any` coz ty cannot see that `DotDict` provides attribute access to keys
         wls: Any = DotDict(
             # per well
             inds   = {kd: self.xy2ind(*getattr(self, f"{kd}_xy").T) for kd in ["inj", "prd"]},
-            rates  = self.dynamic_rate(S, k),
-            p_bh   = self._at_time("bhp", k),
+            rates  = ctrl["rates"],
+            p_bh   = ctrl["bhp"],
             WI_lam = {},
         )  # fmt: off
         # per cell
@@ -300,47 +305,80 @@ class ResSim(NicePrint, Grid2D, Plot2D):
             )
             wls.rates[kind][is_bhp] = q
 
-    def _at_time(self, spec: str, k: int) -> dict:
+    def _at_time(self, spec: str, absent: float, k: int) -> dict:
         """Lookup the well `spec` (`"rates"`/`"bhp"`) at time `k`, for both kinds.
 
         Allows a constant-in-time (singleton) spec, and an unset (`None`) one,
-        which yields `0` for the rates, and `nan` (⇒ rate-controlled) for `bhp`.
+        for which `absent` is substituted -- `0` for the rates, and `nan`
+        (⇒ rate-controlled) for the BHPs.
         """
-        absent = 0.0 if spec == "rates" else np.nan
         out = {}
         for kind in ["inj", "prd"]:
             arr = getattr(self, f"{kind}_{spec}")
             if arr is None:
                 out[kind] = np.full(len(getattr(self, f"{kind}_xy")), absent)
             else:
-                # Copy, lest `dynamic_rate` write into the spec itself
+                # Copy, lest `well_controls` write into the spec itself
                 out[kind] = np.copy(arr[:, k if arr.shape[1] > 1 else 0])
         return out
 
-    def dynamic_rate(self, S: np.ndarray | None, k: int) -> dict:
-        """Compute the `actual_rates` for time index `k`.
+    def well_controls(self, S: np.ndarray | None, P: np.ndarray | None, k: int) -> dict:
+        """Compute the wells' controls for time `k`: `dict(rates=..., bhp=...)`.
 
-        This default implementation simply reads the given well specifications,
-        i.e. the *schedules* `inj_rates`/`prd_rates`, which are open-loop: fixed
-        before the simulation begins. Overriding (patching/subclassing) this
-        method is therefore the way to do *feedback* control, the rates being
-        free to depend on the current saturation, `S` -- for example to shut a
-        producer upon water breakthrough (below), or to re-allocate a well
-        path's rate among its completions (ref `well_path`).
+        Each is a `dict` (by kind: `"inj"`/`"prd"`) of `(nWell,)` arrays, read
+        off the specifications -- `inj_rates`, `inj_bhp`, ... -- which are
+        *open-loop*: fixed before the simulation begins. Overriding
+        (patching/subclassing) this method is therefore how to do *feedback*
+        control, the controls being free to depend on the state at the *start*
+        of the step: the saturation `S` and the pressure `P`.
         The returned arrays are copies, so they may be modified in place.
 
+        Most feedback concerns the rates alone -- e.g. shutting a producer upon
+        water breakthrough (and, for balance, its injector):
+
         >>> class Shutter(ResSim):
-        ...     def dynamic_rate(self, S, k):
-        ...         rates = super().dynamic_rate(S, k)
+        ...     def well_controls(self, S, P, k):
+        ...         ctrl = super().well_controls(S, P, k)
         ...         if S is not None and S[self.xy2ind(1, 1)] > .5:
-        ...             rates["inj"][:] = rates["prd"][:] = 0  # NB: both! See warning
-        ...         return rates
+        ...             ctrl["rates"]["inj"][:] = 0    # NB: both! See warning
+        ...             ctrl["rates"]["prd"][:] = 0
+        ...         return ctrl
         >>> model = Shutter(Lx=1, Ly=1, Nx=16, Ny=16,
         ...                 inj_xy=[[0, 0]], inj_rates=[[1]],
         ...                 prd_xy=[[1, 1]], prd_rates=[[1]])
         >>> SS, PP = model.sim(.05, 20, model.swc*np.ones(model.Nxy), pbar=False)
         >>> int((model.actual_rates["prd"][0] == 0).argmax())  # step of breakthrough
         16
+
+        But the `bhp` is here too, and with it each well's *control mode*
+        (`nan` => rate-controlled, ref `inj_bhp`) -- which is what an approximate
+        mode *switch* requires. For example, rate control with a BHP limit --
+        the industrial default -- wherein a producer holds its rate only for as
+        long as that does not draw it below some `p_min`:
+
+        >>> class Limited(ResSim):
+        ...     p_min = .5
+        ...     def well_controls(self, S, P, k):
+        ...         ctrl = super().well_controls(S, P, k)
+        ...         if P is None:
+        ...             return ctrl                    # nothing to switch on
+        ...         p_bh = self.bhp(S, P, ctrl["rates"])["prd"]
+        ...         switch = p_bh < self.p_min         # the rate is unsustainable
+        ...         ctrl["bhp"]["prd"] = np.where(switch, self.p_min, np.nan)
+        ...         return ctrl
+        >>> model = Limited(Lx=1, Ly=1, Nx=16, Ny=16, ct=.1,
+        ...                 inj_xy=[[0, 0]]  , inj_rates=[[0]],
+        ...                 prd_xy=[[.5, .5]], prd_rates=[[.25]])
+        >>> model.prd_WI = model.peaceman_WI(model.prd_xy, rw=1e-3)
+        >>> SS, PP = model.sim(.02, 25, np.zeros(model.Nxy),
+        ...                    P0=np.ones(model.Nxy), pbar=False)
+
+        The well delivers its target rate until the limit binds, and declines
+        thereafter -- at constant $ p_\\mathrm{bh} $, exponentially so
+        (ref `examples/well_control.py`, which plots all three modes):
+
+        >>> model.actual_rates["prd"][0, [0, 5, 6, -1]].round(3)
+        array([0.25 , 0.25 , 0.182, 0.005])
 
         .. warning:: With `ct == 0` the rates must still balance at every step
             (ref `inj_rates`), so shutting one well requires matching it on the
@@ -349,17 +387,25 @@ class ResSim(NicePrint, Grid2D, Plot2D):
             absorbs the imbalance), or under BHP control (ref `inj_bhp`, where
             the well finds its own rate), may a well act alone.
 
-        .. note:: `S` is `None` if the caller has no saturation to offer
-            (as when `assemble_wells` is used merely to set up a plot),
-            so an override should tolerate it.
+        .. note:: The mode switch is decided from the previous step's pressure,
+            whereas the well model itself is solved *simultaneously* with the
+            new one (ref `inj_bhp`). So it is an approximation -- of the sort
+            that a properly iterated switch would avoid -- and the limit is
+            breached for the one step in which it comes to bind.
+            Shorten `dt` to refine.
 
-        .. note:: Only the *rates* are dynamic here: `inj_bhp`/`prd_bhp` are
-            read separately by `assemble_wells`, which also discards whatever
-            this returns for a BHP-controlled well. Nor is the pressure passed,
-            so a BHP *limit* (ref the `inj_bhp` warning) can only be
-            approximated, lagged by a step, from `actual_bhp[kind][:, k-1]`.
+        .. note:: `S` and `P` are `None` if the caller has none to offer (as
+            when `assemble_wells` is used merely to set up a plot), so an
+            override should tolerate that.
+
+        .. note:: `assemble_wells` discards the rate of a BHP-controlled well
+            (it is `realize_bhp` that fills it in), so setting both controls for
+            the same well is not an error, merely pointless.
         """
-        return self._at_time("rates", k)
+        return dict(
+            rates=self._at_time("rates", 0.0, k),
+            bhp=self._at_time("bhp", np.nan, k),
+        )
 
     def peaceman_WI(self, xy: Any, rw: float, skin: float = 0.0) -> np.ndarray:
         """Peaceman's well index for wells at `xy`, of radius `rw`.
@@ -433,7 +479,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
             Solving for it would make $ p_\\mathrm{bh} $ an extra
             unknown, i.e. a bordered linear system -- which the 5-diagonal
             assembly of `TPFA` (Listing 1) is not set up for. Use
-            `dynamic_rate` to reallocate per step, if it matters.
+            `well_controls` to reallocate per step, if it matters.
 
         .. warning:: The completions are treated as independent *vertical* wells,
             which seems reasonable in a 2D areal model. Thus `nInj`/`nPrd` count completions, not wells.
@@ -760,7 +806,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         """
 
         def integrate(S, P, k):
-            self.assemble_wells(S, k)
+            self.assemble_wells(S, P, k)
 
             # Catch some common issues before they become mysterious/insidious
             # (e.g. mass imblance silently inserts deficit in SW corner).

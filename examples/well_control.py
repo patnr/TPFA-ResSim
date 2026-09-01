@@ -21,6 +21,13 @@ The two modes are then contrasted on the same closed, depleting reservoir
   linear ODE. (The productivity index $ J $ differs from $ WI λ_t $ by the
   geometry between the well and the average pressure.)
 
+Neither mode alone is how a well is actually run: the industry standard is a
+rate *target* with a BHP *limit*, i.e. whichever of the two currently binds.
+The model does not switch modes natively (a `p_bh` on the wrong side of the
+cell pressure raises rather than reversing the flow), but `ResSim.well_controls`
+returns both controls, so an override can switch between them -- lagged by the
+step whose pressure it must judge from. That is the third case shown here.
+
 Finally, the two are shown to be one and the same model, seen from either end:
 prescribing the BHP that the rate-controlled run *reported* recovers that run
 exactly (to ~1e-15, since the well model is solved simultaneously with the
@@ -33,9 +40,12 @@ In the figures:
   Only the latter is a property of the *well*.
 - "modes" (left): the rate is flat by construction under rate control, and
   decays under BHP control -- as a straight line on the log axis, i.e.
-  exponentially, with the analytic slope (dashed).
+  exponentially, with the analytic slope (dashed). The rate-with-a-limit case
+  traces the former until the limit binds, and joins the latter thereafter
+  (above it, having drained less by then, hence at a higher pressure).
 - "modes" (right): the mirror image. The BHP falls linearly under rate control
-  (material balance), and is flat by construction under BHP control.
+  (material balance), and is flat by construction under BHP control -- while the
+  limited well does both in turn, its corner marking the switch.
 - "duality": feeding the left run's BHP back in as the control reproduces its
   rate to machine precision.
 """
@@ -54,13 +64,31 @@ ct = .1
 dt, nSteps = 2e-3, 150
 tt = dt*np.arange(1, nSteps + 1)
 
-def depleter(N=32, **control):
+def depleter(N=32, cls=ResSim, **control):
     """A single producer at the centre of a closed square. Cf. `depletion.py`."""
-    model = ResSim(Lx=1, Ly=1, Nx=N, Ny=N, ct=ct,
-                   inj_xy=[[0, 0]]  , inj_rates=[[0]],
-                   prd_xy=[[.5, .5]], **control)
+    model = cls(Lx=1, Ly=1, Nx=N, Ny=N, ct=ct,
+                inj_xy=[[0, 0]]  , inj_rates=[[0]],
+                prd_xy=[[.5, .5]], **control)
     model.prd_WI = model.peaceman_WI(model.prd_xy, rw)
     return model
+
+class Limited(ResSim):
+    """Rate control with a BHP limit, by overriding `ResSim.well_controls`.
+
+    The rate target is held for as long as it can be delivered without drawing
+    the well below `p_bh`; thereafter the well switches to BHP control at it.
+    The switch is judged from the *previous* step's pressure, since the new one
+    is not yet known (indeed it depends on the choice) -- so the limit is
+    breached for the one step in which it comes to bind.
+    """
+
+    def well_controls(self, S, P, k):
+        ctrl = super().well_controls(S, P, k)
+        if P is None:
+            return ctrl                                    # nothing to switch on
+        would = self.bhp(S, P, ctrl["rates"])["prd"]        # if rate-controlled
+        ctrl["bhp"]["prd"] = np.where(would < p_bh, p_bh, np.nan)
+        return ctrl
 
 def run(model):
     SS, PP = model.sim(dt, nSteps, np.zeros(model.Nxy),
@@ -89,6 +117,8 @@ by_rate = depleter(prd_rates=[[q]])
 PP_rate = run(by_rate)
 by_bhp = depleter(prd_bhp=[[p_bh]])          # NB: `prd_rates` left unset
 PP_bhp = run(by_bhp)
+limited = depleter(cls=Limited, prd_rates=[[q]])   # ... rate, but limited by p_bh
+run(limited)                                       # (its rate/BHP is the interest)
 
 # Analytic decline: q = J (pbar - p_bh) with material balance ct Vp dpbar/dt = -q
 Vp = by_bhp.h2 * by_bhp.por.sum()
@@ -100,6 +130,7 @@ fig, (ax1, ax2) = freshfig("Well control -- modes", ncols=2, figsize=(10, 4))
 
 ax1.plot(tt, by_rate.actual_rates["prd"][0], label="Rate-controlled")
 ax1.plot(tt, by_bhp .actual_rates["prd"][0], label="BHP-controlled")
+ax1.plot(tt, limited.actual_rates["prd"][0], ":", lw=2, label="Rate, limited")
 ax1.plot(tt, by_bhp.actual_rates["prd"][0, -1]*np.exp((tt[-1] - tt)/tau), "k--",
          lw=1, label=f"$\\propto e^{{-t/\\tau}}$, $\\tau = c_t V_p / J$ = {tau:.3f}")
 ax1.set(title="Production rate", xlabel="Time", ylabel="q", yscale="log")
@@ -107,6 +138,7 @@ ax1.legend(fontsize="small")
 
 ax2.plot(tt, by_rate.actual_bhp["prd"][0], label="Rate-controlled")
 ax2.plot(tt, by_bhp .actual_bhp["prd"][0], label="BHP-controlled")
+ax2.plot(tt, limited.actual_bhp["prd"][0], ":", lw=2, label="Rate, limited")
 ax2.plot(tt, 1 - q*tt/(ct*Vp) - (PP_rate[-1].mean() - by_rate.actual_bhp["prd"][0, -1]),
          "k--", lw=1, label="$p_0 - qt/(c_t V_p) - \\Delta p$")
 ax2.set(title="Bottom-hole pressure", xlabel="Time", ylabel="$p_\\mathrm{bh}$")
@@ -132,7 +164,9 @@ fig.tight_layout()
 # Regression values, checked by `tests/test_examples.py`.
 __digest__ = dict(rate_of_bhp_ctrl = by_bhp.actual_rates["prd"][0],
                   bhp_of_rate_ctrl = by_rate.actual_bhp["prd"][0],
-                  p_last_bhp_ctrl  = PP_bhp[-1])
+                  p_last_bhp_ctrl  = PP_bhp[-1],
+                  rate_of_limited  = limited.actual_rates["prd"][0],
+                  bhp_of_limited   = limited.actual_bhp["prd"][0])
 
 if __name__ == "__main__":
     show()

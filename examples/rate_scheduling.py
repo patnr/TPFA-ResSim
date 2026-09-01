@@ -7,7 +7,7 @@ The resulting front is correspondingly lopsided.
 
 Rates may be specified as arrays of shape `(nWell, nTime)`, as done here,
 or (for feedback control, e.g. shutting wells on water breakthrough) by
-overriding `ResSim.dynamic_rate`.
+overriding `ResSim.well_controls`.
 
 In the figures:
 
