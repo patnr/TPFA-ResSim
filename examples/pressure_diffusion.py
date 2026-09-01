@@ -50,8 +50,7 @@ from TPFA_ResSim import ResSim
 from TPFA_ResSim.plotting import show
 
 ## Setup
-wells = dict(inj_xy=[[0, 0]], inj_rates=[[.25]],
-             prd_xy=[[1, 1]], prd_rates=[[.25]])
+wells = dict(well_xy=[[0, 0], [1, 1]], well_rates=[[.25], [-.25]])
 grid = dict(Lx=1, Ly=1, Nx=32, Ny=32)
 
 model = ResSim(**grid, **wells, ct=.01)
@@ -115,7 +114,7 @@ ax1.legend(fontsize="small")
 
 # Gauge: is the absolute pressure level meaningful?
 tt = dt*np.arange(nSteps + 1)
-iw = model.xy2ind(*model.inj_xy[0])
+iw = model.xy2ind(*model.well_xy[0])
 ax2.plot(tt, PP[:, iw]   , "-" , c="C0", label="$c_t>0$, $p_0=1$")
 ax2.plot(tt, PP_hi[:, iw], "--", c="C1", label="$c_t>0$, $p_0=2$")
 ax2.plot(tt[1:], PP_inc[1:, iw]   , "-" , c="C2", label="$c_t=0$, $p_0=1$")

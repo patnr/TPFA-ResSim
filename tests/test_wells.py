@@ -40,13 +40,12 @@ def depleted(N, ct=.1):
     Cf. `examples/depletion.py`.
     """
     model = ResSim(Lx=1, Ly=1, Nx=N, Ny=N, ct=ct,
-                   inj_xy=[[0, 0]]  , inj_rates=[[0]],
-                   prd_xy=[[.5, .5]], prd_rates=[[q]])
-    model.prd_WI = model.peaceman_WI(model.prd_xy, rw)
+                   well_xy=[[.5, .5]], well_rates=[[-q]])
+    model.well_WI = model.peaceman_WI(model.well_xy, rw)
     SS, PP = model.sim(1e-3, 120, np.zeros(model.Nxy),
                        P0=np.ones(model.Nxy), pbar=False)
     assert SS.max() == 0, "No water is injected, so none should appear."
-    dd = PP.mean(axis=1) - PP[:, model.xy2ind(*model.prd_xy[0])]
+    dd = PP.mean(axis=1) - PP[:, model.xy2ind(*model.well_xy[0])]
     assert np.isclose(dd[-1], dd[-2], rtol=1e-3), "Not yet boundary-dominated."
     return model, PP, dd[-1]
 
@@ -68,7 +67,7 @@ def test_equivalent_radius_is_realized(N):
     """
     model, _, dd_cell = depleted(N)
     r = np.sqrt(4*A / (e_gamma * C_A * np.exp(2 * dd_cell / (q / (2*np.pi)))))
-    r_e = rw * np.exp(2*np.pi / model.prd_WI[0])
+    r_e = rw * np.exp(2*np.pi / model.well_WI[0])
     assert np.isclose(r, r_e, rtol=.01)
 
 
@@ -81,7 +80,7 @@ def test_bhp_is_grid_independent(N):
     within 0.2%. This is the whole point of having a well model.
     """
     model, PP, dd_cell = depleted(N)
-    dd_bhp = PP[-1].mean() - model.actual_bhp["prd"][0, -1]
+    dd_bhp = PP[-1].mean() - model.actual_bhp[0, -1]
     assert np.isclose(dd_bhp, drawdown_analytic(rw), rtol=3e-3)
 
 
@@ -94,47 +93,43 @@ def test_cell_pressure_is_not_grid_independent():
 def test_bhp_signs():
     """Injectors are *above*, producers *below*, their cell pressure."""
     model = ResSim(Lx=1, Ly=1, Nx=20, Ny=20, ct=1e-2,
-                   inj_xy=[[0, 0]], inj_rates=[[1]],
-                   prd_xy=[[1, 1]], prd_rates=[[1]])
-    for kind in ["inj", "prd"]:
-        setattr(model, f"{kind}_WI", model.peaceman_WI(getattr(model, f"{kind}_xy"), rw))
+                   well_xy=[[0, 0], [1, 1]], well_rates=[[1], [-1]])
+    model.well_WI = model.peaceman_WI(model.well_xy, rw)
     SS, PP = model.sim(.05, 10, np.zeros(model.Nxy), pbar=False)
 
     for k, (S, P) in enumerate(zip(SS[:-1], PP[1:])):
-        for kind, sgn in [("inj", +1), ("prd", -1)]:
-            i = model.xy2ind(*getattr(model, f"{kind}_xy")[0])
-            assert sgn * (model.actual_bhp[kind][0, k] - P[i]) > 0
+        for i, sgn in [(0, +1), (1, -1)]:
+            ic = model.xy2ind(*model.well_xy[i])
+            assert sgn * (model.actual_bhp[i, k] - P[ic]) > 0
 
 
 def test_bhp_inverts_the_well_model():
-    """`bhp` and the well model of `inj_WI` are inverses: recover the rates."""
+    """`bhp` and the well model of `well_WI` are inverses: recover the rates."""
     model, PP, _ = depleted(32)
     Mw, Mo = model.RelPerm(np.zeros(model.Nxy))
-    i = model.xy2ind(*model.prd_xy[0])
-    dp = PP[-1][i] - model.actual_bhp["prd"][0, -1]
-    assert np.isclose(model.prd_WI[0] * (Mw + Mo)[i] * dp, q)
+    i = model.xy2ind(*model.well_xy[0])
+    dp = PP[-1][i] - model.actual_bhp[0, -1]
+    assert np.isclose(model.well_WI[0] * (Mw + Mo)[i] * dp, q)
 
 
 def test_WI_defaults_to_none():
     """Without a well index, `bhp` is `nan` -- and nothing else is affected."""
     model = ResSim(Lx=1, Ly=1, Nx=20, Ny=20,
-                   inj_xy=[[0, 0]], inj_rates=[[1]],
-                   prd_xy=[[1, 1]], prd_rates=[[1]])
-    assert model.inj_WI is None and model.prd_WI is None
+                   well_xy=[[0, 0], [1, 1]], well_rates=[[1], [-1]])
+    assert model.well_WI is None
     model.sim(.05, 3, np.zeros(model.Nxy), pbar=False)
-    assert np.isnan(model.actual_bhp["prd"]).all()
-    assert np.isnan(model.actual_bhp["inj"]).all()
+    assert np.isnan(model.actual_bhp).all()
 
 
 def test_WI_normalization():
     """A scalar `WI` broadcasts over the wells; a mis-sized one raises."""
     model = ResSim(Lx=1, Ly=1, Nx=20, Ny=20,
-                   inj_xy=[[0, 0]], inj_rates=[[1]],
-                   prd_xy=[[1, 1], [1, 0], [0, 1]], prd_rates=[[.3], [.3], [.4]])
-    model.prd_WI = 5.
-    assert np.all(model.prd_WI == [5., 5., 5.])
+                   well_xy=[[0, 0], [1, 1], [1, 0], [0, 1]],
+                   well_rates=[[1], [-.3], [-.3], [-.4]])
+    model.well_WI = 5.
+    assert np.all(model.well_WI == [5., 5., 5., 5.])
     with pytest.raises(ValueError):
-        model.prd_WI = [1., 2.]
+        model.well_WI = [1., 2.]
 
 
 def test_WI_anisotropic():
@@ -157,32 +152,32 @@ def test_skin():
 
 
 # ---------------------------------------------------------------------------
-# BHP *control* (as opposed to the diagnostic above), ref `ResSim.inj_bhp`
+# BHP *control* (as opposed to the diagnostic above), ref `ResSim.well_bhp`
 # ---------------------------------------------------------------------------
 
 def test_bhp_control_reproduces_rate_control():
     """Rate control and BHP control are two views of the same well model.
 
     So: run a rate-controlled well, note the `actual_bhp` it implies, then
-    prescribe *that* as `prd_bhp` -- and recover the original run. To machine
+    prescribe *that* as `well_bhp` -- and recover the original run. To machine
     precision, which is what shows that the coupling is solved for
     simultaneously with the pressure, rather than lagged by a time step.
     """
     def run(**ctrl):
         model = ResSim(Lx=1, Ly=1, Nx=32, Ny=32, ct=.1,
-                       inj_xy=[[0, 0]], inj_rates=[[0]], prd_xy=[[.5, .5]], **ctrl)
-        model.prd_WI = model.peaceman_WI(model.prd_xy, rw)
+                       well_xy=[[.5, .5]], **ctrl)
+        model.well_WI = model.peaceman_WI(model.well_xy, rw)
         _, PP = model.sim(1e-3, 60, np.zeros(model.Nxy),
                           P0=np.ones(model.Nxy), pbar=False)
         return model, PP
 
-    ref, PP = run(prd_rates=[[q]])
-    bhp, PP2 = run(prd_bhp=ref.actual_bhp["prd"])      # NB: `prd_rates` unset
+    ref, PP = run(well_rates=[[-q]])
+    bhp, PP2 = run(well_bhp=ref.actual_bhp)            # NB: `well_rates` unset
 
     assert np.allclose(PP2, PP, rtol=0, atol=1e-12)
-    assert np.allclose(bhp.actual_rates["prd"], q, rtol=0, atol=1e-12)
+    assert np.allclose(bhp.actual_rates, -q, rtol=0, atol=1e-12)
     # And the diagnostic inverts the control, exactly
-    assert np.array_equal(bhp.actual_bhp["prd"], ref.actual_bhp["prd"])
+    assert np.array_equal(bhp.actual_bhp, ref.actual_bhp)
 
 
 @pytest.mark.parametrize("N", [32, 64])
@@ -197,14 +192,13 @@ def test_bhp_depletion_declines_exponentially(N):
     ct = .1
     J = q / drawdown_analytic(rw)
     model = ResSim(Lx=1, Ly=1, Nx=N, Ny=N, ct=ct,
-                   inj_xy=[[0, 0]], inj_rates=[[0]],
-                   prd_xy=[[.5, .5]], prd_bhp=[[.5]])
-    model.prd_WI = model.peaceman_WI(model.prd_xy, rw)
+                   well_xy=[[.5, .5]], well_bhp=[[.5]])
+    model.well_WI = model.peaceman_WI(model.well_xy, rw)
     dt, nSteps = 2e-3, 150
     _, PP = model.sim(dt, nSteps, np.zeros(model.Nxy),
                       P0=np.ones(model.Nxy), pbar=False)
 
-    rate = model.actual_rates["prd"][0]
+    rate = -model.actual_rates[0]                    # production is negative
     tt = dt * np.arange(1, nSteps + 1)
     late = tt > .1                                   # past the transient
     tau = -1 / np.polyfit(tt[late], np.log(rate[late]), 1)[0]
@@ -224,36 +218,38 @@ def test_bhp_anchors_the_incompressible_pressure():
     draining to `p = 0`, so production would fall short of injection.
     """
     model = ResSim(Lx=1, Ly=1, Nx=32, Ny=32,   # NB: ct = 0
-                   inj_xy=[[0, 0]], inj_rates=[[1.]],
-                   prd_xy=[[1, 1]], prd_bhp=[[5.]])
-    model.prd_WI = model.peaceman_WI(model.prd_xy, rw)
+                   well_xy=[[0, 0], [1, 1]], well_rates=[[1.], [0]],
+                   well_bhp=[[np.nan], [5.]])
+    model.well_WI = [np.nan, model.peaceman_WI([[1, 1]], rw)[0]]
     _, PP = model.sim(.02, 10, np.zeros(model.Nxy), pbar=False)
 
     # Incompressible => no storage => the BHP well must produce all that is injected
-    assert np.allclose(model.actual_rates["prd"], 1.)
+    assert np.allclose(model.actual_rates[1], -1.)
     # The level is set by p_bh, not by the (skipped) pin
     assert PP[-1].min() > 5.
-    assert np.isclose(model.actual_bhp["prd"][0, -1], 5.)
+    assert np.isclose(model.actual_bhp[1, -1], 5.)
 
 
 def test_control_modes_may_be_mixed():
-    """Across wells, and in time: `nan` entries of `*_bhp` fall back to `*_rates`."""
+    """Across wells, and in time: `nan` entries of `well_bhp` fall back to `well_rates`."""
     nSteps = 8
     schedule = np.where(np.arange(nSteps) < 4, .3, np.nan)  # BHP, then rate
+    nans = nSteps*[np.nan]
     model = ResSim(Lx=1, Ly=1, Nx=24, Ny=24, ct=.1,
-                   inj_xy=[[0, 0]], inj_rates=[[.5]],
-                   prd_xy=[[1, 1], [1, 0]],
-                   prd_rates=[[.2], [.2]], prd_bhp=[schedule, nSteps*[np.nan]])
-    model.prd_WI = model.peaceman_WI(model.prd_xy, rw)
+                   well_xy=[[0, 0], [1, 1], [1, 0]],
+                   well_rates=[[.5], [-.2], [-.2]],
+                   well_bhp=[nans, schedule, nans])
+    model.well_WI = np.append(np.nan, model.peaceman_WI(model.well_xy[1:], rw))
     _, PP = model.sim(.02, nSteps, np.zeros(model.Nxy),
                       P0=np.ones(model.Nxy), pbar=False)
 
-    rates, bhps = model.actual_rates["prd"], model.actual_bhp["prd"]
-    assert np.allclose(bhps[0, :4], .3)          # well 0: BHP-controlled...
-    assert not np.allclose(rates[0, :4], .2)     # ...so its rate is not the spec
-    assert np.allclose(rates[0, 4:], .2)         # ...then rate-controlled
-    assert np.allclose(rates[1], .2)             # well 1: always rate-controlled
-    assert np.isfinite(bhps).all()               # but with a WI, so bhp is known
+    rates, bhps = model.actual_rates, model.actual_bhp
+    assert np.allclose(bhps[1, :4], .3)          # well 1: BHP-controlled...
+    assert not np.allclose(rates[1, :4], -.2)    # ...so its rate is not the spec
+    assert np.allclose(rates[1, 4:], -.2)        # ...then rate-controlled
+    assert np.allclose(rates[2], -.2)            # well 2: always rate-controlled
+    assert np.isfinite(bhps[1:]).all()           # but with a WI, so bhp is known
+    assert np.isnan(bhps[0]).all()               # the injector has no WI
 
 
 def test_bhp_keeps_the_transport_consistent():
@@ -265,9 +261,9 @@ def test_bhp_keeps_the_transport_consistent():
     """
     dt = .05
     model = ResSim(Lx=1, Ly=1, Nx=20, Ny=20, ct=1e-2,
-                   inj_xy=[[0, 0]], inj_rates=[[.5]],
-                   prd_xy=[[1, 1]], prd_bhp=[[.4]])
-    model.prd_WI = model.peaceman_WI(model.prd_xy, rw)
+                   well_xy=[[0, 0], [1, 1]], well_rates=[[.5], [0]],
+                   well_bhp=[[np.nan], [.4]])
+    model.well_WI = [np.nan, model.peaceman_WI([[1, 1]], rw)[0]]
     S0 = np.zeros(model.Nxy)
     P0 = np.ones(model.Nxy)
 
@@ -282,20 +278,42 @@ def test_bhp_keeps_the_transport_consistent():
 def test_bhp_requires_a_well_index():
     """Without a `WI` there is no well model, hence no rate to solve for."""
     model = ResSim(Lx=1, Ly=1, Nx=16, Ny=16, ct=.1,
-                   inj_xy=[[0, 0]], inj_rates=[[0]],
-                   prd_xy=[[1, 1]], prd_bhp=[[.5]])
-    with pytest.raises(AssertionError, match="requires `prd_WI`"):
+                   well_xy=[[1, 1]], well_bhp=[[.5]])
+    with pytest.raises(AssertionError, match="well_WI"):
         model.sim(.02, 2, np.zeros(model.Nxy), P0=np.ones(model.Nxy), pbar=False)
 
 
-def test_backflow_is_rejected():
-    """A producer whose `p_bh` exceeds its cell pressure would inject. Ref `inj_bhp`."""
+def test_bhp_flow_direction_is_emergent():
+    """A BHP well flows whichever way `p_bh` vs. its cell pressure dictates.
+
+    Here its `p_bh` exceeds the initial pressure, so this would-be producer
+    instead *injects* -- water, like any inflow -- by design; ref `well_bhp`.
+    """
     model = ResSim(Lx=1, Ly=1, Nx=16, Ny=16, ct=.1,
-                   inj_xy=[[0, 0]], inj_rates=[[0]],
-                   prd_xy=[[.5, .5]], prd_bhp=[[2.]])   # above the initial p = 1
-    model.prd_WI = model.peaceman_WI(model.prd_xy, rw)
-    with pytest.raises(AssertionError, match="flow backwards"):
-        model.sim(1e-3, 3, np.zeros(model.Nxy), P0=np.ones(model.Nxy), pbar=False)
+                   well_xy=[[.5, .5]], well_bhp=[[2.]])   # above the initial p = 1
+    model.well_WI = model.peaceman_WI(model.well_xy, rw)
+    SS, PP = model.sim(1e-3, 3, np.zeros(model.Nxy),
+                       P0=np.ones(model.Nxy), pbar=False)
+    assert np.all(model.actual_rates > 0)   # it flows in...
+    assert SS[-1].max() > 0                 # ... which injects water
+
+
+def test_bhp_flow_reversal_warns():
+    """A BHP well that flips direction mid-run does so with a warning.
+
+    Here a rate-controlled injector pressurizes the (closed) field past the
+    BHP well's `p_bh`, so the latter starts out injecting (its `p_bh` being
+    above the initial pressure) and ends up producing.
+    """
+    model = ResSim(Lx=1, Ly=1, Nx=16, Ny=16, ct=.1,
+                   well_xy=[[0, 0], [1, 1]], well_rates=[[.5], [0]],
+                   well_bhp=[[np.nan], [1.2]])
+    model.well_WI = [np.nan, model.peaceman_WI([[1, 1]], rw)[0]]
+    with pytest.warns(UserWarning, match="reversed flow direction"):
+        model.sim(.05, 20, np.zeros(model.Nxy),
+                  P0=np.ones(model.Nxy), pbar=False)
+    rates = model.actual_rates[1]
+    assert rates[0] > 0 and rates[-1] < 0
 
 
 # ---------------------------------------------------------------------------
@@ -346,18 +364,20 @@ def test_path_revisiting_a_cell_accumulates():
 
 def test_path_under_rate_control_matches_a_point_well_in_total():
     """Superimposition: the completions act as one well, of the given total rate."""
-    def run(**wells):
+    def run(xy, rates, WI=None):
         model = ResSim(Lx=1, Ly=1, Nx=20, Ny=20,
-                       prd_xy=[[1, 1]], prd_rates=[[1.]], **wells)
+                       well_xy=[*xy, [1, 1]],       # producer appended last
+                       well_rates=np.vstack([rates, [[-1.]]]),
+                       well_WI=None if WI is None else np.append(WI, np.nan))
         SS, _ = model.sim(.04, 12, np.zeros(model.Nxy), pbar=False)
         return model, SS
 
-    xy, _, w = ResSim(Lx=1, Ly=1, Nx=20, Ny=20).well_path([[0, 0], [0, .5]], rw)
-    horiz, SS_h = run(inj_xy=xy, inj_rates=w[:, None])       # a 5-cell injector
-    point, SS_p = run(inj_xy=[[0, 0]], inj_rates=[[1.]])     # ... vs 1 cell
+    xy, WI, w = ResSim(Lx=1, Ly=1, Nx=20, Ny=20).well_path([[0, 0], [0, .5]], rw)
+    horiz, SS_h = run(xy, w[:, None], WI)                    # a 5-cell injector
+    point, SS_p = run([[0, 0]], [[1.]])                      # ... vs 1 cell
 
     # Same total injection (else `time_stepper`'s balance assert would trip)
-    assert np.isclose(horiz.actual_rates["inj"].sum(0), 1).all()
+    assert np.isclose(horiz.actual_rates[:-1].sum(0), 1).all()
     # ... but a different sweep, which is the point of drilling a path
     assert not np.allclose(SS_h[-1], SS_p[-1], atol=1e-3)
     assert (SS_h[-1] > .01).sum() > (SS_p[-1] > .01).sum()   # broader front
@@ -365,14 +385,15 @@ def test_path_under_rate_control_matches_a_point_well_in_total():
 
 def test_path_under_bhp_control_shares_one_pressure():
     """The completions differ in rate, but (absent wellbore effects) not in `p_bh`."""
+    xy, WI, _ = ResSim(Lx=1, Ly=1, Nx=20, Ny=20).well_path([[0, 0], [0, .5]], rw)
     model = ResSim(Lx=1, Ly=1, Nx=20, Ny=20, ct=.1,
-                   prd_xy=[[1, 1]], prd_rates=[[.5]])
-    xy, WI, _ = model.well_path([[0, 0], [0, .5]], rw)
-    model.inj_xy, model.inj_WI = xy, WI
-    model.inj_bhp = np.full((len(xy), 1), 3.)
+                   well_xy=[*xy, [1, 1]],           # producer appended last
+                   well_rates=np.vstack([np.zeros((len(xy), 1)), [[-.5]]]),
+                   well_WI=np.append(WI, np.nan),
+                   well_bhp=np.vstack([np.full((len(xy), 1), 3.), [[np.nan]]]))
     model.sim(.02, 6, np.zeros(model.Nxy), P0=np.ones(model.Nxy), pbar=False)
 
-    rates, bhps = model.actual_rates["inj"], model.actual_bhp["inj"]
+    rates, bhps = model.actual_rates[:-1], model.actual_bhp[:-1]
     assert np.allclose(bhps, 3.)                  # one wellbore, one pressure
     assert rates.min() > 0                        # all completions inject
     assert rates[:, -1].std() > 1e-3              # but not equally
@@ -383,20 +404,19 @@ def test_path_under_bhp_control_shares_one_pressure():
 # ---------------------------------------------------------------------------
 
 class Shutter(ResSim):
-    """Shuts the producer (and, for balance, the injector) upon water arrival."""
+    """Shuts all the wells upon water arrival at the producer."""
 
     def well_controls(self, S, P, k):
         ctrl = super().well_controls(S, P, k)
-        if S is not None and S[self.xy2ind(*self.prd_xy[0])] > .5:
-            ctrl["rates"]["inj"][:] = ctrl["rates"]["prd"][:] = 0
+        if S is not None and S[self.xy2ind(*self.well_xy[1])] > .5:
+            ctrl["rates"][:] = 0
         return ctrl
 
 
 def waterflood(cls=ResSim, **kwargs):
     """A quarter-five-spot, run past breakthrough. Cf. `examples/quarter_five_spot.py`."""
     model = cls(Lx=1, Ly=1, Nx=16, Ny=16,
-                inj_xy=[[0, 0]], inj_rates=[[1.]],
-                prd_xy=[[1, 1]], prd_rates=[[1.]], **kwargs)
+                well_xy=[[0, 0], [1, 1]], well_rates=[[1.], [-1.]], **kwargs)
     SS, _ = model.sim(.05, 20, model.swc*np.ones(model.Nxy), pbar=False)
     return model, SS
 
@@ -406,11 +426,11 @@ def test_rate_feedback_shuts_the_well():
     _, SS0 = waterflood()
     model, SS = waterflood(Shutter)
 
-    kShut = int((model.actual_rates["prd"][0] == 0).argmax())
+    kShut = int((model.actual_rates[1] == 0).argmax())
     assert 0 < kShut < 20                            # it did happen, mid-run
-    assert np.allclose(model.actual_rates["prd"][0, :kShut], 1.)   # ... and only then
-    assert np.allclose(model.actual_rates["prd"][0, kShut:], 0.)
-    assert np.allclose(model.actual_rates["inj"], model.actual_rates["prd"])
+    assert np.allclose(model.actual_rates[1, :kShut], -1.)   # ... and only then
+    assert np.allclose(model.actual_rates[1, kShut:], 0.)
+    assert np.allclose(model.actual_rates[0], -model.actual_rates[1])
     # Once shut, nothing more moves; whereas the reference floods on
     assert np.allclose(SS[-1], SS[kShut])
     assert SS0[-1].sum() > SS[-1].sum()
@@ -419,8 +439,7 @@ def test_rate_feedback_shuts_the_well():
 def test_rate_feedback_does_not_modify_the_spec():
     """The hook gets copies, so an in-place override cannot corrupt the schedule."""
     model, _ = waterflood(Shutter)
-    assert np.all(model.inj_rates == 1.)
-    assert np.all(model.prd_rates == 1.)
+    assert np.all(model.well_rates == [[1.], [-1.]])
 
 
 def test_rate_feedback_must_balance_when_incompressible():
@@ -428,10 +447,10 @@ def test_rate_feedback_must_balance_when_incompressible():
     class HalfShutter(Shutter):
         def well_controls(self, S, P, k):
             ctrl = super().well_controls(S, P, k)
-            ctrl["rates"]["inj"][:] = 1.   # undo the injector's share of the shut-in
+            ctrl["rates"][0] = 1.   # undo the injector's share of the shut-in
             return ctrl
 
-    with pytest.raises(AssertionError, match="does not sum to 0"):
+    with pytest.raises(AssertionError, match="sum to 0"):
         waterflood(HalfShutter)
 
 
@@ -440,32 +459,34 @@ def test_rate_feedback_may_act_alone_when_compressible():
     class Producer(ResSim):
         def well_controls(self, S, P, k):
             ctrl = super().well_controls(S, P, k)
-            if S is not None and S[self.xy2ind(*self.prd_xy[0])] > .5:
-                ctrl["rates"]["prd"][:] = 0    # NB: injector left flowing
+            if S is not None and S[self.xy2ind(*self.well_xy[1])] > .5:
+                ctrl["rates"][1] = 0    # NB: injector left flowing
             return ctrl
 
     model, _ = waterflood(Producer, ct=1e-2)
-    kShut = int((model.actual_rates["prd"][0] == 0).argmax())
+    kShut = int((model.actual_rates[1] == 0).argmax())
     assert 0 < kShut < 20
-    assert np.allclose(model.actual_rates["inj"], 1.)
+    assert np.allclose(model.actual_rates[0], 1.)
 
 
 def test_well_controls_reads_the_specs():
     """The default hook is a pure lookup, and reports both kinds of control."""
     model = ResSim(Lx=1, Ly=1, Nx=8, Ny=8,
-                   inj_xy=[[0, 0]], inj_rates=[[1.]],
-                   prd_xy=[[1, 1], [1, 0]], prd_bhp=[[.5], [np.nan]])
+                   well_xy=[[0, 0], [1, 1], [1, 0]],
+                   well_bhp=[[.5], [np.nan], [np.nan]])
     ctrl = model.well_controls(None, None, 0)
 
     assert set(ctrl) == {"rates", "bhp"}
-    assert np.array_equal(ctrl["rates"]["inj"], [1.])
-    assert np.array_equal(ctrl["rates"]["prd"], [0., 0.])   # unset ⇒ 0
-    assert np.isnan(ctrl["bhp"]["inj"]).all()               # unset ⇒ rate control
-    assert np.array_equal(ctrl["bhp"]["prd"], [.5, np.nan], equal_nan=True)
+    assert np.array_equal(ctrl["rates"], [0., 0., 0.])   # unset ⇒ 0
+    assert np.array_equal(ctrl["bhp"], [.5, np.nan, np.nan], equal_nan=True)
+
+    model.well_rates = [[1.], [-.5], [-.5]]
+    ctrl = model.well_controls(None, None, 0)
+    assert np.array_equal(ctrl["rates"], [1., -.5, -.5])
 
 
 class Limited(ResSim):
-    """Rate control with a BHP limit: the (approximate) mode switch of `inj_bhp`."""
+    """Rate control with a BHP limit: the (approximate) mode switch of `well_bhp`."""
 
     p_min = .5
 
@@ -473,19 +494,18 @@ class Limited(ResSim):
         ctrl = super().well_controls(S, P, k)
         if P is None:
             return ctrl
-        p_bh = self.bhp(S, P, ctrl["rates"])["prd"]   # what the rate would require
-        ctrl["bhp"]["prd"] = np.where(p_bh < self.p_min, self.p_min, np.nan)
+        p_bh = self.bhp(S, P, ctrl["rates"])          # what the rate would require
+        ctrl["bhp"] = np.where(p_bh < self.p_min, self.p_min, np.nan)
         return ctrl
 
 
 def deplete(cls=ResSim, dt=2e-3, nSteps=150, **kwargs):
     """Deplete a closed square at a fixed rate. Cf. `examples/well_control.py`."""
     model = cls(Lx=1, Ly=1, Nx=32, Ny=32, ct=.1,
-                inj_xy=[[0, 0]]  , inj_rates=[[0]],
-                prd_xy=[[.5, .5]], prd_rates=[[q]], **kwargs)
-    model.prd_WI = model.peaceman_WI(model.prd_xy, rw)
+                well_xy=[[.5, .5]], well_rates=[[-q]], **kwargs)
+    model.well_WI = model.peaceman_WI(model.well_xy, rw)
     model.sim(dt, nSteps, np.zeros(model.Nxy), P0=np.ones(model.Nxy), pbar=False)
-    return model.actual_rates["prd"][0], model.actual_bhp["prd"][0]
+    return -model.actual_rates[0], model.actual_bhp[0]   # production as positive
 
 
 def test_well_controls_may_switch_the_mode():

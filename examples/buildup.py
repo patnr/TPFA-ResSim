@@ -54,13 +54,12 @@ schedule = np.where(np.arange(nSteps) < kShut, q, 0)
 # be implemented by overriding `ResSim.well_controls`.
 
 model = ResSim(Lx=1, Ly=1, Nx=32, Ny=32, ct=.1,
-               inj_xy=[[0, 0]]  , inj_rates=[[0]],
-               prd_xy=[[.5, .5]], prd_rates=[schedule])
+               well_xy=[[.5, .5]], well_rates=[-schedule])
 
 # Incompressible analogue: the injector must match the producer at all times.
 model_inc = ResSim(Lx=1, Ly=1, Nx=32, Ny=32,
-                   inj_xy=[[0, 0]]  , inj_rates=[schedule],
-                   prd_xy=[[.5, .5]], prd_rates=[schedule])
+                   well_xy=[[0, 0], [.5, .5]],
+                   well_rates=[schedule, -schedule])
 
 oil_only = np.zeros(model.Nxy)
 P0 = np.ones(model.Nxy)
@@ -69,7 +68,7 @@ P0 = np.ones(model.Nxy)
 SS, PP = model.sim(dt, nSteps, oil_only, P0=P0, pbar=False)
 _ , PP_inc = model_inc.sim(dt, nSteps, oil_only, pbar=False)
 
-iw = model.xy2ind(*model.prd_xy[0])
+iw = model.xy2ind(*model.well_xy[0])
 p_mean = PP.mean(axis=1)
 
 ## Plot: monitor points, and the drawdown

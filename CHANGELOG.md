@@ -67,6 +67,37 @@ should pin a tag (or commit hash) and advance it deliberately.
 
 ### Changed
 
+- **BREAKING**: injectors and producers are **unified into a single set of
+  wells**, removing every per-kind code path (the `("inj", +1)/("prd", -1)`
+  loops, the dicts-by-kind, the paired attributes):
+  - `inj_xy`/`prd_xy` -> `well_xy`; `inj_WI`/`prd_WI` -> `well_WI` (`nan`
+    entries allowed, for wells without a well model); `inj_bhp`/`prd_bhp` ->
+    `well_bhp`; `nInj`/`nPrd` -> `nWell`.
+  - `inj_rates`/`prd_rates` -> `well_rates`, now **signed**: positive injects
+    (water), negative produces (at the cell's fractional flow). This is the
+    whole trick: the transport step already discriminated by the sign of the
+    assembled source field, so with the sign in the spec, nothing anywhere
+    needs to know a well's kind. The positivity assertion is gone; the
+    incompressible balance assertion is now that the rates sum to 0.
+  - `actual_rates` and `actual_bhp` are single `(nWell, nSteps)` arrays
+    (rates signed), no longer dicts by kind -- likewise the `rates` and `bhp`
+    entries returned by `well_controls`, and `bhp()`, are flat `(nWell,)`
+    arrays.
+  - A BHP-controlled well's flow direction is now *emergent*: it flows
+    whichever way `p_bh` vs. its cell pressure dictates, an inflow injecting
+    water like any other. The `realize_bhp` assertion against "backflow"
+    (which needed a declared kind to assert against) is dropped; the
+    lagged mode-switching via `well_controls` is unaffected.
+  - Plot markers are inferred from the sign of each well's rate spec (mean
+    over time); wells with no net sign -- e.g. purely BHP-controlled ones --
+    get a neutral marker. `well_scatter`'s `inj: bool` parameter becomes
+    `sgn: int` (+1/-1/0).
+  - A lone well no longer needs a zero-rate partner of the other kind
+    (e.g. `examples/depletion.py` sheds its idle injector).
+  - The regression values are all unaffected (the physics is unchanged);
+    where an example's digest recorded production rates, they are negated
+    back to positive to keep `tests/references.py` identical.
+
 - `_set_Q` is renamed `assemble_wells` -- and made public, together with its
   partner, `realize_bhp`: `examples/heterogeneous.py` and a couple of the tests
   already called the private names, to set up a pressure solve without `sim`.

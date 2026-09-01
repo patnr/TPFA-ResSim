@@ -35,11 +35,11 @@ from TPFA_ResSim.plotting import show
 
 ## Setup
 grid = dict(Lx=1, Ly=1, Nx=64, Ny=64)
-wells = dict(inj_xy=[[0, 0]], prd_xy=[[1, 1]])
+wells = dict(well_xy=[[0, 0], [1, 1]])  # injector (SW), producer (NE)
 # Fluid properties are left at their defaults: vw = vo = 1, swc = sor = 0.
 
-model = ResSim(**grid, **wells, inj_rates=[[1]], prd_rates=[[1]])
-model_2x = ResSim(**grid, **wells, inj_rates=[[2]], prd_rates=[[2]])
+model = ResSim(**grid, **wells, well_rates=[[1], [-1]])
+model_2x = ResSim(**grid, **wells, well_rates=[[2], [-2]])
 
 water_sat0 = model.swc * np.ones(model.Nxy)
 nSteps = 28
@@ -97,7 +97,7 @@ axs[0].set_ylabel("y")
 fig.tight_layout()
 
 ## Animation
-prod = [model.xy2ind(*xy) for xy in model.prd_xy]
+prod = [model.xy2ind(1, 1)]
 animation = model.anim(SS_exp, SS_exp[1:, prod])
 
 # Regression values, checked by `tests/test_examples.py`.

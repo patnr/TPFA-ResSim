@@ -1,10 +1,10 @@
 """Rate control, BHP control, and the well model that connects them.
 
-A well can be told *what to do* in two ways: give it a rate (`prd_rates`) and
-let its pressure follow, or give it a pressure (`prd_bhp`) and let its rate
-follow. Both need a **well model** -- the well index (`ResSim.peaceman_WI`) --
-because a well is far smaller than the cell that holds it, so its cell pressure
-is not its wellbore pressure.
+A well can be told *what to do* in two ways: give it a rate (`well_rates`;
+negative to produce) and let its pressure follow, or give it a pressure
+(`well_bhp`) and let its rate follow. Both need a **well model** -- the well
+index (`ResSim.peaceman_WI`) -- because a well is far smaller than the cell
+that holds it, so its cell pressure is not its wellbore pressure.
 
 That distinction is the first thing shown here: the cell pressure is a *grid
 artefact* (an average over an area of $h^2$, which deepens without limit as the
@@ -23,8 +23,8 @@ The two modes are then contrasted on the same closed, depleting reservoir
 
 Neither mode alone is how a well is actually run: the industry standard is a
 rate *target* with a BHP *limit*, i.e. whichever of the two currently binds.
-The model does not switch modes natively (a `p_bh` on the wrong side of the
-cell pressure raises rather than reversing the flow), but `ResSim.well_controls`
+The model does not switch modes natively (a BHP well simply flows whichever
+way its `p_bh` vs. cell pressure dictates), but `ResSim.well_controls`
 returns both controls, so an override can switch between them -- lagged by the
 step whose pressure it must judge from. That is the third case shown here.
 
@@ -67,9 +67,8 @@ tt = dt*np.arange(1, nSteps + 1)
 def depleter(N=32, cls=ResSim, **control):
     """A single producer at the centre of a closed square. Cf. `depletion.py`."""
     model = cls(Lx=1, Ly=1, Nx=N, Ny=N, ct=ct,
-                inj_xy=[[0, 0]]  , inj_rates=[[0]],
-                prd_xy=[[.5, .5]], **control)
-    model.prd_WI = model.peaceman_WI(model.prd_xy, rw)
+                well_xy=[[.5, .5]], **control)
+    model.well_WI = model.peaceman_WI(model.well_xy, rw)
     return model
 
 class Limited(ResSim):
@@ -85,9 +84,9 @@ class Limited(ResSim):
     def well_controls(self, S, P, k):
         ctrl = super().well_controls(S, P, k)
         if P is None:
-            return ctrl                                    # nothing to switch on
-        would = self.bhp(S, P, ctrl["rates"])["prd"]        # if rate-controlled
-        ctrl["bhp"]["prd"] = np.where(would < p_bh, p_bh, np.nan)
+            return ctrl                                # nothing to switch on
+        would = self.bhp(S, P, ctrl["rates"])          # if rate-controlled
+        ctrl["bhp"] = np.where(would < p_bh, p_bh, np.nan)
         return ctrl
 
 def run(model):
@@ -100,11 +99,11 @@ def run(model):
 fig, (ax1, ax2) = freshfig("Well control -- diagnostic", ncols=2, figsize=(10, 4),
                            sharey=True)
 for N in [32, 64]:
-    model = depleter(N, prd_rates=[[q]])
+    model = depleter(N, well_rates=[[-q]])
     PP = run(model)
     pbar = PP.mean(axis=1)
-    ax1.plot(tt, (pbar[1:] - PP[1:, model.xy2ind(*model.prd_xy[0])]), label=f"{N}²")
-    ax2.plot(tt, (pbar[1:] - model.actual_bhp["prd"][0]), label=f"{N}²")
+    ax1.plot(tt, (pbar[1:] - PP[1:, model.xy2ind(*model.well_xy[0])]), label=f"{N}²")
+    ax2.plot(tt, (pbar[1:] - model.actual_bhp[0]), label=f"{N}²")
 ax1.set(title="Cell drawdown, $\\bar{p} - p_\\mathrm{cell}$",
         xlabel="Time", ylabel="$\\Delta p$")
 ax2.set(title="Bottom-hole drawdown, $\\bar{p} - p_\\mathrm{bh}$", xlabel="Time")
@@ -113,48 +112,52 @@ for ax in (ax1, ax2):
 fig.tight_layout()
 
 ## Simulate: the same reservoir, under either mode of control
-by_rate = depleter(prd_rates=[[q]])
+by_rate = depleter(well_rates=[[-q]])
 PP_rate = run(by_rate)
-by_bhp = depleter(prd_bhp=[[p_bh]])          # NB: `prd_rates` left unset
+by_bhp = depleter(well_bhp=[[p_bh]])         # NB: `well_rates` left unset
 PP_bhp = run(by_bhp)
-limited = depleter(cls=Limited, prd_rates=[[q]])   # ... rate, but limited by p_bh
-run(limited)                                       # (its rate/BHP is the interest)
+limited = depleter(cls=Limited, well_rates=[[-q]])  # ... rate, but limited by p_bh
+run(limited)                                        # (its rate/BHP is the interest)
+
+# Production, i.e. the negated (signed) rates
+prod_rate, prod_bhp, prod_lim = [-m.actual_rates[0]
+                                 for m in [by_rate, by_bhp, limited]]
 
 # Analytic decline: q = J (pbar - p_bh) with material balance ct Vp dpbar/dt = -q
 Vp = by_bhp.h2 * by_bhp.por.sum()
-J = by_bhp.actual_rates["prd"][0, -1] / (PP_bhp[-1].mean() - p_bh)
+J = prod_bhp[-1] / (PP_bhp[-1].mean() - p_bh)
 tau = ct*Vp/J
 
 ## Plot: rate and BHP, under either mode
 fig, (ax1, ax2) = freshfig("Well control -- modes", ncols=2, figsize=(10, 4))
 
-ax1.plot(tt, by_rate.actual_rates["prd"][0], label="Rate-controlled")
-ax1.plot(tt, by_bhp .actual_rates["prd"][0], label="BHP-controlled")
-ax1.plot(tt, limited.actual_rates["prd"][0], ":", lw=2, label="Rate, limited")
-ax1.plot(tt, by_bhp.actual_rates["prd"][0, -1]*np.exp((tt[-1] - tt)/tau), "k--",
+ax1.plot(tt, prod_rate, label="Rate-controlled")
+ax1.plot(tt, prod_bhp, label="BHP-controlled")
+ax1.plot(tt, prod_lim, ":", lw=2, label="Rate, limited")
+ax1.plot(tt, prod_bhp[-1]*np.exp((tt[-1] - tt)/tau), "k--",
          lw=1, label=f"$\\propto e^{{-t/\\tau}}$, $\\tau = c_t V_p / J$ = {tau:.3f}")
 ax1.set(title="Production rate", xlabel="Time", ylabel="q", yscale="log")
 ax1.legend(fontsize="small")
 
-ax2.plot(tt, by_rate.actual_bhp["prd"][0], label="Rate-controlled")
-ax2.plot(tt, by_bhp .actual_bhp["prd"][0], label="BHP-controlled")
-ax2.plot(tt, limited.actual_bhp["prd"][0], ":", lw=2, label="Rate, limited")
-ax2.plot(tt, 1 - q*tt/(ct*Vp) - (PP_rate[-1].mean() - by_rate.actual_bhp["prd"][0, -1]),
+ax2.plot(tt, by_rate.actual_bhp[0], label="Rate-controlled")
+ax2.plot(tt, by_bhp .actual_bhp[0], label="BHP-controlled")
+ax2.plot(tt, limited.actual_bhp[0], ":", lw=2, label="Rate, limited")
+ax2.plot(tt, 1 - q*tt/(ct*Vp) - (PP_rate[-1].mean() - by_rate.actual_bhp[0, -1]),
          "k--", lw=1, label="$p_0 - qt/(c_t V_p) - \\Delta p$")
 ax2.set(title="Bottom-hole pressure", xlabel="Time", ylabel="$p_\\mathrm{bh}$")
 ax2.legend(fontsize="small")
 fig.tight_layout()
 
 ## The duality: prescribe the BHP that the rate-controlled run reported
-replay = depleter(prd_bhp=by_rate.actual_bhp["prd"])
+replay = depleter(well_bhp=by_rate.actual_bhp)
 PP_replay = run(replay)
 err_P = np.abs(PP_replay - PP_rate).max()
-err_q = np.abs(replay.actual_rates["prd"] - q).max()
+err_q = np.abs(replay.actual_rates + q).max()
 assert err_P < 1e-12 and err_q < 1e-12, "The two controls are not each other's inverse!"
 
 fig, ax = freshfig("Well control -- duality", figsize=(6, 4))
-ax.plot(tt, by_rate.actual_rates["prd"][0], lw=4, alpha=.4, label="Rate-controlled: $q$")
-ax.plot(tt, replay .actual_rates["prd"][0], "k--", lw=1,
+ax.plot(tt, prod_rate, lw=4, alpha=.4, label="Rate-controlled: $q$")
+ax.plot(tt, -replay.actual_rates[0], "k--", lw=1,
         label="BHP-controlled by its own reported $p_\\mathrm{bh}$")
 ax.set(title=f"The same well, controlled from either end (max err {err_q:.0e})",
        xlabel="Time", ylabel="q", ylim=(0, 2*q))
@@ -162,11 +165,12 @@ ax.legend()
 fig.tight_layout()
 
 # Regression values, checked by `tests/test_examples.py`.
-__digest__ = dict(rate_of_bhp_ctrl = by_bhp.actual_rates["prd"][0],
-                  bhp_of_rate_ctrl = by_rate.actual_bhp["prd"][0],
+# NB: the production rates are negated, preserving the pre-v0.3 references.
+__digest__ = dict(rate_of_bhp_ctrl = prod_bhp,
+                  bhp_of_rate_ctrl = by_rate.actual_bhp[0],
                   p_last_bhp_ctrl  = PP_bhp[-1],
-                  rate_of_limited  = limited.actual_rates["prd"][0],
-                  bhp_of_limited   = limited.actual_bhp["prd"][0])
+                  rate_of_limited  = prod_lim,
+                  bhp_of_limited   = limited.actual_bhp[0])
 
 if __name__ == "__main__":
     show()

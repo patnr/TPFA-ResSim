@@ -61,8 +61,7 @@ oil_only = np.zeros(32*32)
 def waterflood(vrr, ct=ct, P0=15.):
     """Produce at rate `q`, inject at `vrr*q`."""
     model = ResSim(Lx=1, Ly=1, Nx=32, Ny=32, ct=ct,
-                   inj_xy=[[0, 0]], inj_rates=[[vrr*q]],
-                   prd_xy=[[1, 1]], prd_rates=[[q]])
+                   well_xy=[[0, 0], [1, 1]], well_rates=[[vrr*q], [-q]])
     kwargs = dict(P0=P0*np.ones(model.Nxy)) if ct else {}
     return (model,) + model.sim(dt, nSteps, oil_only, pbar=False, **kwargs)
 
@@ -78,7 +77,7 @@ _, SS_lowc, _ = waterflood(vrr=1, ct=ct/10)
 dev = [abs(S - SS_inc).max() for S in [SS_full, SS_lowc]]
 assert 8 < dev[0]/dev[1] < 12, dev
 
-iprd = model.xy2ind(*model.prd_xy[0])
+iprd = model.xy2ind(*model.well_xy[1])
 breakthrough = [dt*np.argmax(S[:, iprd] > .01) for S in [SS_full, SS_half]]
 
 ## Plot: the front, at equal times

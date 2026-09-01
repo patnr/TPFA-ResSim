@@ -18,8 +18,8 @@ Two flow regimes are visible:
   ($V_p$ = pore volume), and the drawdown $p̄ - p_\\mathrm{cell}$ is constant.
 
 There is no water anywhere here (`S = 0` throughout), so this is effectively a
-single-phase example. NB: the model requires at least one injector to be
-configured, so we include an idle (zero-rate) one.
+single-phase example -- and, rates being signed (negative to produce),
+the lone producer is the only well there is.
 
 In the figures:
 
@@ -38,7 +38,7 @@ Throughout, $p_\\mathrm{cell}$ is the pressure of the *cell* that holds the well
 not the pressure in the wellbore: it is an average over an area of $h^2$, so
 refining the grid deepens it without limit (here, 0.15 at 32² but 0.18 at 64²).
 Converting it to a bottom-hole pressure is the job of the *well model* -- set
-`prd_WI` (ref `ResSim.peaceman_WI`) and read `model.actual_bhp` instead.
+`well_WI` (ref `ResSim.peaceman_WI`) and read `model.actual_bhp` instead.
 """
 
 from mpl_tools.place import freshfig
@@ -50,8 +50,7 @@ from TPFA_ResSim.plotting import show
 ## Setup
 q = .25
 model = ResSim(Lx=1, Ly=1, Nx=32, Ny=32, ct=.1,
-               inj_xy=[[0, 0]] , inj_rates=[[0]],
-               prd_xy=[[.5, .5]], prd_rates=[[q]])
+               well_xy=[[.5, .5]], well_rates=[[-q]])
 
 dt = 1e-3
 nSteps = 100
@@ -63,7 +62,7 @@ P0 = np.ones(model.Nxy)
 SS, PP = model.sim(dt, nSteps, oil_only, P0=P0, pbar=False)
 assert SS.max() == 0, "No water is injected, so none should appear."
 
-iw = model.xy2ind(*model.prd_xy[0])
+iw = model.xy2ind(*model.well_xy[0])
 p_mean = PP.mean(axis=1)
 p_cell = PP[:, iw]
 pore_volume = model.h2 * model.por.sum()

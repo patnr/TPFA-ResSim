@@ -20,8 +20,7 @@ def test_material_balance():
     """Summing the rows of the (conservative) system gives, exactly,
     $ c_t \\sum_{ij} φ_{ij} h^2 (p^{n+1}_{ij} - p^n_{ij}) = Δt \\sum Q $."""
     model = ResSim(Lx=1, Ly=1, Nx=20, Ny=20, ct=1e-2,
-                   inj_xy=[[0, 0]], inj_rates=[[.5]],
-                   prd_xy=[[1, 1]], prd_rates=[[1]])
+                   well_xy=[[0, 0], [1, 1]], well_rates=[[.5], [-1]])
     water_sat0 = np.zeros(model.Nxy)
     SS, PP = model.sim(dt, nSteps, water_sat0, pbar=False)
 
@@ -36,8 +35,7 @@ def test_depletion():
     """Production without injection (impossible if incompressible):
     the average pressure declines monotonically."""
     model = ResSim(Lx=1, Ly=1, Nx=20, Ny=20, ct=1e-2,
-                   inj_xy=[[0, 0]], inj_rates=[[0]],
-                   prd_xy=[[1, 1]], prd_rates=[[1]])
+                   well_xy=[[1, 1]], well_rates=[[-1]])
     water_sat0 = np.zeros(model.Nxy)
     P0 = np.ones(model.Nxy)
     SS, PP = model.sim(dt, nSteps, water_sat0, P0=P0, pbar=False)
@@ -52,8 +50,7 @@ def test_incompressible_limit():
     only defined up to a constant when incompressible.
     """
     kwargs: dict = dict(Lx=1, Ly=1, Nx=20, Ny=20,
-                  inj_xy=[[0, 0]], inj_rates=[[1]],
-                  prd_xy=[[1, 1]], prd_rates=[[1]])
+                  well_xy=[[0, 0], [1, 1]], well_rates=[[1], [-1]])
     water_sat0 = np.zeros(20 * 20)
     # NB: not the module-level `dt = .05`, for which `dt * estimate_1CFL` is
     # *exactly* 60 here, leaving the (integer) sub-step count of the explicit
@@ -81,8 +78,7 @@ def test_storage_rate():
     which is what keeps the transport step consistent (ref `ResSim.ct`).
     """
     model = ResSim(Lx=1, Ly=1, Nx=20, Ny=20, ct=1e-2,
-                   inj_xy=[[0, 0]], inj_rates=[[.5]],
-                   prd_xy=[[1, 1]], prd_rates=[[1]])
+                   well_xy=[[0, 0], [1, 1]], well_rates=[[.5], [-1]])
     water_sat0 = np.zeros(model.Nxy)
     P0 = np.ones(model.Nxy)
     model.assemble_wells(water_sat0, P0, 0)  # (as `time_stepper` does)
@@ -108,8 +104,7 @@ def test_single_phase_is_exact(implicit, ct, vrr):
     voidage (and, at the injector, run away).
     """
     model = ResSim(Lx=1, Ly=1, Nx=20, Ny=20, ct=ct,
-                   inj_xy=[[0, 0]], inj_rates=[[vrr]],
-                   prd_xy=[[1, 1]], prd_rates=[[1]])
+                   well_xy=[[0, 0], [1, 1]], well_rates=[[vrr], [-1]])
     P0 = 10*np.ones(model.Nxy)
     for s in ([0, 1] if vrr == 0 else [1]):  # only water is injected
         SS, PP = model.sim(dt, nSteps, s*np.ones(model.Nxy), P0=P0,

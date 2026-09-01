@@ -55,10 +55,9 @@ nSteps = 28
 dt = .7/nSteps
 tt = dt*(1 + np.arange(nSteps))
 
-def waterflood(**injector):
+def waterflood(**wells):
     """A unit square, producing from the NE corner at a rate of 1."""
-    model = ResSim(Lx=1, Ly=1, Nx=64, Ny=64,
-                   prd_xy=[[1, 1]], prd_rates=[[1]], **injector)
+    model = ResSim(Lx=1, Ly=1, Nx=64, Ny=64, **wells)
     SS, PP = model.sim(dt, nSteps, model.swc*np.ones(model.Nxy), pbar=False)
     return model, SS
 
@@ -67,15 +66,21 @@ proto = ResSim(Lx=1, Ly=1, Nx=64, Ny=64)
 xy, WI, w = proto.well_path([[0, 0], [0, 1]], rw)
 assert len(xy) == proto.Ny, "The west edge is one cell wide, and Ny cells long."
 
-## Simulate: a point injector, the same as a path, and the path on BHP
-point, SS_point = waterflood(inj_xy=[[0, 0]], inj_rates=[[1]])
-path , SS_path  = waterflood(inj_xy=xy, inj_rates=w[:, None], inj_WI=WI)
-onbhp, SS_onbhp = waterflood(inj_xy=xy, inj_WI=WI,
-                             inj_bhp=np.full((len(xy), 1), 3.))
+## Simulate: a point injector, the same as a path, and the path on BHP.
+# The producer (NE corner, rate -1) is appended as the last well.
+point, SS_point = waterflood(well_xy=[[0, 0], [1, 1]], well_rates=[[1], [-1]])
+path , SS_path  = waterflood(well_xy=[*xy, [1, 1]],
+                             well_rates=np.vstack([w[:, None], [[-1]]]),
+                             well_WI=np.append(WI, np.nan))
+onbhp, SS_onbhp = waterflood(well_xy=[*xy, [1, 1]],
+                             well_rates=np.vstack([np.zeros((len(xy), 1)), [[-1]]]),
+                             well_WI=np.append(WI, np.nan),
+                             well_bhp=np.vstack([np.full((len(xy), 1), 3.),
+                                                 [[np.nan]]]))
 
 # Incompressible => whatever the control, the injection must match the production
 for model in [path, onbhp]:
-    assert np.allclose(model.actual_rates["inj"].sum(axis=0), 1)
+    assert np.allclose(model.actual_rates[:-1].sum(axis=0), 1)
 
 ## Plot: the resulting sweeps
 fig, axs = freshfig("Well path -- sweep", ncols=2, sharex=True, sharey=True,
@@ -90,15 +95,15 @@ fig.tight_layout()
 fig, (ax1, ax2) = freshfig("Well path -- allocation", ncols=2, figsize=(10, 4))
 
 yy = xy[:, 1]
-ax1.plot(yy, path.actual_rates["inj"][:, -1], label="Rate-controlled: $w \\propto WI$")
+ax1.plot(yy, path.actual_rates[:-1, -1], label="Rate-controlled: $w \\propto WI$")
 for k, ls in [(0, ":"), (nSteps - 1, "-")]:
-    ax1.plot(yy, onbhp.actual_rates["inj"][:, k], ls, c="C1",
+    ax1.plot(yy, onbhp.actual_rates[:-1, k], ls, c="C1",
              label=f"BHP-controlled, t = {tt[k]:.2f}")
 ax1.set(title="Injection rate per completion", xlabel="y (along the path)",
         ylabel="q", ylim=0)
 ax1.legend(fontsize="small")
 
-prd = [point.xy2ind(*point.prd_xy[0])]
+prd = [point.xy2ind(1, 1)]
 for name, SS in [("Point", SS_point), ("Path", SS_path), ("Path, on BHP", SS_onbhp)]:
     ax2.plot(tt, 1 - SS[1:, prd[0]], label=name)
 ax2.set(title="Oil saturation at the producer", xlabel="Time", ylabel="1 - s")
@@ -107,7 +112,7 @@ fig.tight_layout()
 
 # Regression values, checked by `tests/test_examples.py`.
 __digest__ = dict(alloc_static = w,
-                  alloc_bhp    = onbhp.actual_rates["inj"][:, -1],
+                  alloc_bhp    = onbhp.actual_rates[:-1, -1],
                   sat_point    = SS_point[-1, ::600],
                   sat_path     = SS_path[-1, ::600])
 

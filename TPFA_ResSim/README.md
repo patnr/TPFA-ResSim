@@ -379,7 +379,7 @@ Two things enter it, beyond $r_w$ and $\mathbf{K}$:
 Ref `TPFA_ResSim.ResSim.peaceman_WI` for the formula combining these.
 
 A well is **controlled** either by prescribing its rate, or its BHP,
-the other then being an outcome (ref `TPFA_ResSim.ResSim.inj_bhp`).
+the other then being an outcome (ref `TPFA_ResSim.ResSim.well_bhp`).
 Reality is closer to the latter -- one sets a pump speed or a **choke** opening,
 and the reservoir decides the rate -- but the *rate* is what is usually planned for.
 Field practice is therefore rate control subject to a BHP *constraint*

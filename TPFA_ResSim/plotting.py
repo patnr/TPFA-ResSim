@@ -64,8 +64,8 @@ class Plot2D:
         hx: float
         hy: float
         shape: tuple
-        inj_xy: Any
-        prd_xy: Any
+        well_xy: Any
+        well_rates: Any
         xy2sub: Callable
         sub2xy: Callable
         ind2xy: Callable
@@ -163,17 +163,23 @@ class Plot2D:
                 ax.set_xlabel(f"x ({coord_type})")
                 ax.set_ylabel(f"y ({coord_type})")
 
-        # Add well markers
-        if wells:
+        # Add well markers, distinguished by the sign of their rate spec
+        # (mean over time; wells with no net sign -- e.g. purely
+        # BHP-controlled ones -- get a neutral marker).
+        if wells and self.well_xy is not None:
+            sgn = self._well_signs()
             if wells == "color":
+                # Colors matching `plt_production` of the producers
                 wells = cast(
-                    dict, {"color": [f"C{i}" for i in range(len(self.prd_xy))]}
+                    dict, {"color": [f"C{i}" for i in range(int(np.sum(sgn < 0)))]}
                 )
             elif wells in [True, 1]:
                 wells = {}
-            self.well_scatter(ax, self.prd_xy, False, **wells)
+            self.well_scatter(ax, self.well_xy[sgn < 0], -1, **wells)
             wells.pop("color", None)
-            self.well_scatter(ax, self.inj_xy, True, **wells)
+            for s in [+1, 0]:
+                if np.any(sgn == s):
+                    self.well_scatter(ax, self.well_xy[sgn == s], s, **wells)
 
         # Add argmax marker
         if argmax:
@@ -193,16 +199,26 @@ class Plot2D:
         tight_show(ax.figure, finalize)
         return collections
 
+    def _well_signs(self) -> np.ndarray:
+        """The sign (+1 inject, -1 produce, 0 unknown) of each well's rate spec."""
+        if getattr(self, "well_rates", None) is None:
+            return np.zeros(len(self.well_xy), int)
+        return np.sign(self.well_rates.mean(axis=1)).astype(int)
+
     def well_scatter(
         self,
         ax: Any,
         ww: np.ndarray,
-        inj: bool = True,
+        sgn: int = 1,
         text: str | None = None,
         color: Any = None,  # e.g. "k", or a list of colors (one per well)
         size: float = 1,
     ) -> Any:
-        """Scatter-plot the wells of `ww` onto a `Plot2D.plt_field`."""
+        """Scatter-plot the wells of `ww` onto a `Plot2D.plt_field`.
+
+        The marker reflects `sgn`: injector (`+1`), producer (`-1`),
+        or neutral (`0`, e.g. purely BHP-controlled wells).
+        """
         # Well coordinates
         ww = self.sub2xy(*self.xy2sub(*ww.T)).T
         # NB: make sure ww array data is not overwritten (avoid in-place)
@@ -215,16 +231,21 @@ class Plot2D:
         ww = ww * s
 
         # Style
-        if inj:
+        if sgn > 0:
             c = "w"
             ec = "gray"
             d = "k"
             m = "v"
-        else:
+        elif sgn < 0:
             c = "k"
             ec = "gray"
             d = "w"
             m = "^"
+        else:
+            c = "lightgray"
+            ec = "gray"
+            d = "k"
+            m = "o"
 
         if color:
             c = color
@@ -244,7 +265,7 @@ class Plot2D:
         # Text labels
         if text is not False:
             for i, w in enumerate(ww):
-                if not inj:
+                if sgn < 0:
                     w[1] -= 0.01
                 ax.text(
                     *w[:2],
