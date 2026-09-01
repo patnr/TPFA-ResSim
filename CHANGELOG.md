@@ -14,8 +14,9 @@ should pin a tag (or commit hash) and advance it deliberately.
 
 - A **well model**: `ResSim.peaceman_WI` computes Peaceman's well index from the
   grid, the (possibly anisotropic) permeability, the well radius and the skin;
-  assigning it to the new `inj_WI`/`prd_WI` attributes makes `sim` record the
-  implied bottom-hole pressures in `actual_bhp` (via the new `ResSim.bhp`).
+  assigning it to the new `well_WI` attribute (`(nWell,)`, `nan` entries
+  allowed, for wells without a well model) makes `sim` record the
+  implied bottom-hole pressures in the new `actual_bhp` (via the new `ResSim.bhp`).
   Unlike the cell pressure -- which `sim`'s docstring could only advertise as a
   "bottom-hole pressure-*like* observable", and which varies by some 45% over a
   16² -> 64² refinement -- this is grid-independent, matching the analytic
@@ -23,20 +24,21 @@ should pin a tag (or commit hash) and advance it deliberately.
   The well index is also a diagnostic in its own right: it defaults to `None`
   (whereupon `actual_bhp` is `nan`), and a rate-controlled well is unaffected by
   it, so adding one changes no existing result.
-- **BHP-controlled wells**, opt-in via the new `inj_bhp`/`prd_bhp` attributes
+- **BHP-controlled wells**, opt-in via the new `well_bhp` attribute
   (shaped like the rates, so likewise time-varying; `nan` entries stay
   rate-controlled, hence the two modes may be mixed across wells and in time).
   The rate is solved for *simultaneously* with the pressure -- `TPFA` puts
   $WI λ_t$ on its diagonal and $WI λ_t p_{bh}$ on its right-hand side -- rather
   than lagged by a step: prescribing the `actual_bhp` of a rate-controlled run
   reproduces it to machine precision (`tests/test_wells.py`). The realized rates
-  are reported in `actual_rates`, so `inj_rates` may be left `None`.
+  are reported in `actual_rates`, so `well_rates` may be left `None`.
   A BHP well also *anchors* the incompressible (`ct == 0`) pressure equation,
   which is otherwise a pure-Neumann problem: the arbitrary pin at the SW corner
   (ref article p. 13) is then skipped, the absolute pressure level becomes
   meaningful, and injection need no longer balance production.
-  There is no switching of control modes; a producer that would flow backwards
-  raises rather than doing so silently.
+  There is no switching of control modes, nor a declared flow direction: a BHP
+  well flows whichever way `p_bh` vs. its cell pressure dictates, an inflow
+  injecting water like any other.
 - **Well paths**: `ResSim.well_path` walks a polyline through the grid and
   returns the traversed cells, their well indices (each scaled by how much of
   its cell the path actually crosses), and the resulting split of the well's
@@ -50,11 +52,12 @@ should pin a tag (or commit hash) and advance it deliberately.
   need `p_bh` as an extra unknown, i.e. a bordered linear system, and is
   deliberately not implemented.
 - `ResSim.well_controls(S, P, k)`: the feedback-control hook, replacing
-  `dynamic_rate` (ref Changed, below). It returns `dict(rates=..., bhp=...)`,
+  `dynamic_rate` (ref Changed, below). It returns `dict(rates=..., bhp=...)`
+  (each a `(nWell,)` array),
   and is handed the pressure as well as the saturation, so an override governs
   the wells' *modes* as well as their rates -- which is what it takes to
   approximate the mode *switching* that the model does not do natively (ref
-  `inj_bhp`): e.g. rate control with a BHP limit, wherein a producer holds its
+  `well_bhp`): e.g. rate control with a BHP limit, wherein a producer holds its
   rate only until that would draw it below some `p_min` (worked examples in its
   docstring). Being judged from the previous step's pressure, the switch lags:
   the limit is breached for the one step in which it comes to bind, by less the
@@ -70,24 +73,16 @@ should pin a tag (or commit hash) and advance it deliberately.
 - **BREAKING**: injectors and producers are **unified into a single set of
   wells**, removing every per-kind code path (the `("inj", +1)/("prd", -1)`
   loops, the dicts-by-kind, the paired attributes):
-  - `inj_xy`/`prd_xy` -> `well_xy`; `inj_WI`/`prd_WI` -> `well_WI` (`nan`
-    entries allowed, for wells without a well model); `inj_bhp`/`prd_bhp` ->
-    `well_bhp`; `nInj`/`nPrd` -> `nWell`.
+  - `inj_xy`/`prd_xy` -> `well_xy`; `nInj`/`nPrd` -> `nWell`.
   - `inj_rates`/`prd_rates` -> `well_rates`, now **signed**: positive injects
     (water), negative produces (at the cell's fractional flow). This is the
     whole trick: the transport step already discriminated by the sign of the
     assembled source field, so with the sign in the spec, nothing anywhere
     needs to know a well's kind. The positivity assertion is gone; the
     incompressible balance assertion is now that the rates sum to 0.
-  - `actual_rates` and `actual_bhp` are single `(nWell, nSteps)` arrays
-    (rates signed), no longer dicts by kind -- likewise the `rates` and `bhp`
-    entries returned by `well_controls`, and `bhp()`, are flat `(nWell,)`
-    arrays.
-  - A BHP-controlled well's flow direction is now *emergent*: it flows
-    whichever way `p_bh` vs. its cell pressure dictates, an inflow injecting
-    water like any other. The `realize_bhp` assertion against "backflow"
-    (which needed a declared kind to assert against) is dropped; the
-    lagged mode-switching via `well_controls` is unaffected.
+  - `actual_rates` is a single `(nWell, nSteps)` array (signed), no longer a
+    dict by kind -- likewise the rates handed out by the feedback hook (ref
+    the `dynamic_rate` -> `well_controls` entry below).
   - Plot markers are inferred from the sign of each well's rate spec (mean
     over time); wells with no net sign -- e.g. purely BHP-controlled ones --
     get a neutral marker. `well_scatter`'s `inj: bool` parameter becomes
@@ -103,7 +98,7 @@ should pin a tag (or commit hash) and advance it deliberately.
   already called the private names, to set up a pressure solve without `sim`.
   What they compute for the step now travels by one channel, in two places: the
   source field, `_Q`, and a bundle, `_wells_now`, holding the per-well arrays
-  (`inds`, `rates`, `p_bh`, `WI_lam` -- each a `dict` by well kind) and the
+  (`inds`, `rates`, `p_bh`, `WI_lam`) and the
   per-cell terms that the BHP wells contribute to `TPFA` (`bhp_diag`,
   `bhp_rhs`). Neither method returns anything.
 - `actual_rates` and `actual_bhp` are now declared (and documented) attributes,
@@ -114,7 +109,8 @@ should pin a tag (or commit hash) and advance it deliberately.
   is a superset of it: the rates are one of the two controls it returns.
   Porting an override means unwrapping that dict --
   `rates = super().dynamic_rate(S, k)` becomes
-  `ctrl = super().well_controls(S, P, k)`, and `rates` becomes `ctrl["rates"]`
+  `ctrl = super().well_controls(S, P, k)`, and `rates` becomes `ctrl["rates"]`,
+  a single signed array over all wells
   -- as `tests/test_wells.py` illustrates. Keeping it as a shim was considered,
   but the hook had no known downstream overriders, and a rate-only hook cannot
   express a control-mode switch.
