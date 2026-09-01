@@ -256,24 +256,24 @@ class ResSim(NicePrint, Grid2D, Plot2D):
 
         for kind, sgn in [("inj", +1), ("prd", -1)]:
             inds, rates, p_bh = wls.inds[kind], wls.rates[kind], wls.p_bh[kind]
-            on_bhp = np.isfinite(p_bh)
+            is_bhp = np.isfinite(p_bh)
 
             # The well model's constant of proportionality, WI * λ_t.
             # NB: `nan` marks the rate-controlled wells, throughout.
             WI_lam = wls.WI_lam[kind] = np.full(len(inds), np.nan)
-            if on_bhp.any():
+            if is_bhp.any():
                 WI = getattr(self, f"{kind}_WI")
                 assert WI is not None, f"BHP control requires `{kind}_WI`."
                 assert S is not None, "BHP control requires `S` (for λ_t)."
                 Mw, Mo = self.RelPerm(S)
-                WI_lam[on_bhp] = WI[on_bhp] * (Mw + Mo)[inds[on_bhp]]
+                WI_lam[is_bhp] = WI[is_bhp] * (Mw + Mo)[inds[is_bhp]]
 
             # Translate well conditions for cells.
             # NB: Dont use `Q[inds] += ...` since `inds` may contain dupes.
-            np.add.at(self._Q, inds[~on_bhp], sgn * rates[~on_bhp])
-            np.add.at(wls.bhp_diag, inds[on_bhp], WI_lam[on_bhp])
-            np.add.at(wls.bhp_rhs, inds[on_bhp], (WI_lam * p_bh)[on_bhp])
-            rates[on_bhp] = np.nan  # only `realize_bhp` knows these
+            np.add.at(self._Q, inds[~is_bhp], sgn * rates[~is_bhp])
+            np.add.at(wls.bhp_diag, inds[is_bhp], WI_lam[is_bhp])
+            np.add.at(wls.bhp_rhs, inds[is_bhp], (WI_lam * p_bh)[is_bhp])
+            rates[is_bhp] = np.nan  # only `realize_bhp` knows these
         self._wells_now = wls
 
     def realize_bhp(self, P: np.ndarray) -> None:
@@ -288,18 +288,17 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         self._Q = self._Q + wls.bhp_rhs - wls.bhp_diag * P
         # Insert in per-well rates
         for kind, sgn in [("inj", +1), ("prd", -1)]:
-            WI_lam, p_bh = wls.WI_lam[kind], wls.p_bh[kind]
-            on_bhp = np.isfinite(WI_lam)  # `nan` marks the rate-controlled wells
-            if not on_bhp.any():
+            inds, WI_lam, p_bh = wls.inds[kind], wls.WI_lam[kind], wls.p_bh[kind]
+            is_bhp = np.isfinite(WI_lam)  # `nan` marks the rate-controlled wells
+            if not is_bhp.any():
                 continue
-            inds = wls.inds[kind][on_bhp]
-            q = sgn * WI_lam[on_bhp] * (p_bh[on_bhp] - P[inds])
+            q = sgn * WI_lam[is_bhp] * (p_bh[is_bhp] - P[inds[is_bhp]])
             assert np.all(q > -1e-8 * (1 + np.abs(q).max())), (
                 f"A BHP-controlled '{kind}' well would flow backwards, its"
                 " `p_bh` having ended up on the wrong side of its cell pressure."
                 " This model does not switch control modes; ref `inj_bhp`."
             )
-            wls.rates[kind][on_bhp] = q
+            wls.rates[kind][is_bhp] = q
 
     def _at_time(self, spec: str, k: int) -> dict:
         """Lookup the well `spec` (`"rates"`/`"bhp"`) at time `k`, for both kinds.
