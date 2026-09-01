@@ -4,7 +4,7 @@
 traverses, their well indices (`ResSim.peaceman_WI`, scaled by how much of each
 cell is actually traversed), and `w`, the resulting split of the well's rate.
 Several completions then act as a single well simply by *being* several wells:
-`ResSim._set_Q` superimposes them.
+`ResSim.assemble_wells` superimposes them.
 
 Here a point injector in the SW corner is replaced by a "horizontal" one along
 the whole west edge, at the same total rate, and the difference in sweep is the

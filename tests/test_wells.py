@@ -257,7 +257,7 @@ def test_control_modes_may_be_mixed():
 
 
 def test_bhp_keeps_the_transport_consistent():
-    """`_realize_bhp` leaves `_Q` equal to the *total* flux, as `storage_rate` needs.
+    """`realize_bhp` leaves `_Q` equal to the *total* flux, as `storage_rate` needs.
 
     Cf. `tests/test_compressible.py::test_storage_is_shared`, which asserts the
     same thing for rate control. It is what keeps the saturation step consistent
@@ -271,9 +271,9 @@ def test_bhp_keeps_the_transport_consistent():
     S0 = np.zeros(model.Nxy)
     P0 = np.ones(model.Nxy)
 
-    rates = model._set_Q(S0, 0)                       # (as `time_stepper` does)
+    model.assemble_wells(S0, 0)  # (as `time_stepper` does)
     P, V = model.pressure_step(S0, P0, dt)
-    model._realize_bhp(P, rates)
+    model.realize_bhp(P)
 
     accum = model.por.ravel() * model.ct * model.h2 / dt
     assert np.allclose(model.storage_rate(V), accum * (P - P0))

@@ -195,7 +195,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     `TPFA` puts $ WI λ_t $ on its diagonal and $ WI λ_t \\, p_\\mathrm{bh} $
     on its right-hand side.
     Only once $ p $ is known is the resulting rate folded into the source field,
-    `_Q`, for the transport step -- ref `_set_Q` and `_realize_bhp`.
+    `_Q`, for the transport step -- ref `assemble_wells` and `realize_bhp`.
 
     Entries left as `nan` -- which is the default, for every well -- keep the
     well rate-controlled, per `inj_rates`. So the two mechanisms can be mixed
@@ -214,7 +214,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     .. warning:: There is no switching of control modes. A producer whose
         $ p_\\mathrm{bh} $ rose above its cell pressure would *inject* (at the
         cell's fractional flow); rather than let that pass silently,
-        `_realize_bhp` asserts against it. Rate control with a BHP limit -- the
+        `realize_bhp` asserts against it. Rate control with a BHP limit -- the
         industrial default -- would mean iterating each well's mode within each
         step; `dynamic_rate` is the intended place to approximate it.
     """
@@ -235,75 +235,71 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     `nan` wherever the well index (`inj_WI`) is unset.
     """
 
-    def _set_Q(self, S: np.ndarray | None, k: int) -> dict:
-        """Populate (for time `k`) the source/sink *field*, `Q`, from well specs.
+    def assemble_wells(self, S: np.ndarray | None, k: int) -> None:
+        """Set up (for time `k`) the wells' contributions to the equations.
 
-        Rate-controlled wells contribute their rate to `Q` directly.
-        BHP-controlled ones (ref `inj_bhp`) cannot: their rate is not yet known,
-        but instead contribute to the TPFA pressure equation system.
-        The resulting rates are then folded into `Q` by `_realize_bhp`.
-
-        Returns the rates (ref `dynamic_rate`), `nan` for the BHP-controlled
-        wells -- which is what `_realize_bhp` fills in.
+        Rate-controlled wells enter the source/sink *field*, `_Q`, directly.
+        BHP-controlled ones (ref `inj_bhp`) cannot: their rate is not yet known.
+        They instead enter the pressure equations in `TPFA`, after which
+        `realize_bhp` folds the resulting rate into `_Q`.
         """
-        Q, bhp_diag, bhp_rhs = np.zeros((3, self.Nxy))
-        rates = self.dynamic_rate(S, k)
-        bhps = self._at_time("bhp", k)
-        self._well_model = {}
-        for kind in ["inj", "prd"]:
-            sgn = +1 if kind == "inj" else -1
-            inds = self.xy2ind(*getattr(self, f"{kind}_xy").T)
-            on_bhp = np.isfinite(bhps[kind])
+        # `Any` coz ty cannot see that `DotDict` provides attribute access to keys
+        wls: Any = DotDict(
+            # per well
+            inds   = {kd: self.xy2ind(*getattr(self, f"{kd}_xy").T) for kd in ["inj", "prd"]},
+            rates  = self.dynamic_rate(S, k),
+            p_bh   = self._at_time("bhp", k),
+            WI_lam = {},
+        )  # fmt: off
+        # per cell
+        self._Q, wls.bhp_diag, wls.bhp_rhs = np.zeros((3, self.Nxy))
+
+        for kind, sgn in [("inj", +1), ("prd", -1)]:
+            inds, rates, p_bh = wls.inds[kind], wls.rates[kind], wls.p_bh[kind]
+            on_bhp = np.isfinite(p_bh)
 
             # The well model's constant of proportionality, WI * λ_t.
             # NB: `nan` marks the rate-controlled wells, throughout.
-            WI_lam = np.full(len(inds), np.nan)
+            WI_lam = wls.WI_lam[kind] = np.full(len(inds), np.nan)
             if on_bhp.any():
                 WI = getattr(self, f"{kind}_WI")
                 assert WI is not None, f"BHP control requires `{kind}_WI`."
                 assert S is not None, "BHP control requires `S` (for λ_t)."
                 Mw, Mo = self.RelPerm(S)
                 WI_lam[on_bhp] = WI[on_bhp] * (Mw + Mo)[inds[on_bhp]]
-            # Keep the *per-well* coefficients too -- for `_realize_bhp`.
-            self._well_model[kind] = (WI_lam, bhps[kind])
 
             # Translate well conditions for cells.
-            # NB: Dont use `Q[inds] += ...` since `inds` may contain dupes
-            np.add.at(Q, inds[~on_bhp], sgn * rates[kind][~on_bhp])
-            np.add.at(bhp_diag, inds[on_bhp], WI_lam[on_bhp])
-            np.add.at(bhp_rhs, inds[on_bhp], (WI_lam * bhps[kind])[on_bhp])
-            rates[kind][on_bhp] = np.nan  # only `_realize_bhp` knows these
-        self._Q, self._bhp_diag, self._bhp_rhs = Q, bhp_diag, bhp_rhs
-        return rates
+            # NB: Dont use `Q[inds] += ...` since `inds` may contain dupes.
+            np.add.at(self._Q, inds[~on_bhp], sgn * rates[~on_bhp])
+            np.add.at(wls.bhp_diag, inds[on_bhp], WI_lam[on_bhp])
+            np.add.at(wls.bhp_rhs, inds[on_bhp], (WI_lam * p_bh)[on_bhp])
+            rates[on_bhp] = np.nan  # only `realize_bhp` knows these
+        self._wells_now = wls
 
-    def _realize_bhp(self, P: np.ndarray, rates: dict) -> dict:
-        """Fold the (now solved-for) rates of the BHP wells into `_Q` and `rates`.
-
-        Must run between `pressure_step` and the saturation step: the transport
-        scheme reads `_Q` (in `upwind_diff`, `storage_rate`, `estimate_1CFL`),
-        and until now it held only the rate-controlled wells.
+    def realize_bhp(self, P: np.ndarray) -> None:
+        """Compute rates for BHP wells. Enter into `_Q` and `_wells_now.rates`.
 
         By construction of the linear system of `TPFA`, this leaves `_Q` equal
         to the *total* well flux, which is what keeps `storage_rate` -- and
         hence the transport step -- consistent with the pressure solution.
         """
-        self._Q = self._Q + self._bhp_rhs - self._bhp_diag * P
-        for kind in ["inj", "prd"]:
-            WI_lam, p_bh = self._well_model[kind]
+        wls = self._wells_now
+        # Insert in cell source/sink field
+        self._Q = self._Q + wls.bhp_rhs - wls.bhp_diag * P
+        # Insert in per-well rates
+        for kind, sgn in [("inj", +1), ("prd", -1)]:
+            WI_lam, p_bh = wls.WI_lam[kind], wls.p_bh[kind]
             on_bhp = np.isfinite(WI_lam)  # `nan` marks the rate-controlled wells
             if not on_bhp.any():
                 continue
-            sgn = +1 if kind == "inj" else -1
-            inds = self.xy2ind(*getattr(self, f"{kind}_xy").T)[on_bhp]
-            # The well model's own rate -- as in `_Q` above, but per well
+            inds = wls.inds[kind][on_bhp]
             q = sgn * WI_lam[on_bhp] * (p_bh[on_bhp] - P[inds])
             assert np.all(q > -1e-8 * (1 + np.abs(q).max())), (
                 f"A BHP-controlled '{kind}' well would flow backwards, its"
                 " `p_bh` having ended up on the wrong side of its cell pressure."
                 " This model does not switch control modes; ref `inj_bhp`."
             )
-            rates[kind][on_bhp] = q
-        return rates
+            wls.rates[kind][on_bhp] = q
 
     def _at_time(self, spec: str, k: int) -> dict:
         """Lookup the well `spec` (`"rates"`/`"bhp"`) at time `k`, for both kinds.
@@ -318,7 +314,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
             if arr is None:
                 out[kind] = np.full(len(getattr(self, f"{kind}_xy")), absent)
             else:
-                # Copy, lest `dynamic_rate` (or `_set_Q`) write into the spec
+                # Copy, lest `dynamic_rate` write into the spec itself
                 out[kind] = np.copy(arr[:, k if arr.shape[1] > 1 else 0])
         return out
 
@@ -389,30 +385,30 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     def well_path(self, vertices: Any, rw: float, skin: float = 0.0) -> tuple:
         """Discretize a well *path* (a polyline) into 1 weighted completion per traversed cell.
 
-        Returns `(xy, WI, w)`:
+        Returns `(xy, WI, alloc)`:
 
         - `xy`: centres of the cells that the path traverses -- i.e. a value for
           `inj_xy`/`prd_xy`. Several completions act as a single well simply by
-          being several wells: `_set_Q` superimposes them (with `+=`).
+          being several wells: `assemble_wells` superimposes them.
         - `WI`: their well indices, i.e. a value for `inj_WI`/`prd_WI`. Each is
           `peaceman_WI` for its cell, scaled by the fraction of that cell which
           the path actually traverses (so a cell merely clipped by the path
           contributes proportionally less).
-        - `w`: `WI / WI.sum()`, for apportioning the rate among its completions:
-          `inj_rates = rate * w[:, None]`.
+        - `alloc`: `WI / WI.sum()`, for apportioning the rate among its completions:
+          `inj_rates = rate * alloc[:, None]`.
           This is the standard (static) allocation -- proportional to the well index,
           hence to both the contacted length and the local permeability.
 
         >>> model = ResSim(Lx=1, Ly=1, Nx=10, Ny=10)
-        >>> xy, WI, w = model.well_path([[.05, .05], [.45, .05]], rw=1e-2)
+        >>> xy, WI, alloc = model.well_path([[.05, .05], [.45, .05]], rw=1e-2)
         >>> xy.T[0]  # the traversed cells, in x
         array([0.05, 0.15, 0.25, 0.35, 0.45])
-        >>> w  # the end cells, entered mid-way, get half the rate
+        >>> alloc  # the end cells, entered mid-way, get half the rate
         array([0.125, 0.25 , 0.25 , 0.25 , 0.125])
 
-        .. note:: Under BHP control this `w` is exact (assuming 0 gravity and friction):
+        .. note:: Under BHP control this `alloc` is exact (assuming 0 gravity and friction):
             the completions simply share a `p_bh`.
-            Under *rate* control, `w` is an approximation unless the cell pressures are equal.
+            Under *rate* control, `alloc` is an approximation unless the cell pressures are equal.
             Solving for it would make $ p_\\mathrm{bh} $ an extra
             unknown, i.e. a bordered linear system -- which the 5-diagonal
             assembly of `TPFA` (Listing 1) is not set up for. Use
@@ -565,16 +561,15 @@ class ResSim(NicePrint, Grid2D, Plot2D):
             accum = self.por.ravel() * self.ct * self.h2 / dt
             DiagVecs[2] = DiagVecs[2] + accum
             q = q + accum * P
-        elif not self._bhp_diag.any():
-            # Pin the (otherwise pure-Neumann, hence singular) problem.
-            # Unnecessary -- and wrong -- if a BHP well already anchors it.
+        elif not self._wells_now.bhp_diag.any():
+            # Pin the (o/w pure-Neumann & singular) problem.
             DiagVecs[2][0] += np.sum(self.K[:, 0, 0])  # ref article p. 13
-        # Well model of the BHP-controlled wells (`0` if there are none)
-        DiagVecs[2] = DiagVecs[2] + self._bhp_diag
-        q = q + self._bhp_rhs
-        A = self._spdiags(DiagVecs, DiagIndx)
+        # Well model of the BHP-controlled wells
+        DiagVecs[2] = DiagVecs[2] + self._wells_now.bhp_diag
+        q = q + self._wells_now.bhp_rhs
 
         # Solve; compute A\q to update P
+        A = self._spdiags(DiagVecs, DiagIndx)
         # P = np.linalg.solve(A.A, q) # direct dense solver
         P = spsolve(A.tocsr(), q)  # direct sparse solver.
         # P, _info = cg(A, q)         # conjugate gradient
@@ -744,7 +739,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         """
 
         def integrate(S, P, k):
-            rates = self._set_Q(S, k)
+            self.assemble_wells(S, k)
 
             # Catch some common issues before they become mysterious/insidious
             # (e.g. mass imblance silently inserts deficit in SW corner).
@@ -753,16 +748,16 @@ class ResSim(NicePrint, Grid2D, Plot2D):
                 if spec is not None:  # `None` ⇒ purely BHP-controlled
                     assert len(spec) == len(getattr(self, f"{kind}_xy"))
                     assert np.all(spec >= 0)
-            if self.ct == 0 and not self._bhp_diag.any():
-                # Incompressible ⇒ no storage ⇒ src/sinks must balance.
-                # Unless a BHP well absorbs the imbalance, ref `inj_bhp`.
+            if self.ct == 0 and not self._wells_now.bhp_diag.any():
+                # Incompressible and no BHP control ⇒ no storage ⇒ src/sinks must balance.
                 assert np.isclose(self._Q.sum(), 0), "(inj - prd) does not sum to 0"
             assert np.all((0 <= self.K) & np.isfinite(self.K))
             assert np.all((0 <= self.por) & (self.por <= 1))
 
             [P, V] = self.pressure_step(S, P, dt)
-            rates = self._realize_bhp(P, rates)
+            self.realize_bhp(P)
             if self.actual_rates is not None:
+                rates = self._wells_now.rates
                 for kind, q in rates.items():
                     self.actual_rates[kind][:, k] = q
                 for kind, p_bh in self.bhp(S, P, rates).items():

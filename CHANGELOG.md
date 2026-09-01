@@ -40,7 +40,8 @@ should pin a tag (or commit hash) and advance it deliberately.
 - **Well paths**: `ResSim.well_path` walks a polyline through the grid and
   returns the traversed cells, their well indices (each scaled by how much of
   its cell the path actually crosses), and the resulting split of the well's
-  rate. Several completions act as one well by being superimposed in `_set_Q`,
+  rate. Several completions act as one well by being superimposed in
+  `assemble_wells`,
   which already worked; what is new is the discretization, the well indices, and
   the rate allocation. Under BHP control the completions simply share a
   `p_bh` -- all a wellbore does, absent the gravity and friction that a 2D areal
@@ -53,12 +54,18 @@ should pin a tag (or commit hash) and advance it deliberately.
 
 ### Changed
 
+- `_set_Q` is renamed `assemble_wells` -- and made public, together with its
+  partner, `realize_bhp`: `examples/heterogeneous.py` and a couple of the tests
+  already called the private names, to set up a pressure solve without `sim`.
+  What they compute for the step now travels by one channel, in two places: the
+  source field, `_Q`, and a bundle, `_wells_now`, holding the per-well arrays
+  (`inds`, `rates`, `p_bh`, `WI_lam` -- each a `dict` by well kind) and the
+  per-cell terms that the BHP wells contribute to `TPFA` (`bhp_diag`,
+  `bhp_rhs`). Neither method returns anything.
 - `actual_rates` and `actual_bhp` are now declared (and documented) attributes,
   `None` until `sim` allocates them -- rather than springing into existence
-  mid-simulation, guarded by `hasattr`. The recording itself moved out of
-  `_set_Q`/`_realize_bhp` (which now return the rates, the latter filling in
-  those it solved for) and into `time_stepper`, so that the well physics no
-  longer knows about the bookkeeping.
+  mid-simulation, guarded by `hasattr`. The recording itself moved out of the
+  well physics (`assemble_wells`/`realize_bhp`) and into `time_stepper`.
 - **BREAKING**: `sim`'s initial-condition arguments are renamed `x0, p0` ->
   `S0, P0`, matching the `(SS, PP)` trajectories it returns. Only `p0` was
   likely passed by keyword; `S0` is positional in practice.

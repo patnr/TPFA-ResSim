@@ -85,7 +85,7 @@ def test_storage_rate():
                    prd_xy=[[1, 1]], prd_rates=[[1]])
     water_sat0 = np.zeros(model.Nxy)
     P0 = np.ones(model.Nxy)
-    model._set_Q(water_sat0, 0)  # (as `time_stepper` does)
+    model.assemble_wells(water_sat0, 0)  # (as `time_stepper` does)
     P, V = model.pressure_step(water_sat0, P0, dt)
 
     accum = model.por.ravel() * model.ct * model.h2 / dt
