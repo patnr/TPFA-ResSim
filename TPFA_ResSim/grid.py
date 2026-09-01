@@ -153,3 +153,16 @@ class Grid2D:
         """Inverse of `self.xy2ind`."""
         i, j = self.ind2sub(ind)
         return self.sub2xy(i, j)
+
+    def _crossings(self, p0: np.ndarray, d: np.ndarray) -> np.ndarray:
+        """Parameters $t ∈ [0, 1]$ at which `p0 + t*d` crosses a cell boundary."""
+        ts = [0.0, 1.0]
+        for ax, h in enumerate([self.hx, self.hy]):
+            if d[ax] == 0:
+                continue
+            lo, hi = sorted([p0[ax], p0[ax] + d[ax]])
+            ts += [
+                (i * h - p0[ax]) / d[ax]
+                for i in range(int(np.floor(lo / h)) + 1, int(np.ceil(hi / h)))
+            ]
+        return np.unique(np.clip(ts, 0, 1))  # NB: `unique` also sorts
