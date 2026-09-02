@@ -38,8 +38,8 @@ Throughout, $p_\\mathrm{cell}$ is the pressure of the *cell* that holds the well
 not the pressure in the wellbore: it is an average over an area of $h^2$, so
 refining the grid deepens it without limit (here, 0.15 at 32² but 0.18 at 64²).
 Converting it to a bottom-hole pressure is the job of the *well model* -- set
-give the well an `rw` (ref `ResSim.wells`, `ResSim.peaceman_WI`) and read
-`model.actual_bhp` instead.
+give the well an `rw` (ref `ResSim.wells`, `peaceman_WI`) and read
+`model.wells.actual_bhp` instead.
 """
 
 from mpl_tools.place import freshfig
@@ -63,7 +63,7 @@ P0 = np.ones(model.Nxy)
 SS, PP = model.sim(dt, nSteps, oil_only, P0=P0, pbar=False)
 assert SS.max() == 0, "No water is injected, so none should appear."
 
-iw = model.xy2ind(*model.well_xy[0])
+iw = model.xy2ind(*model.wells.xy[0])
 p_mean = PP.mean(axis=1)
 p_cell = PP[:, iw]
 pore_volume = model.h2 * model.por.sum()

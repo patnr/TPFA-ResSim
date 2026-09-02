@@ -1,12 +1,11 @@
 """Rate control, BHP control, and the well model that connects them.
 
 A well can be told *what to do* in two ways: give it a rate (`rate`, ref
-`ResSim.well_rates`; negative to produce) and let its pressure follow, or give
-it a pressure (`bhp`, ref `ResSim.well_bhp`) and let its rate follow -- as
-`ResSim.wells` accepts either. Both need a **well model** -- the well index
-(`ResSim.peaceman_WI`, whence the `rw` of the record) -- because a well is far
-smaller than the cell that holds it, so its cell pressure is not its wellbore
-pressure.
+`Wells.rates`; negative to produce) and let its pressure follow, or give it a
+pressure (`bhp`, ref `Wells.bhp`) and let its rate follow -- as `ResSim.wells`
+accepts either. Both need a **well model** -- the well index (`peaceman_WI`,
+whence the `rw` of the record) -- because a well is far smaller than the cell
+that holds it, so its cell pressure is not its wellbore pressure.
 
 That distinction is the first thing shown here: the cell pressure is a *grid
 artefact* (an average over an area of $h^2$, which deepens without limit as the
@@ -105,8 +104,8 @@ for N in [32, 64]:
     model = depleter(N, rate=-q)
     PP = run(model)
     pbar = PP.mean(axis=1)
-    ax1.plot(tt, (pbar[1:] - PP[1:, model.xy2ind(*model.well_xy[0])]), label=f"{N}²")
-    ax2.plot(tt, (pbar[1:] - model.actual_bhp[0]), label=f"{N}²")
+    ax1.plot(tt, (pbar[1:] - PP[1:, model.xy2ind(*model.wells.xy[0])]), label=f"{N}²")
+    ax2.plot(tt, (pbar[1:] - model.wells.actual_bhp[0]), label=f"{N}²")
 ax1.set(title="Cell drawdown, $\\bar{p} - p_\\mathrm{cell}$",
         xlabel="Time", ylabel="$\\Delta p$")
 ax2.set(title="Bottom-hole drawdown, $\\bar{p} - p_\\mathrm{bh}$", xlabel="Time")
@@ -123,7 +122,7 @@ limited = depleter(cls=Limited, rate=-q)  # ... rate, but limited by p_bh
 run(limited)                              # (its rate/BHP is the interest)
 
 # Production, i.e. the negated (signed) rates
-prod_rate, prod_bhp, prod_lim = [-m.actual_rates[0]
+prod_rate, prod_bhp, prod_lim = [-m.wells.actual_rates[0]
                                  for m in [by_rate, by_bhp, limited]]
 
 # Analytic decline: q = J (pbar - p_bh) with material balance ct Vp dpbar/dt = -q
@@ -142,25 +141,25 @@ ax1.plot(tt, prod_bhp[-1]*np.exp((tt[-1] - tt)/tau), "k--",
 ax1.set(title="Production rate", xlabel="Time", ylabel="q", yscale="log")
 ax1.legend(fontsize="small")
 
-ax2.plot(tt, by_rate.actual_bhp[0], label="Rate-controlled")
-ax2.plot(tt, by_bhp .actual_bhp[0], label="BHP-controlled")
-ax2.plot(tt, limited.actual_bhp[0], ":", lw=2, label="Rate, limited")
-ax2.plot(tt, 1 - q*tt/(ct*Vp) - (PP_rate[-1].mean() - by_rate.actual_bhp[0, -1]),
+ax2.plot(tt, by_rate.wells.actual_bhp[0], label="Rate-controlled")
+ax2.plot(tt, by_bhp .wells.actual_bhp[0], label="BHP-controlled")
+ax2.plot(tt, limited.wells.actual_bhp[0], ":", lw=2, label="Rate, limited")
+ax2.plot(tt, 1 - q*tt/(ct*Vp) - (PP_rate[-1].mean() - by_rate.wells.actual_bhp[0, -1]),
          "k--", lw=1, label="$p_0 - qt/(c_t V_p) - \\Delta p$")
 ax2.set(title="Bottom-hole pressure", xlabel="Time", ylabel="$p_\\mathrm{bh}$")
 ax2.legend(fontsize="small")
 fig.tight_layout()
 
 ## The duality: prescribe the BHP that the rate-controlled run reported
-replay = depleter(bhp=by_rate.actual_bhp[0])
+replay = depleter(bhp=by_rate.wells.actual_bhp[0])
 PP_replay = run(replay)
 err_P = np.abs(PP_replay - PP_rate).max()
-err_q = np.abs(replay.actual_rates + q).max()
+err_q = np.abs(replay.wells.actual_rates + q).max()
 assert err_P < 1e-12 and err_q < 1e-12, "The two controls are not each other's inverse!"
 
 fig, ax = freshfig("Well control -- duality", figsize=(6, 4))
 ax.plot(tt, prod_rate, lw=4, alpha=.4, label="Rate-controlled: $q$")
-ax.plot(tt, -replay.actual_rates[0], "k--", lw=1,
+ax.plot(tt, -replay.wells.actual_rates[0], "k--", lw=1,
         label="BHP-controlled by its own reported $p_\\mathrm{bh}$")
 ax.set(title=f"The same well, controlled from either end (max err {err_q:.0e})",
        xlabel="Time", ylabel="q", ylim=(0, 2*q))
@@ -170,10 +169,10 @@ fig.tight_layout()
 # Regression values, checked by `tests/test_examples.py`.
 # NB: the production rates are negated, preserving the pre-v0.3 references.
 __digest__ = dict(rate_of_bhp_ctrl = prod_bhp,
-                  bhp_of_rate_ctrl = by_rate.actual_bhp[0],
+                  bhp_of_rate_ctrl = by_rate.wells.actual_bhp[0],
                   p_last_bhp_ctrl  = PP_bhp[-1],
                   rate_of_limited  = prod_lim,
-                  bhp_of_limited   = limited.actual_bhp[0])
+                  bhp_of_limited   = limited.wells.actual_bhp[0])
 
 if __name__ == "__main__":
     show()

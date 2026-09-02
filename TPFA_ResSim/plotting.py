@@ -154,14 +154,14 @@ class Plot2D:
                 ax.set_ylabel(f"y ({coord_type})")
 
         # Add well markers, grouped (and numbered) by the sign of their rates,
-        # ref `_well_signs`. The producers come first, so that their numbers
-        # and colors match those of `plt_production`.
-        if wells and self.well_xy is not None:
-            sgn = self._well_signs()
+        # ref `TPFA_ResSim.wells.Wells.signs`. The producers come first, so
+        # that their numbers and colors match those of `plt_production`.
+        if wells and self.wells.nComp:
+            sgn = self.wells.signs
             # Label the completions by their well's name, if there are any
             names = None
-            if self.well_names is not None and self.well_group is not None:
-                names = np.asarray(self.well_names)[self.well_group]
+            if self.wells.names is not None and self.wells.group is not None:
+                names = np.asarray(self.wells.names)[self.wells.group]
             if wells == "color":
                 # Colors matching `plt_production` of the producers
                 wells = cast(
@@ -174,7 +174,7 @@ class Plot2D:
                     kws = dict(wells)  # NB: copy -- the labels are per sign
                     if names is not None:
                         kws.setdefault("text", names[sgn == s])
-                    self.well_scatter(ax, self.well_xy[sgn == s], s, **kws)
+                    self.well_scatter(ax, self.wells.xy[sgn == s], s, **kws)
                 wells.pop("color", None)  # producers only
 
         # Add argmax marker
@@ -195,22 +195,6 @@ class Plot2D:
         tight_show(ax.figure, finalize)
         return collections
 
-    def _well_signs(self: "ResSim") -> np.ndarray:
-        """The sign (`+1` inject, `-1` produce, `0` unknown) of each well's rate.
-
-        Read off the *spec*, `well_rates`, summed over time (`nan` entries --
-        which a BHP-controlled well may well have -- being skipped). Wells left
-        undecided by it, i.e. those with no spec or a vanishing one (as under
-        pure BHP control), fall back on the `actual_rates` of the latest `sim`,
-        if there has been one. Only the truly undecided are then `0`.
-        """
-        sgn = np.zeros(len(self.well_xy), int)
-        for rates in [self.well_rates, self.actual_rates]:
-            if rates is not None:
-                q = np.nansum(rates, axis=1)
-                sgn = np.where(sgn, sgn, (q > 0).astype(int) - (q < 0))
-        return sgn
-
     def well_scatter(
         self: "ResSim",
         ax: Any,
@@ -223,7 +207,7 @@ class Plot2D:
         """Scatter-plot the wells of `ww` onto a `Plot2D.plt_field`.
 
         The marker reflects `sgn`: injector (`+1`), producer (`-1`),
-        or neutral (`0`, i.e. of undecided sign, ref `_well_signs`).
+        or neutral (`0`, i.e. of undecided sign, ref `TPFA_ResSim.wells.Wells.signs`).
 
         The label, `text`, is either one string for all of them, one *per* well
         of `ww` (a list), or `False` for none.
@@ -231,9 +215,9 @@ class Plot2D:
         .. note:: By default (`text=None`) the wells are labelled by their index
             *within* `ww`, so that (as `plt_field` calls this, once per sign) the
             producers are numbered as `plt_production` numbers them -- separately
-            from the injectors, and not as in the unified `well_xy`.
-            But `plt_field` supplies the names of `ResSim.well_names`,
-            if `ResSim.wells` has established any.
+            from the injectors, and not as in the unified `TPFA_ResSim.wells.Wells.xy`.
+            But `plt_field` supplies the names of `TPFA_ResSim.wells.Wells.names`,
+            if the wells have been given any.
         """
         # Well coordinates
         ww = self.sub2xy(*self.xy2sub(*ww.T)).T
@@ -312,7 +296,7 @@ class Plot2D:
         """Production time series. Multiple wells in 1 axes => not ensemble compat.
 
         The curves are labelled by their index in `production`, unless `labels`
-        (e.g. a selection of `ResSim.well_names`) says otherwise.
+        (e.g. a selection of `TPFA_ResSim.wells.Wells.names`) says otherwise.
         """
         hh = []
         tt = 1 + np.arange(len(production))

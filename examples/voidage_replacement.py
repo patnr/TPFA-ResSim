@@ -78,7 +78,7 @@ _, SS_lowc, _ = waterflood(vrr=1, ct=ct/10)
 dev = [abs(S - SS_inc).max() for S in [SS_full, SS_lowc]]
 assert 8 < dev[0]/dev[1] < 12, dev
 
-iprd = model.xy2ind(*model.well_xy[1])
+iprd = model.xy2ind(*model.wells.xy[1])
 breakthrough = [dt*np.argmax(S[:, iprd] > .01) for S in [SS_full, SS_half]]
 
 ## Plot: the front, at equal times

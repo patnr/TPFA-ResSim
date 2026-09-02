@@ -114,7 +114,7 @@ ax1.legend(fontsize="small")
 
 # Gauge: is the absolute pressure level meaningful?
 tt = dt*np.arange(nSteps + 1)
-iw = model.xy2ind(*model.well_xy[0])
+iw = model.xy2ind(*model.wells.xy[0])
 ax2.plot(tt, PP[:, iw]   , "-" , c="C0", label="$c_t>0$, $p_0=1$")
 ax2.plot(tt, PP_hi[:, iw], "--", c="C1", label="$c_t>0$, $p_0=2$")
 ax2.plot(tt[1:], PP_inc[1:, iw]   , "-" , c="C2", label="$c_t=0$, $p_0=1$")

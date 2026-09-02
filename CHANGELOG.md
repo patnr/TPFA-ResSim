@@ -12,26 +12,27 @@ should pin a tag (or commit hash) and advance it deliberately.
 
 ### Added
 
-- A **well model**: `ResSim.peaceman_WI` computes Peaceman's well index from the
+- A **well model**: `peaceman_WI` computes Peaceman's well index from the
   grid, the (possibly anisotropic) permeability, the well radius and the skin;
-  assigning it to the new `well_WI` attribute (`(nWell,)`, `nan` entries
+  assigning it to the new `Wells.WI` attribute (`(nComp,)`, `nan` entries
   allowed, for wells without a well model) makes `sim` record the
-  implied bottom-hole pressures in the new `actual_bhp` (via the new `ResSim.bhp`).
+  implied bottom-hole pressures in the new `wells.actual_bhp`
+  (via the new `ResSim.bhp`).
   Unlike the cell pressure -- which `sim`'s docstring could only advertise as a
   "bottom-hole pressure-*like* observable", and which varies by some 45% over a
   16² -> 64² refinement -- this is grid-independent, matching the analytic
   (Dietz) drawdown to within 0.2% on every grid (`tests/test_wells.py`).
   The well index is also a diagnostic in its own right: it defaults to `None`
-  (whereupon `actual_bhp` is `nan`), and a rate-controlled well is unaffected by
-  it, so adding one changes no existing result.
-- **BHP-controlled wells**, opt-in via the new `well_bhp` attribute
+  (whereupon `wells.actual_bhp` is `nan`), and a rate-controlled well is
+  unaffected by it, so adding one changes no existing result.
+- **BHP-controlled wells**, opt-in via the new `wells.bhp` attribute
   (shaped like the rates, so likewise time-varying; `nan` entries stay
   rate-controlled, hence the two modes may be mixed across wells and in time).
   The rate is solved for *simultaneously* with the pressure -- `TPFA` puts
   $WI λ_t$ on its diagonal and $WI λ_t p_{bh}$ on its right-hand side -- rather
-  than lagged by a step: prescribing the `actual_bhp` of a rate-controlled run
-  reproduces it to machine precision (`tests/test_wells.py`). The realized rates
-  are reported in `actual_rates`, so `well_rates` may be left `None`.
+  than lagged by a step: prescribing the `wells.actual_bhp` of a rate-controlled
+  run reproduces it to machine precision (`tests/test_wells.py`). The realized rates
+  are reported in `wells.actual_rates`, so `wells.rates` may be left `None`.
   A BHP well also *anchors* the incompressible (`ct == 0`) pressure equation,
   which is otherwise a pure-Neumann problem: the arbitrary pin at the SW corner
   (ref article p. 13) is then skipped, the absolute pressure level becomes
@@ -40,7 +41,7 @@ should pin a tag (or commit hash) and advance it deliberately.
   well flows whichever way `p_bh` vs. its cell pressure dictates, an inflow
   injecting water like any other -- with a `UserWarning` if that direction
   flips mid-`sim`, such a reversal being more often a mistake than an intent.
-- **Well paths**: `ResSim.well_path` walks a polyline through the grid and
+- **Well paths**: `well_path` walks a polyline through the grid and
   returns the traversed cells, their well indices (each scaled by how much of
   its cell the path actually crosses), and the resulting split of the well's
   rate. Several completions act as one well by being superimposed in
@@ -58,7 +59,7 @@ should pin a tag (or commit hash) and advance it deliberately.
   and is handed the pressure as well as the saturation, so an override governs
   the wells' *modes* as well as their rates -- which is what it takes to
   approximate the mode *switching* that the model does not do natively (ref
-  `well_bhp`): e.g. rate control with a BHP limit, wherein a producer holds its
+  `wells.bhp`): e.g. rate control with a BHP limit, wherein a producer holds its
   rate only until that would draw it below some `p_min` (worked examples in its
   docstring). Being judged from the previous step's pressure, the switch lags:
   the limit is breached for the one step in which it comes to bind, by less the
@@ -82,23 +83,22 @@ should pin a tag (or commit hash) and advance it deliberately.
   (`peaceman_WI`), apportions the well's rate among them, shares out its BHP,
   broadcasts the constants against the schedules, and fills in the `0`/`nan`
   conventions of the specs it assembles.
-  Assigning it is what applies it -- `__setattr__` forwards to the private
-  `_set_wells`, in keeping with the normalization it already does for `K` and
-  the well arrays -- and it writes only the flat `well_*` arrays, which remain
-  the model's state and remain assignable as before (ensemble methods
-  perturbing `well_xy` are unaffected). Assigning any of *those* resets `wells`
-  to `None`, so the records, whenever present, describe the current wells
-  rather than a superseded configuration. A hand-written config and its
-  record equivalent produce the same run, bit for bit
+  Assigning it is what applies it -- `__setattr__` forwards to
+  `Wells.from_records`, in keeping with the normalization it already does for
+  `K` -- and the arrays it assembles are the whole of the configuration: the
+  records themselves are read, not retained, so nothing can fall out of step
+  with a subsequent edit of the arrays (which remain assignable, ensemble
+  methods perturbing `wells.xy` being unaffected). A hand-written config and
+  its record equivalent produce the same run, bit for bit
   (`tests/test_well_config.py`).
 - **Well grouping**, so that the reporting may speak of wells while the model
-  solves for completions: `well_group` maps each completion to its well, and
-  `well_names` names them (`wells` sets both; a `path` well's completions are
-  thereby recognizably one well). Hence `nComp` -- the number of
-  completions, i.e. the rows of `well_xy`, `actual_rates`, ... -- alongside
-  `nWell`, which now counts *wells*; `rates_by_well`, which sums
-  `actual_rates` per well; and plot markers labelled by name rather than by
-  index (`plt_production` accepts `labels` to match).
+  solves for completions: `wells.group` maps each completion to its well, and
+  `wells.names` names them (`wells` sets both; a `path` well's completions are
+  thereby recognizably one well). Hence `nComp` -- the number of completions,
+  i.e. the rows of `wells.xy`, `wells.actual_rates`, ... -- alongside
+  `wells.nWell`, which counts *wells*; `wells.rates_by_well`, which sums
+  `wells.actual_rates` per well; and plot markers labelled by name rather than
+  by index (`plt_production` accepts `labels` to match).
   There is deliberately no `bhp_by_well`: rates aggregate, pressures do not.
 - `examples/well_control.py` and `examples/well_path.py` illustrate the above
   (and, like the other examples, double as regression tests). The former's
@@ -106,13 +106,24 @@ should pin a tag (or commit hash) and advance it deliberately.
   rate target with a BHP limit -- whose curve traces the first until the limit
   binds, and the second thereafter.
 
+- **`TPFA_ResSim.wells`**, a module of its own -- alongside `grid` and
+  `plotting` -- holding everything that depends on the wells and the geometry
+  alone: the `Wells` dataclass (the per-completion arrays, their
+  normalization, the grouping, `rates_by_well`, `signs`, `at_time`) and the
+  two free functions `peaceman_WI` and `well_path`, which take the model for
+  its grid and `K`. What couples the wells to the *fluids* (`RelPerm`) or to
+  the linear system (`_Q`, `_wells_now`) stays with the simulator --
+  `assemble_wells`, `realize_bhp`, `bhp`, `well_controls` -- so the dependency
+  runs one way, as it does for `Grid2D` and `Plot2D`.
+  Some 400 lines lighter, `__init__.py` is left to the physics.
+
 ### Changed
 
 - **BREAKING**: injectors and producers are **unified into a single set of
   wells**, removing every per-kind code path (the `("inj", +1)/("prd", -1)`
   loops, the dicts-by-kind, the paired attributes):
-  - `inj_xy`/`prd_xy` -> `well_xy`; `nInj`/`nPrd` -> `nWell`.
-  - `inj_rates`/`prd_rates` -> `well_rates`, now **signed**: positive injects
+  - `inj_xy`/`prd_xy` -> `wells.xy`; `nInj`/`nPrd` -> `wells.nWell`.
+  - `inj_rates`/`prd_rates` -> `wells.rates`, now **signed**: positive injects
     (water), negative produces (at the cell's fractional flow). This is the
     whole trick: the transport step already discriminated by the sign of the
     assembled source field, so with the sign in the spec, nothing anywhere
@@ -120,11 +131,11 @@ should pin a tag (or commit hash) and advance it deliberately.
     incompressible balance assertion is now that the rates sum to 0, and
     `assemble_wells` asserts that a *rate*-controlled well has a finite rate
     (`nan` being tolerated only as a BHP-controlled well's placeholder).
-  - `actual_rates` is a single `(nComp, nSteps)` array (signed), no longer a
-    dict by kind -- likewise the rates handed out by the feedback hook (ref
+  - `wells.actual_rates` is a single `(nComp, nSteps)` array (signed), no
+    longer a dict by kind -- likewise the rates handed out by the hook (ref
     the `dynamic_rate` -> `well_controls` entry below).
   - Plot markers are inferred from the sign of each well's rates: the spec,
-    `well_rates`, falling back on the realized `actual_rates` for the wells it
+    `wells.rates`, falling back on the realized `wells.actual_rates` for the wells it
     leaves undecided (as pure BHP control does); only the still-undecided get
     the new neutral marker. Their *numbering* is unchanged, being per sign, so
     the producers are still numbered (and coloured) as in `plt_production`.
@@ -137,10 +148,11 @@ should pin a tag (or commit hash) and advance it deliberately.
     where an example's digest recorded production rates, they are negated
     back to positive to keep `tests/references.py` identical.
 
-- **BREAKING**: `nWell` now counts **wells**, not completions -- the count of
-  those (the rows of `well_xy`, `well_rates`, `actual_rates`, ...) being
-  `nComp`. The two coincide unless some well has several completions
-  (ref `well_group`). Since `nWell` itself only arrived with the unification
+- **BREAKING**: `wells.nWell` counts **wells**, not completions -- the count of
+  those (the rows of `wells.xy`, `wells.rates`, `wells.actual_rates`, ...) being
+  `wells.nComp`, which `ResSim.nComp` forwards, the equations being assembled
+  per completion. The two coincide unless some well has several completions
+  (ref `wells.group`). Since `nWell` itself only arrived with the unification
   above (from `nInj`/`nPrd`), no released version is affected.
 - The examples all configure their wells by records now
   (`examples/well_path.py` most tellingly: its three cases no longer assemble
@@ -154,8 +166,8 @@ should pin a tag (or commit hash) and advance it deliberately.
   (`inds`, `rates`, `p_bh`, `WI_lam`) and the
   per-cell terms that the BHP wells contribute to `TPFA` (`bhp_diag`,
   `bhp_rhs`). Neither method returns anything.
-- `actual_rates` and `actual_bhp` are now declared (and documented) attributes,
-  `None` until `sim` allocates them -- rather than springing into existence
+- `wells.actual_rates` and `wells.actual_bhp` are now declared (and documented)
+  attributes, `None` until `sim` allocates them -- rather than springing into existence
   mid-simulation, guarded by `hasattr`. The recording itself moved out of the
   well physics (`assemble_wells`/`realize_bhp`) and into `time_stepper`.
 - **BREAKING**: `dynamic_rate` is removed in favour of `well_controls`, which

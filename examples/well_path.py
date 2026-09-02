@@ -1,7 +1,7 @@
 """Well *paths*: a well completed in many cells rather than one.
 
-`ResSim.well_path` walks a polyline through the grid and returns the cells it
-traverses, their well indices (`ResSim.peaceman_WI`, scaled by how much of each
+`well_path` walks a polyline through the grid and returns the cells it
+traverses, their well indices (`peaceman_WI`, scaled by how much of each
 cell is actually traversed), and `w`, the resulting split of the well's rate.
 Several completions then act as a single well simply by *being* several wells:
 `ResSim.assemble_wells` superimposes them.
@@ -46,7 +46,7 @@ In the figures:
 from mpl_tools.place import freshfig
 import numpy as np
 
-from TPFA_ResSim import ResSim
+from TPFA_ResSim import ResSim, well_path
 from TPFA_ResSim.plotting import show
 
 ## Setup
@@ -68,7 +68,7 @@ def waterflood(injector):
 
 # The path, and its discretization into completions
 proto = ResSim(Lx=1, Ly=1, Nx=64, Ny=64)
-xy, WI, w = proto.well_path([[0, 0], [0, 1]], rw)
+xy, WI, w = well_path(proto, [[0, 0], [0, 1]], rw)
 assert len(xy) == proto.Ny, "The west edge is one cell wide, and Ny cells long."
 
 ## Simulate: a point injector, the same as a path, and the path on BHP.
@@ -77,13 +77,13 @@ path , SS_path  = waterflood(dict(name="Inj", path=[[0, 0], [0, 1]], rate=1, rw=
 onbhp, SS_onbhp = waterflood(dict(name="Inj", path=[[0, 0], [0, 1]], bhp=3., rw=rw))
 
 # The completions of the injector, as grouped by `wells`
-inj = path.well_group == 0
-assert inj.sum() == len(xy) and np.allclose(path.well_WI[inj], WI)
+inj = path.wells.group == 0
+assert inj.sum() == len(xy) and np.allclose(path.wells.WI[inj], WI)
 
 # Incompressible => whatever the control, the injection must match the production
 for model in [path, onbhp]:
-    assert np.allclose(model.actual_rates[inj].sum(axis=0), 1)
-    assert np.allclose(model.rates_by_well, [[1], [-1]])   # (nWell, nSteps)
+    assert np.allclose(model.wells.actual_rates[inj].sum(axis=0), 1)
+    assert np.allclose(model.wells.rates_by_well, [[1], [-1]])   # (nWell, nSteps)
 
 ## Plot: the resulting sweeps
 fig, axs = freshfig("Well path -- sweep", ncols=2, sharex=True, sharey=True,
@@ -98,15 +98,15 @@ fig.tight_layout()
 fig, (ax1, ax2) = freshfig("Well path -- allocation", ncols=2, figsize=(10, 4))
 
 yy = xy[:, 1]
-ax1.plot(yy, path.actual_rates[inj, -1], label="Rate-controlled: $w \\propto WI$")
+ax1.plot(yy, path.wells.actual_rates[inj, -1], label="Rate-controlled: $w \\propto WI$")
 for k, ls in [(0, ":"), (nSteps - 1, "-")]:
-    ax1.plot(yy, onbhp.actual_rates[inj, k], ls, c="C1",
+    ax1.plot(yy, onbhp.wells.actual_rates[inj, k], ls, c="C1",
              label=f"BHP-controlled, t = {tt[k]:.2f}")
 ax1.set(title="Injection rate per completion", xlabel="y (along the path)",
         ylabel="q", ylim=0)
 ax1.legend(fontsize="small")
 
-prd = [point.xy2ind(*point.well_xy[-1])]
+prd = [point.xy2ind(*point.wells.xy[-1])]
 for name, SS in [("Point", SS_point), ("Path", SS_path), ("Path, on BHP", SS_onbhp)]:
     ax2.plot(tt, 1 - SS[1:, prd[0]], label=name)
 ax2.set(title="Oil saturation at the producer", xlabel="Time", ylabel="1 - s")
@@ -115,7 +115,7 @@ fig.tight_layout()
 
 # Regression values, checked by `tests/test_examples.py`.
 __digest__ = dict(alloc_static = w,
-                  alloc_bhp    = onbhp.actual_rates[inj, -1],
+                  alloc_bhp    = onbhp.wells.actual_rates[inj, -1],
                   sat_point    = SS_point[-1, ::600],
                   sat_path     = SS_path[-1, ::600])
 

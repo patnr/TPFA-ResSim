@@ -5,7 +5,7 @@ They double as regression tests: `tests/test_examples.py` runs them all
   reference paper. The latter is what verifies our agreement with the Matlab codes.
 - `rate_scheduling.py` steers the water front using time-varying injection rates.
 
-These concern the *well model* (`ResSim.peaceman_WI`), i.e. the sub-grid
+These concern the *well model* (`TPFA_ResSim.wells.peaceman_WI`), i.e. the sub-grid
 relation between a well and the (much larger) cell that holds it:
 
 - `well_control.py`: the two ways to control a well -- prescribing its rate and

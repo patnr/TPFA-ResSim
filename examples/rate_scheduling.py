@@ -60,16 +60,16 @@ fig.tight_layout()
 fig, axs = freshfig("Rate scheduling -- wells", ncols=2, figsize=(9, 3.5))
 
 tt = dt*(1 + np.arange(nSteps))
-for i, rate in enumerate(model.actual_rates[:2]):
-    x, y = model.well_xy[i]
-    name = model.well_names[i]
+for i, rate in enumerate(model.wells.actual_rates[:2]):
+    x, y = model.wells.xy[i]
+    name = model.wells.names[i]
     axs[0].step(tt, rate, where="post", label=f"Injector {name} @ ({x:.2f}, {y:.2f})")
 axs[0].set(title="Injection rates", xlabel="Time", ylabel="Rate", ylim=(-.05, 1.05))
 axs[0].legend()
 
-prd = [model.xy2ind(*model.well_xy[2])]
+prd = [model.xy2ind(*model.wells.xy[2])]
 model.plt_production(axs[1], SS[1:, prd], finalize=False,
-                     labels=model.well_names[2:])
+                     labels=model.wells.names[2:])
 fig.tight_layout()
 
 # Regression values, checked by `tests/test_examples.py`.

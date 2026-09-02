@@ -341,9 +341,9 @@ shutting a well in.
 A well is either an **injector** or a **producer** -- the terminal states of the
 sources and sinks, $q$, of the governing equations.
 The two are not distinct objects here: a well is an injector or a producer
-merely by the *sign* of its rate (ref `TPFA_ResSim.ResSim.well_rates`), and
+merely by the *sign* of its rate (ref `TPFA_ResSim.wells.Wells.rates`), and
 under BHP control not even by that, the direction being left to the pressures
-(ref `TPFA_ResSim.ResSim.well_bhp`).
+(ref `TPFA_ResSim.wells.Wells.bhp`).
 Its **completion** is the equipment that connects the **wellbore** to the rock,
 whose interface is the **sandface**; it may be *open hole*, or cased and
 **perforated**. A well may have several completions, e.g. one per layer,
@@ -382,10 +382,10 @@ Two things enter it, beyond $r_w$ and $\mathbf{K}$:
   $r_e \approx 0.2 h$ for the 5-point stencil of TPFA. Beware that the same symbol
   is used, in well testing, for the (physical) *drainage radius*.
 
-Ref `TPFA_ResSim.ResSim.peaceman_WI` for the formula combining these.
+Ref `TPFA_ResSim.wells.peaceman_WI` for the formula combining these.
 
 A well is **controlled** either by prescribing its rate, or its BHP,
-the other then being an outcome (ref `TPFA_ResSim.ResSim.well_bhp`).
+the other then being an outcome (ref `TPFA_ResSim.wells.Wells.bhp`).
 Reality is closer to the latter -- one sets a pump speed or a **choke** opening,
 and the reservoir decides the rate -- but the *rate* is what is usually planned for.
 Field practice is therefore rate control subject to a BHP *constraint*
@@ -412,7 +412,7 @@ by symmetry it suffices to simulate the *quarter five-spot*, as in the examples 
 They need not be vertical: *deviated*, *horizontal* and *multilateral* wells
 contact more rock per well, at the price of an **allocation** problem,
 namely how the total rate distributes itself among the completions
-(ref `TPFA_ResSim.ResSim.well_path`).
+(ref `TPFA_ResSim.wells.well_path`).
 Later interventions to restore or improve a well are **workovers**,
 and drilling extra wells between the existing ones is **infill drilling**.
 

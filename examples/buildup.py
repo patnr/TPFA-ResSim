@@ -68,7 +68,7 @@ P0 = np.ones(model.Nxy)
 SS, PP = model.sim(dt, nSteps, oil_only, P0=P0, pbar=False)
 _ , PP_inc = model_inc.sim(dt, nSteps, oil_only, pbar=False)
 
-iw = model.xy2ind(*model.well_xy[0])
+iw = model.xy2ind(*model.wells.xy[0])
 p_mean = PP.mean(axis=1)
 
 ## Plot: monitor points, and the drawdown
