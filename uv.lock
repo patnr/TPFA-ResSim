@@ -1030,15 +1030,6 @@ wheels = [
 ]
 
 [[package]]
-name = "struct-tools"
-version = "0.2.7"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/c9/28/705eadb36e8d5536de6f1a60297ca7bf959fc14e36407bedd501383f3a2c/struct-tools-0.2.7.tar.gz", hash = "sha256:018fc07716d35a128f818f07020fbb58ce65abc0d6e5f704c5dc44caeb61f4e0", size = 8214, upload-time = "2021-08-13T11:56:12.613Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/3b/3e/6fe4ec5e48a5906d179549cbf044f17b8c515f5a2176a9f50c820c0e5d3d/struct_tools-0.2.7-py3-none-any.whl", hash = "sha256:65924703f91f0a14ebfc864270eb7612615adeda4112c87e7c82ccbea1b5dac5", size = 8023, upload-time = "2021-08-13T11:56:13.845Z" },
-]
-
-[[package]]
 name = "tpfa-ressim"
 version = "0.2.0"
 source = { editable = "." }
@@ -1046,7 +1037,6 @@ dependencies = [
     { name = "matplotlib" },
     { name = "mpl-tools" },
     { name = "scipy" },
-    { name = "struct-tools" },
     { name = "tqdm" },
 ]
 
@@ -1073,7 +1063,6 @@ requires-dist = [
     { name = "matplotlib", specifier = ">=3.8,<4" },
     { name = "mpl-tools", specifier = ">=0.4.0,<0.5" },
     { name = "scipy", specifier = "~=1.10" },
-    { name = "struct-tools", specifier = ">=0.2.7,<0.3" },
     { name = "tqdm", specifier = "~=4.65" },
 ]
 

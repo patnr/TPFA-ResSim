@@ -2,21 +2,34 @@
 
 import warnings
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any, Callable, NamedTuple
 
 import numpy as np
 from scipy import sparse
 from scipy.sparse.linalg import spsolve
-from struct_tools import DotDict, NicePrint
 from tqdm.auto import tqdm
 
+from TPFA_ResSim._repr import AlignedRepr
 from TPFA_ResSim.grid import Grid2D
 from TPFA_ResSim.plotting import Plot2D
 from TPFA_ResSim.wells import Wells, peaceman_WI, well_path  # noqa: F401
 
 
+class Fluxes(NamedTuple):
+    """The (discrete Darcy) fluxes through the cell faces, from `ResSim.TPFA`.
+
+    Positive is in the direction of increasing index. The fluxes through the
+    *boundary* faces are `0`: the reservoir is closed (no-flow) all around.
+    """
+
+    x: np.ndarray
+    """Fluxes through the x-normal faces. Shape `(Nx+1, Ny)`."""
+    y: np.ndarray
+    """Fluxes through the y-normal faces. Shape `(Nx, Ny+1)`."""
+
+
 @dataclass
-class ResSim(NicePrint, Grid2D, Plot2D):
+class ResSim(AlignedRepr, Grid2D, Plot2D):
     """Reservoir simulator class.
 
     Implemented with OOP (instead of passing around dicts) to facilitate
@@ -39,8 +52,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     """
 
     # Dont use dataclass repr
-    __repr__ = NicePrint.__repr__
-    __str__ = NicePrint.__str__
+    __repr__ = AlignedRepr.__repr__
 
     # Prefer __setattr__ approach (over @property get/set-ers)
     # because @property requires the _private pattern,
@@ -161,21 +173,17 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         `TPFA`, after which `realize_bhp` folds the resulting rate into `_Q`.
         """
         ctrl = self.well_controls(S, P, k)
-        # `Any` coz ty cannot see that `DotDict` provides attribute access to keys
-        wls: Any = DotDict(
-            inds  = self.xy2ind(*self.wells.xy.T),
-            rates = ctrl["rates"],
-            p_bh  = ctrl["bhp"],
-        )  # fmt: off
-        is_bhp = np.isfinite(wls.p_bh)
-        assert np.isfinite(wls.rates[~is_bhp]).all(), (
+        inds = self.xy2ind(*self.wells.xy.T)
+        rates, p_bh = ctrl["rates"], ctrl["bhp"]
+        is_bhp = np.isfinite(p_bh)
+        assert np.isfinite(rates[~is_bhp]).all(), (
             "A rate-controlled well has a non-finite rate. Give it a number"
             " (`0` shuts it in), or put it on BHP control; ref `Wells.rates`."
         )
 
         # The well model's constant of proportionality, WI * λ_t.
         # NB: `nan` marks the rate-controlled wells, throughout.
-        wls.WI_lam = np.full(self.nComp, np.nan)
+        WI_lam = np.full(self.nComp, np.nan)
         if is_bhp.any():
             WI = self.wells.WI
             assert WI is not None and np.isfinite(WI[is_bhp]).all(), (
@@ -183,19 +191,22 @@ class ResSim(NicePrint, Grid2D, Plot2D):
             )
             assert S is not None, "BHP control requires `S` (for λ_t)."
             Mw, Mo = self.RelPerm(S)
-            wls.WI_lam[is_bhp] = WI[is_bhp] * (Mw + Mo)[wls.inds[is_bhp]]
+            WI_lam[is_bhp] = WI[is_bhp] * (Mw + Mo)[inds[is_bhp]]
 
         # Translate well conditions for cells.
         # NB: Dont use `Q[inds] += ...` since `inds` may contain dupes.
-        self._Q, wls.bhp_diag, wls.bhp_rhs = np.zeros((3, self.Nxy))
-        np.add.at(self._Q, wls.inds[~is_bhp], wls.rates[~is_bhp])
-        np.add.at(wls.bhp_diag, wls.inds[is_bhp], wls.WI_lam[is_bhp])
-        np.add.at(wls.bhp_rhs, wls.inds[is_bhp], (wls.WI_lam * wls.p_bh)[is_bhp])
-        wls.rates[is_bhp] = np.nan  # only `realize_bhp` knows these
-        self._wells_now = wls
+        self._Q, bhp_diag, bhp_rhs = np.zeros((3, self.Nxy))
+        np.add.at(self._Q, inds[~is_bhp], rates[~is_bhp])
+        np.add.at(bhp_diag, inds[is_bhp], WI_lam[is_bhp])
+        np.add.at(bhp_rhs, inds[is_bhp], (WI_lam * p_bh)[is_bhp])
+        rates[is_bhp] = np.nan  # only `realize_bhp` knows these
+        self._wells_now: dict[str, np.ndarray] = dict(
+            inds=inds, rates=rates, p_bh=p_bh,
+            WI_lam=WI_lam, bhp_diag=bhp_diag, bhp_rhs=bhp_rhs,
+        )  # fmt: skip
 
     def realize_bhp(self, P: np.ndarray) -> None:
-        """Compute rates for BHP wells. Enter into `_Q` and `_wells_now.rates`.
+        """Compute rates for BHP wells. Enter into `_Q` and `_wells_now["rates"]`.
 
         The rate, $ WI λ_t (p_\\mathrm{bh} - p_\\mathrm{cell}) $, is signed by
         nature: the flow direction is *emergent*, not declared (ref the
@@ -206,18 +217,19 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         hence the transport step -- consistent with the pressure solution.
         """
         wls = self._wells_now
+        WI_lam = wls["WI_lam"]  # `nan` marks the rate-controlled wells
         # Insert in cell source/sink field
-        self._Q = self._Q + wls.bhp_rhs - wls.bhp_diag * P
+        self._Q = self._Q + wls["bhp_rhs"] - wls["bhp_diag"] * P
         # Insert in per-well rates
-        is_bhp = np.isfinite(wls.WI_lam)  # `nan` marks the rate-controlled wells
-        wls.rates[is_bhp] = (wls.WI_lam * (wls.p_bh - P[wls.inds]))[is_bhp]
+        is_bhp = np.isfinite(WI_lam)
+        wls["rates"][is_bhp] = (WI_lam * (wls["p_bh"] - P[wls["inds"]]))[is_bhp]
 
     def _record_actual_well_operation(self, S: np.ndarray, P: np.ndarray, k: int) -> None:
         """Record `actual_rates`/`actual_bhp`. Warn about flow direction flip."""
         wls = self._wells_now
         if k:
-            is_bhp = np.isfinite(wls.WI_lam)
-            flipped = is_bhp & (wls.rates * self.wells.actual_rates[:, k - 1] < 0)
+            is_bhp = np.isfinite(wls["WI_lam"])
+            flipped = is_bhp & (wls["rates"] * self.wells.actual_rates[:, k - 1] < 0)
             if flipped.any():
                 warnings.warn(
                     f"BHP-controlled well(s) {np.flatnonzero(flipped).tolist()}"
@@ -225,8 +237,8 @@ class ResSim(NicePrint, Grid2D, Plot2D):
                     " (an inflow injects water); ref `Wells.bhp`.",
                     stacklevel=2,
                 )
-        self.wells.actual_rates[:, k] = wls.rates
-        self.wells.actual_bhp[:, k] = self.bhp(S, P, wls.rates)
+        self.wells.actual_rates[:, k] = wls["rates"]
+        self.wells.actual_bhp[:, k] = self.bhp(S, P, wls["rates"])
 
     def well_controls(self, S: np.ndarray | None, P: np.ndarray | None, k: int) -> dict:
         """Compute the wells' controls for time `k`: `dict(rates=..., bhp=...)`.
@@ -345,7 +357,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         S: np.ndarray,
         P: np.ndarray | None = None,
         dt: float | None = None,
-    ) -> tuple:
+    ) -> tuple[np.ndarray, Fluxes]:
         """Compute permeabilities then solve Darcy's equation. Returns `[P, V]`.
 
         `P` (flat, like `S`) is the *previous* step's pressure: used (and
@@ -388,7 +400,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         K: np.ndarray,
         P: np.ndarray | None = None,
         dt: float | None = None,
-    ) -> tuple:
+    ) -> tuple[np.ndarray, Fluxes]:
         """Two-point flux-approximation (TPFA) of Darcy: $ -∇(K ∇u) = q $
 
         i.e. steady-state diffusion w/ nonlinear coefficient, $K$,
@@ -425,12 +437,12 @@ class ResSim(NicePrint, Grid2D, Plot2D):
             accum = self.por.ravel() * self.ct * self.h2 / dt
             DiagVecs[2] = DiagVecs[2] + accum
             q = q + accum * P
-        elif not self._wells_now.bhp_diag.any():
+        elif not self._wells_now["bhp_diag"].any():
             # Pin the (o/w pure-Neumann & singular) problem.
             DiagVecs[2][0] += np.sum(self.K[:, 0, 0])  # ref article p. 13
         # Well model of the BHP-controlled wells
-        DiagVecs[2] = DiagVecs[2] + self._wells_now.bhp_diag
-        q = q + self._wells_now.bhp_rhs
+        DiagVecs[2] = DiagVecs[2] + self._wells_now["bhp_diag"]
+        q = q + self._wells_now["bhp_rhs"]
 
         # Solve; compute A\q to update P
         A = self._spdiags(DiagVecs, DiagIndx)
@@ -445,8 +457,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
 
         # Extract fluxes, via a grid-shaped view of the (flat) pressure.
         P2d = P.reshape(self.shape)
-        # `Any` coz ty cannot see that `DotDict` provides attribute access to keys
-        V: Any = DotDict(
+        V = Fluxes(
             x=np.zeros((self.Nx + 1, self.Ny)),
             y=np.zeros((self.Nx, self.Ny + 1)),
         )
@@ -455,7 +466,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         return P, V
 
     # GenA() -- listing 7
-    def upwind_diff(self, V: Any) -> sparse.dia_matrix:
+    def upwind_diff(self, V: Fluxes) -> sparse.dia_matrix:
         """Upwind finite-volume scheme."""
         fp = self._Q.clip(max=0)  # production
         # Flow fluxes, separated into direction (x-y) and sign
@@ -468,7 +479,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         A = self._spdiags(DiagVecs, DiagIndx)
         return A
 
-    def storage_rate(self, V: Any) -> np.ndarray:
+    def storage_rate(self, V: Fluxes) -> np.ndarray:
         """The volume rate, per cell, that goes into storage: $ q - ∇ ⋅ V $.
 
         For the incompressible model this is `0`: the fluxes balance the wells
@@ -487,7 +498,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         return self._Q - divV.ravel()
 
     # Extracted from Upstream()
-    def estimate_1CFL(self, pv: np.ndarray, V: Any, fi: np.ndarray) -> float:
+    def estimate_1CFL(self, pv: np.ndarray, V: Fluxes, fi: np.ndarray) -> float:
         """Estimate 1/CFL for use with `saturation_step_upwind`."""
         # In-/Out-flux x-/y- faces
         XP = V.x.clip(min=0)
@@ -504,7 +515,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         return 3 / (1 - sat) * flx  # NB: 3-->2 since no z-dim ?
 
     # Upstream() -- listing 8
-    def saturation_step_upwind(self, S: np.ndarray, V: Any, dt: float) -> np.ndarray:
+    def saturation_step_upwind(self, S: np.ndarray, V: Fluxes, dt: float) -> np.ndarray:
         """Explicit upwind FV discretisation of conserv. of mass (water sat.)."""
         # fmt: off
         A  = self.upwind_diff(V)                 # FV discretized transport operator
@@ -532,7 +543,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     def saturation_step_implicit(
         self,
         S: np.ndarray,
-        V: Any,
+        V: Fluxes,
         dt: float,
         nNewtonMax: int = 10,
         nTmax_log2: int = 10,
@@ -607,7 +618,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
 
             # Catch some common issues before they become mysterious/insidious
             # (e.g. mass imblance silently inserts deficit in SW corner).
-            if self.ct == 0 and not self._wells_now.bhp_diag.any():
+            if self.ct == 0 and not self._wells_now["bhp_diag"].any():
                 # Incompressible and no BHP control ⇒ no storage ⇒ src/sinks must balance.
                 assert np.isclose(self._Q.sum(), 0), "well rates do not sum to 0"
             assert np.all((0 <= self.K) & np.isfinite(self.K))

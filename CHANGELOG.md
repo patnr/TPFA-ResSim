@@ -193,6 +193,19 @@ should pin a tag (or commit hash) and advance it deliberately.
   `reshape`/`ravel` it) are unaffected; those that index it in 2D must reshape.
   Their `p_prev` argument is likewise renamed `P`, the pressure now being a
   state variable that the call advances in time.
+- The **`struct-tools` dependency is dropped** -- only two of its facilities
+  were used. `NicePrint` is replaced by `AlignedRepr`, a mixin of some 15 lines
+  in the new (private) `TPFA_ResSim._repr`: the `repr` keeps its shape, but now
+  *summarizes* big arrays (`K`, `por`) rather than dumping them in full, while
+  `str` is no longer an alternative rendering (the bulleted one of
+  `NicePrint.__str__`) -- it is simply the `repr`. And the two `DotDict`s
+  become plain structs: the face fluxes are a `Fluxes` named tuple, which keeps
+  `V.x`/`V.y` but *types* the `V` parameter of `upwind_diff`, `storage_rate`,
+  `estimate_1CFL` and the two `saturation_step_*` (as well as the return of
+  `TPFA` and `pressure_step`), whereas the internal `_wells_now` bundle is a
+  `dict`, so its fields are keyed (`_wells_now["rates"]`, ...) rather than
+  attributes. NB: a downstream that imported `struct_tools` *transitively* from
+  here (HistoryMatching does) must add it to its own requirements.
 
 ### Fixed
 

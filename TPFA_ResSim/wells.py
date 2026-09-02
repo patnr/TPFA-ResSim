@@ -19,7 +19,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from struct_tools import NicePrint
+
+from TPFA_ResSim._repr import AlignedRepr
 
 if TYPE_CHECKING:
     from TPFA_ResSim import ResSim
@@ -148,8 +149,10 @@ def well_path(
     frac = np.array(list(lengths.values())) / np.sqrt(model.h2)
     WI = frac * peaceman_WI(model, xy, rw, skin)
     return xy, WI, WI / WI.sum()
+
+
 @dataclass
-class Wells(NicePrint):
+class Wells(AlignedRepr):
     """The wells of a `TPFA_ResSim.ResSim`: the flat, per-completion arrays.
 
     These arrays *are* the configuration -- there is no second, record-shaped
@@ -173,8 +176,7 @@ class Wells(NicePrint):
     """
 
     # Dont use dataclass repr
-    __repr__ = NicePrint.__repr__
-    __str__ = NicePrint.__str__
+    __repr__ = AlignedRepr.__repr__
 
     # NB: the array attributes are typed `Any` since `__setattr__` normalizes
     # whatever array-like (nested lists, scalars) is assigned to them.
