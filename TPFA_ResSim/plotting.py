@@ -1,6 +1,6 @@
 """Convenient plot functions for reservoir model."""
 
-from typing import TYPE_CHECKING, Any, Callable, Optional, cast
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -8,6 +8,9 @@ import numpy as np
 from matplotlib.ticker import MultipleLocator
 from mpl_tools import is_inline, place, place_ax
 from mpl_tools.misc import axprops
+
+if TYPE_CHECKING:
+    from TPFA_ResSim import ResSim
 
 coord_type = "absolute"
 """Define scaling of `Plot2D.plt_field` axes.
@@ -51,30 +54,14 @@ styles: dict = dict(
 
 
 class Plot2D:
-    """Plots specialized for 2D fields."""
+    """Plots specialized for 2D fields.
 
-    if TYPE_CHECKING:
-        # This mixin is not standalone: declare (for type checkers only,
-        # lest they become dataclass fields) the attributes and methods
-        # provided by the composition with `Grid2D`/`ResSim`.
-        Lx: float
-        Ly: float
-        Nx: int
-        Ny: int
-        hx: float
-        hy: float
-        shape: tuple
-        well_xy: Any
-        well_rates: Any
-        well_names: Any
-        well_group: Any
-        actual_rates: Any
-        xy2sub: Callable
-        sub2xy: Callable
-        ind2xy: Callable
+    This mixin is not standalone but reads grid and well attributes of the
+    `ResSim` it gets composed into, rather than re-declaring (avoids stale).
+    """
 
     def plt_field(
-        self,
+        self: "ResSim",
         ax: Any,
         Z: np.ndarray,
         style: str = "default",
@@ -208,7 +195,7 @@ class Plot2D:
         tight_show(ax.figure, finalize)
         return collections
 
-    def _well_signs(self) -> np.ndarray:
+    def _well_signs(self: "ResSim") -> np.ndarray:
         """The sign (`+1` inject, `-1` produce, `0` unknown) of each well's rate.
 
         Read off the *spec*, `well_rates`, summed over time (`nan` entries --
@@ -225,7 +212,7 @@ class Plot2D:
         return sgn
 
     def well_scatter(
-        self,
+        self: "ResSim",
         ax: Any,
         ww: np.ndarray,
         sgn: int = 1,
@@ -314,7 +301,7 @@ class Plot2D:
         return sh
 
     def plt_production(
-        self,
+        self: "ResSim",
         ax: Any,
         production: np.ndarray,
         obs: np.ndarray | None = None,
@@ -358,7 +345,7 @@ class Plot2D:
 
     # Note: See note in mpl_setup.py about properly displaying the animation.
     def anim(
-        self,
+        self: "ResSim",
         wsats: np.ndarray,
         prod: np.ndarray,
         title: str = "",
