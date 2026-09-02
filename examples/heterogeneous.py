@@ -38,7 +38,7 @@ fig, axs = freshfig("Fig. 1", ncols=3, nrows=2, gridspec_kw={'height_ratios': (9
 
 ## Panel 0: uniform permeability, coarse grid
 model = ResSim(Lx=1, Ly=1, Nx=8, Ny=8,
-               well_xy=[[0, 0], [1, 1]], well_rates=[[1], [-1]])
+               wells=[dict(xy=[0, 0], rate=+1), dict(xy=[1, 1], rate=-1)])
 
 model.assemble_wells(None, None, 0)
 [P_coarse, V] = model.TPFA(model.K)
@@ -52,7 +52,7 @@ cb.ax.tick_params(labelsize=8)
 
 ## Panels 1 and 2: heterogeneous permeability, finer grid
 model = ResSim(Lx=1, Ly=1, Nx=32, Ny=32,
-               well_xy=[[0, 0], [1, 1]], well_rates=[[1], [-1]])
+               wells=[dict(xy=[0, 0], rate=+1), dict(xy=[1, 1], rate=-1)])
 logK = 5*smooth(smooth(rnd.randn(2, *model.shape)))
 model.K = np.exp(logK)
 

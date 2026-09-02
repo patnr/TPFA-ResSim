@@ -23,9 +23,10 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     (where parameter values of one instance should not influence another)
 
     Example:
-    >>> model = ResSim(Lx=1, Ly=1, Nx=64, Ny=64)
-    >>> model.well_xy=[[0, .32], [1, 1]]
-    >>> model.well_rates=[[1], [-1]]
+    >>> model = ResSim(Lx=1, Ly=1, Nx=64, Ny=64, wells=[
+    ...     dict(xy=[0, .32], rate=+1),   # injector
+    ...     dict(xy=[1, 1], rate=-1),     # producer
+    ... ])
     >>> water_sat0 = np.zeros(model.Nxy)
     >>> dt = .35
     >>> nSteps = 2
@@ -40,16 +41,16 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     __repr__ = NicePrint.__repr__
     __str__ = NicePrint.__str__
 
-    def __post_init__(self) -> None:
-        defaults = dict(K=np.ones((2, *self.shape)), por=np.ones(self.shape))
-        for k, v in defaults.items():
-            if getattr(self, k) is None:
-                setattr(self, k, v)
-
     # Prefer __setattr__ approach (over @property get/set-ers)
     # because @property requires the _private pattern,
     # which is pretty ugly with dataclasses.
     def __setattr__(self, key: str, val: Any) -> None:
+        # Defaults that the dataclass cannot express, depending as they do on the grid
+        if val is None:
+            if key == "K":
+                val = np.ones((2, *self.shape))
+            elif key == "por":
+                val = np.ones(self.shape)
         if val is not None:
             # Well positions -- collocate at some node
             if key == "well_xy":
@@ -66,6 +67,11 @@ class ResSim(NicePrint, Grid2D, Plot2D):
             # Completion-to-well map
             if key == "well_group":
                 val = np.asarray(val, int).reshape(self.nComp)
+            # Well configuration -- assemble the flat arrays that it specifies.
+            # NB: this must precede the `super()` call below, since those arrays
+            # each reset `wells` (also below) -- so it is stored last, and stands.
+            if key == "wells":
+                self._set_wells(val)
             # Permeabilities
             if key == "K":
                 if np.isscalar(val):
@@ -75,6 +81,10 @@ class ResSim(NicePrint, Grid2D, Plot2D):
                 val = val.reshape((2, *self.shape))
         # Set
         super().__setattr__(key, val)
+        # A direct edit of the arrays outdates the records that produced them.
+        # NB: `super()`, lest it be taken for a re-configuration (and recurse).
+        if key.startswith("well_") and self.wells is not None:
+            super().__setattr__("wells", None)
 
     name: str = "Unnamed"
     """Description."""
@@ -155,6 +165,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     """
     well_rates: Any = None
     """Array of shape `(nComp, nTime)` -- or `(nComp, 1)` if constant-in-time.
+    Ref `wells` for the convenient way to set this (and the other specs).
 
     **Signed**: a positive rate *injects* (water), a negative one *produces*
     (at the well cell's fractional flow). There is no other distinction
@@ -247,6 +258,84 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     well_names: Any = None
     """Names of wells (*not* completions): `None`, or a list of `nWell` strings."""
 
+    wells: Any = None
+    """Convenience well configuration: one record (`dict`) per well.
+
+    Assigning it assembles the flat, per-*completion* arrays that the model
+    runs on -- `well_xy`, `well_rates`, `well_bhp`, `well_WI` -- along with the
+    grouping (`well_group`, `well_names`) by which the reporting recovers the
+    wells. Those arrays remain writable, so whatever the records cannot express
+    can still be set by hand afterwards.
+
+    Each record may specify
+
+    - `xy`: the well's position, `[x, y]` -- or positions,
+      `[[x, y], ...]`, for a multi-completion well.
+    - `path`: alternatively, a polyline, `[[x, y], ...]`, to be discretized
+      into one completion per cell it traverses, ref `well_path`. Needs `rw`.
+    - `rate`: the well's (signed, ref `well_rates`) rate: a scalar, or a
+      schedule (an array over time). Apportioned among its completions in
+      proportion to their well indices (uniformly, absent those).
+    - `bhp`: alternatively (or, in time, additionally) the bottom-hole
+      pressure, ref `well_bhp`. Scalar or schedule. Shared -- as a wellbore
+      does -- by all of the well's completions.
+    - `rw`, `skin`: the wellbore radius and skin, whence the well index, via
+      `peaceman_WI`. Without them (or `WI`) the well has no well model.
+    - `WI`: alternatively, the well index itself, given directly.
+    - `name`: for the reporting. Defaults to the well's index.
+
+    The concise cases stay concise -- a position and a rate is a well. A
+    `dict` of records names them by its keys (as `name` does otherwise), and
+    the constructor takes the same thing:
+
+    >>> model = ResSim(Lx=1, Ly=1, Nx=16, Ny=16, wells={
+    ...     "I1": dict(xy=[0, 0], rate=+1),
+    ...     "P1": dict(xy=[1, 1], rate=-1, rw=1e-3),
+    ... })
+    >>> model.well_names
+    ['I1', 'P1']
+    >>> model.well_rates
+    array([[ 1.],
+           [-1.]])
+    >>> model.well_WI.round(3)  # `P1` alone asked for a well model
+    array([  nan, 2.498])
+
+    A `path` becomes several completions of a single well, whose rate it
+    shares out (ref `well_path`) and whose name they share:
+
+    >>> model = ResSim(Lx=1, Ly=1, Nx=10, Ny=10, wells=[
+    ...     dict(name="I1", path=[[.05, .05], [.45, .05]], rate=+1, rw=1e-2),
+    ...     dict(name="P1", xy=[.95, .95], rate=-1),
+    ... ])
+    >>> model.nComp, model.nWell
+    (6, 2)
+    >>> model.well_group
+    array([0, 0, 0, 0, 0, 1])
+    >>> model.well_rates.ravel().round(3)
+    array([ 0.125,  0.25 ,  0.25 ,  0.25 ,  0.125, -1.   ])
+
+    Schedules and control modes may be mixed freely across the wells: a
+    constant is broadcast to the length of the longest schedule, while a
+    spec that no well varies in time stays a singleton, which
+    `well_controls` reads at any `k`. A BHP-controlled well leaves the
+    (ignored) `0` in `well_rates`, and `nan` marks the rate-controlled ones
+    in `well_bhp` -- the conventions that the specs, being shared arrays,
+    call for (ref `well_rates`).
+
+    .. note:: A well must be given a control (`rate` and/or `bhp`);
+        `rate=0` shuts it in. This is deliberate: an uncontrolled well would
+        silently be a shut one.
+
+    .. note:: Assigning this is what applies it -- the normalization happening
+        in `__setattr__`, as it does for `K` -- and it (re)configures the wells
+        afresh, overwriting the flat arrays. Conversely, assigning any of
+        *those* outdates the records that produced them, so `wells` is then
+        reset to `None`: whatever it holds always describes the current wells.
+
+    .. note:: The records are kept as given -- `well_names` being where the
+        resolved names end up -- so this is also what the `repr` reports.
+    """
+
     actual_rates: Any = None
     """The *realized* well rates: array of shape `(nComp, nSteps)`. Signed.
 
@@ -259,6 +348,93 @@ class ResSim(NicePrint, Grid2D, Plot2D):
 
     `nan` wherever the well index (`well_WI`) is unset.
     """
+
+    def _set_wells(self, wells: Any) -> None:
+        """Assemble the flat well arrays from the records of `wells`.
+
+        Which is where the record format, and the conveniences it affords,
+        are documented.
+        """
+        keys = ("name", "xy", "path", "rate", "bhp", "rw", "skin", "WI")
+        if isinstance(wells, dict):
+            wells = [dict(spec, name=name) for name, spec in wells.items()]
+        names, xy, WI, group, rates, bhp = [], [], [], [], [], []
+        specified: set = set()
+        for i, well in enumerate(wells or []):
+            spec = dict(well)
+            if unknown := set(spec) - set(keys):
+                raise TypeError(
+                    f"Unknown key(s) in the spec of well {i}: {sorted(unknown)}."
+                    f" Valid ones: {list(keys)}."
+                )
+            specified |= set(spec)
+            name = str(spec.pop("name", i))
+            rw, skin = spec.pop("rw", None), spec.pop("skin", 0.0)
+
+            # Completions: their positions, and their well indices
+            if (path := spec.pop("path", None)) is not None:
+                assert "xy" not in spec, (
+                    f"Well '{name}': give it `xy` or `path`, not both.")
+                assert rw is not None, f"Well '{name}': a `path` requires `rw`."
+                _xy, _WI, _ = self.well_path(path, rw, skin)
+            else:
+                assert "xy" in spec, f"Well '{name}': give it an `xy` (or a `path`)."
+                _xy = np.array(spec.pop("xy"), float).reshape((-1, 2))
+                _WI = (np.full(len(_xy), np.nan) if rw is None
+                       else self.peaceman_WI(_xy, rw, skin))
+            if (given := spec.pop("WI", None)) is not None:
+                _WI = np.broadcast_to(np.asarray(given, float).ravel(), len(_xy)).copy()
+            nc = len(_xy)
+
+            # Apportion the rate by well index -- the standard, ref `well_path`
+            alloc = np.full(nc, 1 / nc)
+            if nc > 1 and np.isfinite(_WI).all() and _WI.sum() > 0:
+                alloc = _WI / _WI.sum()
+
+            # Controls. NB: the BHP is shared by the completions, the rate split
+            rate, p_bh = spec.pop("rate", None), spec.pop("bhp", None)
+            assert rate is not None or p_bh is not None, (
+                f"Well '{name}' has no control: give it a `rate`"
+                " (`0` shuts it in), or a `bhp`."
+            )
+            rate = 0.0 if rate is None else rate
+            p_bh = np.nan if p_bh is None else p_bh
+            rates.append(np.outer(alloc, np.ravel(rate)))
+            bhp.append(np.outer(np.ones(nc), np.ravel(p_bh)))
+
+            names.append(name)
+            xy.append(_xy)
+            WI.append(_WI)
+            group.append(np.full(nc, i))
+
+        if not names:
+            for key in ["well_xy", "well_rates", "well_bhp",
+                        "well_WI", "well_group", "well_names"]:
+                setattr(self, key, None)
+            return
+        # NB: `well_xy` first -- it is what defines `nComp`, by which the
+        # `__setattr__` normalization shapes the others.
+        self.well_xy = np.vstack(xy)
+        self.well_group = np.concatenate(group)
+        self.well_names = names
+        def stack(specs):
+            """Stack the wells' `(nComp_i, nTime_i)` specs, widening the constants.
+
+            NB: `_at_time` broadcasts a *wholly* singleton spec, but the array is
+            shared, so a well held constant beside a scheduled one is widened here.
+            """
+            nTime = max(spec.shape[1] for spec in specs)
+            assert all(spec.shape[1] in [1, nTime] for spec in specs), (
+                "The wells' schedules must be of equal length (or constant):"
+                f" got {sorted({spec.shape[1] for spec in specs})}."
+            )
+            return np.vstack([np.broadcast_to(s, (len(s), nTime)) for s in specs])
+
+        # Leave a spec unset (`None`) if no well made use of it
+        self.well_rates = stack(rates) if "rate" in specified else None
+        self.well_bhp = stack(bhp) if "bhp" in specified else None
+        WI = np.concatenate(WI)
+        self.well_WI = WI if np.isfinite(WI).any() else None
 
     @property
     def rates_by_well(self) -> np.ndarray:
@@ -451,6 +627,9 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     def peaceman_WI(self, xy: Any, rw: float, skin: float = 0.0) -> np.ndarray:
         """Peaceman's well index for wells at `xy`, of radius `rw`.
 
+        Called for a well of `wells` given an `rw`, which is the convenient
+        way to use it.
+
         $$ WI = \\frac{2 π \\sqrt{k_x k_y}}{\\ln(r_e / r_w) + \\mathrm{skin}} $$
 
         where the *equivalent radius*, $ r_e $, is the distance from the well at
@@ -493,6 +672,10 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     def well_path(self, vertices: Any, rw: float, skin: float = 0.0) -> tuple:
         """Discretize a well *path* (a polyline) into 1 weighted completion per traversed cell.
 
+        Called for a well of `wells` given a `path`, which is the convenient
+        way to use it: the three returned arrays then need not be assembled
+        (with those of the other wells) by hand.
+
         Returns `(xy, WI, alloc)`:
 
         - `xy`: centres of the cells that the path traverses -- i.e. a value for
@@ -524,8 +707,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
 
         .. warning:: The completions are treated as independent *vertical* wells,
             which seems reasonable in a 2D areal model. Thus they count towards
-            `nComp`, not `nWell` -- ref `well_group`, by which they may
-            nonetheless be grouped back into the single well that they are.
+            `nComp`, not `nWell` -- ref `well_group`, which `wells` sets for you.
         """
         V = np.asarray(vertices, float).reshape((-1, 2))
         assert len(V) >= 2, "A well path needs at least 2 vertices."

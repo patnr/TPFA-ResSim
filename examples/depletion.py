@@ -38,7 +38,8 @@ Throughout, $p_\\mathrm{cell}$ is the pressure of the *cell* that holds the well
 not the pressure in the wellbore: it is an average over an area of $h^2$, so
 refining the grid deepens it without limit (here, 0.15 at 32² but 0.18 at 64²).
 Converting it to a bottom-hole pressure is the job of the *well model* -- set
-`well_WI` (ref `ResSim.peaceman_WI`) and read `model.actual_bhp` instead.
+give the well an `rw` (ref `ResSim.wells`, `ResSim.peaceman_WI`) and read
+`model.actual_bhp` instead.
 """
 
 from mpl_tools.place import freshfig
@@ -50,7 +51,7 @@ from TPFA_ResSim.plotting import show
 ## Setup
 q = .25
 model = ResSim(Lx=1, Ly=1, Nx=32, Ny=32, ct=.1,
-               well_xy=[[.5, .5]], well_rates=[[-q]])
+               wells=[dict(xy=[.5, .5], rate=-q)])
 
 dt = 1e-3
 nSteps = 100

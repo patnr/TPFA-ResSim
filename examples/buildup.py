@@ -54,12 +54,12 @@ schedule = np.where(np.arange(nSteps) < kShut, q, 0)
 # be implemented by overriding `ResSim.well_controls`.
 
 model = ResSim(Lx=1, Ly=1, Nx=32, Ny=32, ct=.1,
-               well_xy=[[.5, .5]], well_rates=[-schedule])
+               wells=[dict(xy=[.5, .5], rate=-schedule)])
 
 # Incompressible analogue: the injector must match the producer at all times.
 model_inc = ResSim(Lx=1, Ly=1, Nx=32, Ny=32,
-                   well_xy=[[0, 0], [.5, .5]],
-                   well_rates=[schedule, -schedule])
+                   wells=[dict(xy=[0, 0], rate=+schedule),
+                          dict(xy=[.5, .5], rate=-schedule)])
 
 oil_only = np.zeros(model.Nxy)
 P0 = np.ones(model.Nxy)

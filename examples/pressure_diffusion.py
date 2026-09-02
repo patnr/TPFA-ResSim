@@ -50,11 +50,11 @@ from TPFA_ResSim import ResSim
 from TPFA_ResSim.plotting import show
 
 ## Setup
-wells = dict(well_xy=[[0, 0], [1, 1]], well_rates=[[.25], [-.25]])
+wells = [dict(xy=[0, 0], rate=+.25), dict(xy=[1, 1], rate=-.25)]
 grid = dict(Lx=1, Ly=1, Nx=32, Ny=32)
 
-model = ResSim(**grid, **wells, ct=.01)
-model_inc = ResSim(**grid, **wells)  # ct = 0
+model = ResSim(**grid, wells=wells, ct=.01)
+model_inc = ResSim(**grid, wells=wells)  # ct = 0
 
 eta = 1/model.ct  # Diffusivity (since K = por = λ = 1)
 dt = 2e-4

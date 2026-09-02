@@ -63,10 +63,38 @@ should pin a tag (or commit hash) and advance it deliberately.
   docstring). Being judged from the previous step's pressure, the switch lags:
   the limit is breached for the one step in which it comes to bind, by less the
   shorter `dt` is (`tests/test_wells.py`).
+- **`ResSim.wells`**: the well configuration -- one record (`dict`) per well,
+  assigned to this new attribute, or straight to the constructor. Which is the
+  convenient way to set the wells up:
+
+  ```python
+  model = ResSim(Lx=1, Ly=1, Nx=64, Ny=64, wells=[
+      dict(name="I1", path=[[0, 0], [0, 1]], rate=+1, rw=1e-3),
+      dict(name="P1", xy=[1, 1], rate=-1),
+  ])
+  ```
+
+  A record may hold a position (`xy`, one or several) or a well *path*
+  (`path`), a `rate` and/or a `bhp` (a scalar, or a schedule over time), the
+  wellbore radius `rw` (and `skin`) or the well index `WI` itself, and a
+  `name`. Whence the helper computes what the model runs on: it discretizes a
+  path into completions (`well_path`), computes their well indices
+  (`peaceman_WI`), apportions the well's rate among them, shares out its BHP,
+  broadcasts the constants against the schedules, and fills in the `0`/`nan`
+  conventions of the specs it assembles.
+  Assigning it is what applies it -- `__setattr__` forwards to the private
+  `_set_wells`, in keeping with the normalization it already does for `K` and
+  the well arrays -- and it writes only the flat `well_*` arrays, which remain
+  the model's state and remain assignable as before (ensemble methods
+  perturbing `well_xy` are unaffected). Assigning any of *those* resets `wells`
+  to `None`, so the records, whenever present, describe the current wells
+  rather than a superseded configuration. A hand-written config and its
+  record equivalent produce the same run, bit for bit
+  (`tests/test_well_config.py`).
 - **Well grouping**, so that the reporting may speak of wells while the model
   solves for completions: `well_group` maps each completion to its well, and
-  `well_names` names them; a well of several completions is thereby
-  recognizable as one well. Hence `nComp` -- the number of
+  `well_names` names them (`wells` sets both; a `path` well's completions are
+  thereby recognizably one well). Hence `nComp` -- the number of
   completions, i.e. the rows of `well_xy`, `actual_rates`, ... -- alongside
   `nWell`, which now counts *wells*; `rates_by_well`, which sums
   `actual_rates` per well; and plot markers labelled by name rather than by
@@ -114,6 +142,10 @@ should pin a tag (or commit hash) and advance it deliberately.
   `nComp`. The two coincide unless some well has several completions
   (ref `well_group`). Since `nWell` itself only arrived with the unification
   above (from `nInj`/`nPrd`), no released version is affected.
+- The examples all configure their wells by records now
+  (`examples/well_path.py` most tellingly: its three cases no longer assemble
+  the completions' arrays by `vstack`/`append` by hand). The regression values
+  are unchanged.
 - `_set_Q` is renamed `assemble_wells` -- and made public, together with its
   partner, `realize_bhp`: `examples/heterogeneous.py` and a couple of the tests
   already called the private names, to set up a pressure solve without `sim`.

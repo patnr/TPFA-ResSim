@@ -1,10 +1,12 @@
 """Rate control, BHP control, and the well model that connects them.
 
-A well can be told *what to do* in two ways: give it a rate (`well_rates`;
-negative to produce) and let its pressure follow, or give it a pressure
-(`well_bhp`) and let its rate follow. Both need a **well model** -- the well
-index (`ResSim.peaceman_WI`) -- because a well is far smaller than the cell
-that holds it, so its cell pressure is not its wellbore pressure.
+A well can be told *what to do* in two ways: give it a rate (`rate`, ref
+`ResSim.well_rates`; negative to produce) and let its pressure follow, or give
+it a pressure (`bhp`, ref `ResSim.well_bhp`) and let its rate follow -- as
+`ResSim.wells` accepts either. Both need a **well model** -- the well index
+(`ResSim.peaceman_WI`, whence the `rw` of the record) -- because a well is far
+smaller than the cell that holds it, so its cell pressure is not its wellbore
+pressure.
 
 That distinction is the first thing shown here: the cell pressure is a *grid
 artefact* (an average over an area of $h^2$, which deepens without limit as the
@@ -65,11 +67,12 @@ dt, nSteps = 2e-3, 150
 tt = dt*np.arange(1, nSteps + 1)
 
 def depleter(N=32, cls=ResSim, **control):
-    """A single producer at the centre of a closed square. Cf. `depletion.py`."""
-    model = cls(Lx=1, Ly=1, Nx=N, Ny=N, ct=ct,
-                well_xy=[[.5, .5]], **control)
-    model.well_WI = model.peaceman_WI(model.well_xy, rw)
-    return model
+    """A single producer at the centre of a closed square. Cf. `depletion.py`.
+
+    The `control` is a `rate` and/or a `bhp`; `rw` is what gives it a well model.
+    """
+    return cls(Lx=1, Ly=1, Nx=N, Ny=N, ct=ct,
+               wells=[dict(xy=[.5, .5], rw=rw, **control)])
 
 class Limited(ResSim):
     """Rate control with a BHP limit, by overriding `ResSim.well_controls`.
@@ -99,7 +102,7 @@ def run(model):
 fig, (ax1, ax2) = freshfig("Well control -- diagnostic", ncols=2, figsize=(10, 4),
                            sharey=True)
 for N in [32, 64]:
-    model = depleter(N, well_rates=[[-q]])
+    model = depleter(N, rate=-q)
     PP = run(model)
     pbar = PP.mean(axis=1)
     ax1.plot(tt, (pbar[1:] - PP[1:, model.xy2ind(*model.well_xy[0])]), label=f"{N}²")
@@ -112,12 +115,12 @@ for ax in (ax1, ax2):
 fig.tight_layout()
 
 ## Simulate: the same reservoir, under either mode of control
-by_rate = depleter(well_rates=[[-q]])
+by_rate = depleter(rate=-q)
 PP_rate = run(by_rate)
-by_bhp = depleter(well_bhp=[[p_bh]])         # NB: `well_rates` left unset
+by_bhp = depleter(bhp=p_bh)              # NB: no `rate` given
 PP_bhp = run(by_bhp)
-limited = depleter(cls=Limited, well_rates=[[-q]])  # ... rate, but limited by p_bh
-run(limited)                                        # (its rate/BHP is the interest)
+limited = depleter(cls=Limited, rate=-q)  # ... rate, but limited by p_bh
+run(limited)                              # (its rate/BHP is the interest)
 
 # Production, i.e. the negated (signed) rates
 prod_rate, prod_bhp, prod_lim = [-m.actual_rates[0]
@@ -149,7 +152,7 @@ ax2.legend(fontsize="small")
 fig.tight_layout()
 
 ## The duality: prescribe the BHP that the rate-controlled run reported
-replay = depleter(well_bhp=by_rate.actual_bhp)
+replay = depleter(bhp=by_rate.actual_bhp[0])
 PP_replay = run(replay)
 err_P = np.abs(PP_replay - PP_rate).max()
 err_q = np.abs(replay.actual_rates + q).max()

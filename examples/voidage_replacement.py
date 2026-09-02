@@ -61,7 +61,8 @@ oil_only = np.zeros(32*32)
 def waterflood(vrr, ct=ct, P0=15.):
     """Produce at rate `q`, inject at `vrr*q`."""
     model = ResSim(Lx=1, Ly=1, Nx=32, Ny=32, ct=ct,
-                   well_xy=[[0, 0], [1, 1]], well_rates=[[vrr*q], [-q]])
+                   wells=[dict(xy=[0, 0], rate=+vrr*q),
+                          dict(xy=[1, 1], rate=-q)])
     kwargs = dict(P0=P0*np.ones(model.Nxy)) if ct else {}
     return (model,) + model.sim(dt, nSteps, oil_only, pbar=False, **kwargs)
 

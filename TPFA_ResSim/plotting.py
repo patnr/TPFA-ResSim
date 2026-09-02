@@ -246,7 +246,7 @@ class Plot2D:
             producers are numbered as `plt_production` numbers them -- separately
             from the injectors, and not as in the unified `well_xy`.
             But `plt_field` supplies the names of `ResSim.well_names`,
-            if the wells have been given any.
+            if `ResSim.wells` has established any.
         """
         # Well coordinates
         ww = self.sub2xy(*self.xy2sub(*ww.T)).T

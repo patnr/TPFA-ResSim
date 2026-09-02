@@ -35,11 +35,21 @@ from TPFA_ResSim.plotting import show
 
 ## Setup
 grid = dict(Lx=1, Ly=1, Nx=64, Ny=64)
-wells = dict(well_xy=[[0, 0], [1, 1]])  # injector (SW), producer (NE)
 # Fluid properties are left at their defaults: vw = vo = 1, swc = sor = 0.
 
-model = ResSim(**grid, **wells, well_rates=[[1], [-1]])
-model_2x = ResSim(**grid, **wells, well_rates=[[2], [-2]])
+
+def wells(q):
+    """A well is a record of its position and its (signed) rate.
+
+    Ref `ResSim.wells`. Here: an injector (SW) and a producer (NE).
+    """
+    return [dict(xy=[0, 0], rate=+q),
+            dict(xy=[1, 1], rate=-q)]
+
+
+
+model = ResSim(**grid, wells=wells(1))
+model_2x = ResSim(**grid, wells=wells(2))
 
 water_sat0 = model.swc * np.ones(model.Nxy)
 nSteps = 28

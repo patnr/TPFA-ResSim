@@ -349,7 +349,7 @@ whose interface is the **sandface**; it may be *open hole*, or cased and
 **perforated**. A well may have several completions, e.g. one per layer,
 or (here) one per grid cell traversed by the well path -- which the model
 assembles individually, grouping them back into wells only for the reporting
-(ref `TPFA_ResSim.ResSim.well_group`).
+(ref `TPFA_ResSim.ResSim.wells`).
 
 Because a wellbore (radius $r_w \sim 0.1$ m) is orders of magnitude smaller than a
 grid block, its pressure is not resolved by the grid: the radial solution
