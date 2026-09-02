@@ -58,11 +58,14 @@ class ResSim(NicePrint, Grid2D, Plot2D):
                     val[i] = self.ind2xy(self.xy2ind(x, y))
             # Well rates and/or pressures
             if key in ["well_rates", "well_bhp"]:
-                val = np.array(val, float).reshape((self.nWell, -1))
+                val = np.array(val, float).reshape((self.nComp, -1))
             # Well indices
             if key == "well_WI":
                 val = np.asarray(val, float)
-                val = np.broadcast_to(val.ravel(), self.nWell).copy()
+                val = np.broadcast_to(val.ravel(), self.nComp).copy()
+            # Completion-to-well map
+            if key == "well_group":
+                val = np.asarray(val, int).reshape(self.nComp)
             # Permeabilities
             if key == "K":
                 if np.isscalar(val):
@@ -130,11 +133,19 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     por: Any = None
     """Porosity; Array of shape `(Nx, Ny)`)."""
 
-    nWell = property(lambda self: len(self.well_xy))
-    """Num. of wells (or completions, ref `well_path`)."""
+    nComp = property(lambda self: len(self.well_xy))
+    """Num. of *completions*, i.e. rows of `well_xy`, which is what the model
+    actually solves for. Several completions may compose a single well
+    (ref `well_group`, `well_path`)."""
+
+    nWell = property(
+        lambda self: self.nComp if self.well_group is None
+        else 1 + int(self.well_group.max())
+    )
+    """Num. of *wells*, i.e. groups of completions (ref `well_group`)."""
 
     well_xy: Any = None
-    """Array of shape `(nWell, 2)` of x- and y-coords for the wells.
+    """Array of shape `(nComp, 2)` of x- and y-coords for the completions.
 
     Values should be betwen `0` and `Lx` or `Ly`.
 
@@ -143,7 +154,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         An alternative would be to distribute them over nearby nodes.
     """
     well_rates: Any = None
-    """Array of shape `(nWell, nTime)` -- or `(nWell, 1)` if constant-in-time.
+    """Array of shape `(nComp, nTime)` -- or `(nComp, 1)` if constant-in-time.
 
     **Signed**: a positive rate *injects* (water), a negative one *produces*
     (at the well cell's fractional flow). There is no other distinction
@@ -157,7 +168,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         fill value where control is by `well_bhp`.
     """
     well_WI: Any = None
-    """Well indices: `None`, or an array of shape `(nWell,)`, `nan` allowed.
+    """Well indices: `None`, or an array of shape `(nComp,)`, `nan` allowed.
 
     Compute $ WI $ with `peaceman_WI`, or set it directly
     (it need not come from any particular formula).
@@ -185,7 +196,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     """
     well_bhp: Any = None
     """Bottom-hole pressures for the wells. `None`, or an array shaped like
-    `well_rates`, i.e. `(nWell, nTime)` -- or `(nWell, 1)` if constant-in-time.
+    `well_rates`, i.e. `(nComp, nTime)` -- or `(nComp, 1)` if constant-in-time.
 
     A well whose entry is finite is **BHP-controlled** at that time. This is
     solved *simultaneously* with the pressure field (not lagged by a time step):
@@ -223,8 +234,21 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         within the lag thereby incurred.
     """
 
+    well_group: Any = None
+    """Which well each completion belongs to: `None`, or an int array of shape
+    `(nComp,)` whose values index the wells, i.e. `well_names`.
+
+    The model itself is indifferent to it: the equations are assembled per
+    *completion* (ref `assemble_wells`), and the arrays -- `well_xy`,
+    `well_rates`, `actual_rates`, ... -- are all indexed likewise. The grouping
+    is what lets the *reporting* speak of wells nonetheless: ref
+    `rates_by_well`, and the labels of `Plot2D.plt_field`.
+    """
+    well_names: Any = None
+    """Names of wells (*not* completions): `None`, or a list of `nWell` strings."""
+
     actual_rates: Any = None
-    """The *realized* well rates: array of shape `(nWell, nSteps)`. Signed.
+    """The *realized* well rates: array of shape `(nComp, nSteps)`. Signed.
 
     Mostly used as a diagnostic in case of `well_bhp`. But even for
     rate-control it only coincides with `well_rates` up to broadcasting
@@ -235,6 +259,14 @@ class ResSim(NicePrint, Grid2D, Plot2D):
 
     `nan` wherever the well index (`well_WI`) is unset.
     """
+
+    @property
+    def rates_by_well(self) -> np.ndarray:
+        """`actual_rates`, summed over each well's completions: `(nWell, nSteps)`."""
+        group = np.arange(self.nComp) if self.well_group is None else self.well_group
+        out = np.zeros((self.nWell, self.actual_rates.shape[1]))
+        np.add.at(out, group, self.actual_rates)  # NB: `+=` would skip the dupes
+        return out
 
     def assemble_wells(
         self, S: np.ndarray | None, P: np.ndarray | None, k: int
@@ -263,7 +295,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
 
         # The well model's constant of proportionality, WI * λ_t.
         # NB: `nan` marks the rate-controlled wells, throughout.
-        wls.WI_lam = np.full(self.nWell, np.nan)
+        wls.WI_lam = np.full(self.nComp, np.nan)
         if is_bhp.any():
             WI = self.well_WI
             assert WI is not None and np.isfinite(WI[is_bhp]).all(), (
@@ -319,20 +351,25 @@ class ResSim(NicePrint, Grid2D, Plot2D):
     def _at_time(self, spec: str, absent: float, k: int) -> np.ndarray:
         """Lookup the well `spec` (`"rates"`/`"bhp"`) at time `k`.
 
-        Allows a constant-in-time (singleton) spec, and an unset (`None`) one,
-        for which `absent` is substituted -- `0` for the rates, and `nan`
-        (⇒ rate-controlled) for the BHPs.
+        Allows a constant-in-time (singleton) spec, and an unset (`None`) one
+        (for which `0`/`nan` is returned for rate/bhp-controlled wells, respectively).
+        Avoids broadcast (and potentially stale copies) to `(nComp, nSteps)`,
+        which requires `nSteps`, i.e. `sim()`.
         """
         arr = getattr(self, f"well_{spec}")
         if arr is None:
-            return np.full(self.nWell, absent)
+            return np.full(self.nComp, absent)
+        assert len(arr) == self.nComp, (
+            f"`well_{spec}` has {len(arr)} rows, but there are"
+            f" {self.nComp} completions (ref `well_xy`)."
+        )
         # Copy, lest `well_controls` write into the spec itself
         return np.copy(arr[:, k if arr.shape[1] > 1 else 0])
 
     def well_controls(self, S: np.ndarray | None, P: np.ndarray | None, k: int) -> dict:
         """Compute the wells' controls for time `k`: `dict(rates=..., bhp=...)`.
 
-        Each is a `(nWell,)` array, read off the specifications --
+        Each is a `(nComp,)` array, read off the specifications --
         `well_rates`, `well_bhp` -- which are *open-loop*: fixed before the
         simulation begins. Overriding (patching/subclassing) this method is
         therefore how to do *feedback* control, the controls being free to
@@ -486,7 +523,9 @@ class ResSim(NicePrint, Grid2D, Plot2D):
             `well_controls` to reallocate per step, if it matters.
 
         .. warning:: The completions are treated as independent *vertical* wells,
-            which seems reasonable in a 2D areal model. Thus `nWell` counts completions, not wells.
+            which seems reasonable in a 2D areal model. Thus they count towards
+            `nComp`, not `nWell` -- ref `well_group`, by which they may
+            nonetheless be grouped back into the single well that they are.
         """
         V = np.asarray(vertices, float).reshape((-1, 2))
         assert len(V) >= 2, "A well path needs at least 2 vertices."
@@ -534,7 +573,7 @@ class ResSim(NicePrint, Grid2D, Plot2D):
             rather than by that of the injectant.
         """
         if self.well_WI is None:
-            return np.full(self.nWell, np.nan)
+            return np.full(self.nComp, np.nan)
         Mw, Mo = self.RelPerm(S)
         ii = self.xy2ind(*self.well_xy.T)
         return P[ii] + rates / (self.well_WI * (Mw + Mo)[ii])
@@ -807,8 +846,6 @@ class ResSim(NicePrint, Grid2D, Plot2D):
 
             # Catch some common issues before they become mysterious/insidious
             # (e.g. mass imblance silently inserts deficit in SW corner).
-            if self.well_rates is not None:  # `None` ⇒ purely BHP-controlled
-                assert len(self.well_rates) == self.nWell
             if self.ct == 0 and not self._wells_now.bhp_diag.any():
                 # Incompressible and no BHP control ⇒ no storage ⇒ src/sinks must balance.
                 assert np.isclose(self._Q.sum(), 0), "well rates do not sum to 0"
@@ -853,8 +890,8 @@ class ResSim(NicePrint, Grid2D, Plot2D):
         # Allocate
         SS = np.zeros((nSteps + 1,) + S0.shape)
         PP = np.zeros((nSteps + 1, self.Nxy))
-        self.actual_rates = np.zeros((self.nWell, nSteps))
-        self.actual_bhp = np.full((self.nWell, nSteps), np.nan)
+        self.actual_rates = np.zeros((self.nComp, nSteps))
+        self.actual_bhp = np.full((self.nComp, nSteps), np.nan)
 
         # Init
         SS[0] = S0

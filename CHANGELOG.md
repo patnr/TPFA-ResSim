@@ -54,7 +54,7 @@ should pin a tag (or commit hash) and advance it deliberately.
   deliberately not implemented.
 - `ResSim.well_controls(S, P, k)`: the feedback-control hook, replacing
   `dynamic_rate` (ref Changed, below). It returns `dict(rates=..., bhp=...)`
-  (each a `(nWell,)` array),
+  (each a `(nComp,)` array),
   and is handed the pressure as well as the saturation, so an override governs
   the wells' *modes* as well as their rates -- which is what it takes to
   approximate the mode *switching* that the model does not do natively (ref
@@ -63,6 +63,15 @@ should pin a tag (or commit hash) and advance it deliberately.
   docstring). Being judged from the previous step's pressure, the switch lags:
   the limit is breached for the one step in which it comes to bind, by less the
   shorter `dt` is (`tests/test_wells.py`).
+- **Well grouping**, so that the reporting may speak of wells while the model
+  solves for completions: `well_group` maps each completion to its well, and
+  `well_names` names them; a well of several completions is thereby
+  recognizable as one well. Hence `nComp` -- the number of
+  completions, i.e. the rows of `well_xy`, `actual_rates`, ... -- alongside
+  `nWell`, which now counts *wells*; `rates_by_well`, which sums
+  `actual_rates` per well; and plot markers labelled by name rather than by
+  index (`plt_production` accepts `labels` to match).
+  There is deliberately no `bhp_by_well`: rates aggregate, pressures do not.
 - `examples/well_control.py` and `examples/well_path.py` illustrate the above
   (and, like the other examples, double as regression tests). The former's
   "modes" figure now contrasts all three: rate control, BHP control, and the
@@ -83,7 +92,7 @@ should pin a tag (or commit hash) and advance it deliberately.
     incompressible balance assertion is now that the rates sum to 0, and
     `assemble_wells` asserts that a *rate*-controlled well has a finite rate
     (`nan` being tolerated only as a BHP-controlled well's placeholder).
-  - `actual_rates` is a single `(nWell, nSteps)` array (signed), no longer a
+  - `actual_rates` is a single `(nComp, nSteps)` array (signed), no longer a
     dict by kind -- likewise the rates handed out by the feedback hook (ref
     the `dynamic_rate` -> `well_controls` entry below).
   - Plot markers are inferred from the sign of each well's rates: the spec,
@@ -100,6 +109,11 @@ should pin a tag (or commit hash) and advance it deliberately.
     where an example's digest recorded production rates, they are negated
     back to positive to keep `tests/references.py` identical.
 
+- **BREAKING**: `nWell` now counts **wells**, not completions -- the count of
+  those (the rows of `well_xy`, `well_rates`, `actual_rates`, ...) being
+  `nComp`. The two coincide unless some well has several completions
+  (ref `well_group`). Since `nWell` itself only arrived with the unification
+  above (from `nInj`/`nPrd`), no released version is affected.
 - `_set_Q` is renamed `assemble_wells` -- and made public, together with its
   partner, `realize_bhp`: `examples/heterogeneous.py` and a couple of the tests
   already called the private names, to set up a pressure solve without `sim`.

@@ -66,6 +66,8 @@ class Plot2D:
         shape: tuple
         well_xy: Any
         well_rates: Any
+        well_names: Any
+        well_group: Any
         actual_rates: Any
         xy2sub: Callable
         sub2xy: Callable
@@ -169,6 +171,10 @@ class Plot2D:
         # and colors match those of `plt_production`.
         if wells and self.well_xy is not None:
             sgn = self._well_signs()
+            # Label the completions by their well's name, if there are any
+            names = None
+            if self.well_names is not None and self.well_group is not None:
+                names = np.asarray(self.well_names)[self.well_group]
             if wells == "color":
                 # Colors matching `plt_production` of the producers
                 wells = cast(
@@ -178,7 +184,10 @@ class Plot2D:
                 wells = {}
             for s in [-1, +1, 0]:
                 if np.any(sgn == s):  # NB: skip, lest empty artists upset the layout
-                    self.well_scatter(ax, self.well_xy[sgn == s], s, **wells)
+                    kws = dict(wells)  # NB: copy -- the labels are per sign
+                    if names is not None:
+                        kws.setdefault("text", names[sgn == s])
+                    self.well_scatter(ax, self.well_xy[sgn == s], s, **kws)
                 wells.pop("color", None)  # producers only
 
         # Add argmax marker
@@ -220,7 +229,7 @@ class Plot2D:
         ax: Any,
         ww: np.ndarray,
         sgn: int = 1,
-        text: str | None = None,
+        text: Any = None,
         color: Any = None,  # e.g. "k", or a list of colors (one per well)
         size: float = 1,
     ) -> Any:
@@ -229,10 +238,15 @@ class Plot2D:
         The marker reflects `sgn`: injector (`+1`), producer (`-1`),
         or neutral (`0`, i.e. of undecided sign, ref `_well_signs`).
 
-        .. note:: The wells are labelled by their index *within* `ww`, so that
-            (as `plt_field` calls this, once per sign) the producers are
-            numbered as `plt_production` numbers them -- separately from the
-            injectors, and not as in the unified `well_xy`.
+        The label, `text`, is either one string for all of them, one *per* well
+        of `ww` (a list), or `False` for none.
+
+        .. note:: By default (`text=None`) the wells are labelled by their index
+            *within* `ww`, so that (as `plt_field` calls this, once per sign) the
+            producers are numbered as `plt_production` numbers them -- separately
+            from the injectors, and not as in the unified `well_xy`.
+            But `plt_field` supplies the names of `ResSim.well_names`,
+            if the wells have been given any.
         """
         # Well coordinates
         ww = self.sub2xy(*self.xy2sub(*ww.T)).T
@@ -279,12 +293,18 @@ class Plot2D:
 
         # Text labels
         if text is not False:
-            for i, w in enumerate(ww):
+            if text is None:
+                labels: Any = range(len(ww))
+            elif isinstance(text, str):
+                labels = len(ww) * [text]
+            else:
+                labels = text
+            for lbl, w in zip(labels, ww):
                 if sgn < 0:
                     w[1] -= 0.01
                 ax.text(
                     *w[:2],
-                    i if text is None else text,
+                    lbl,
                     color=d,
                     fontsize=size * 12,
                     ha="center",
@@ -300,12 +320,17 @@ class Plot2D:
         obs: np.ndarray | None = None,
         legend_outside: bool = True,
         finalize: bool = True,
+        labels: Any = None,
     ) -> list:
-        """Production time series. Multiple wells in 1 axes => not ensemble compat."""
+        """Production time series. Multiple wells in 1 axes => not ensemble compat.
+
+        The curves are labelled by their index in `production`, unless `labels`
+        (e.g. a selection of `ResSim.well_names`) says otherwise.
+        """
         hh = []
         tt = 1 + np.arange(len(production))
         for i, p in enumerate(1 - production.T):
-            hh += ax.plot(tt, p, "-", label=i)
+            hh += ax.plot(tt, p, "-", label=i if labels is None else labels[i])
 
         if obs is not None:
             for i, y in enumerate(1 - obs.T):
@@ -320,7 +345,7 @@ class Plot2D:
             )
         else:
             kws = dict(loc="lower left")
-        ax.legend(title="Well #.", **kws)
+        ax.legend(title="Well" if labels is not None else "Well #.", **kws)
 
         ax.set_title("Oil saturation in producers")
         ax.set_xlabel("Time index")
