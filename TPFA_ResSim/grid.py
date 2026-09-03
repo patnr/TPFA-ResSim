@@ -125,9 +125,11 @@ class Grid2D:
         # Don't silence errors! Validation is useful in optimisation (e.g.)
         assert np.all(x <= self.Lx)
         assert np.all(y <= self.Ly)
-        # Set upper border values to slightly interior
-        x = x.clip(max=self.Lx - 1e-8)
-        y = y.clip(max=self.Ly - 1e-8)
+        # Set upper border values to slightly interior.
+        # NB: the nudge is *relative*, `Lx` being of whatever magnitude the
+        # units imply (ref `TPFA_ResSim.ResSim.cdarcy`).
+        x = x.clip(max=self.Lx * (1 - 1e-12))
+        y = y.clip(max=self.Ly * (1 - 1e-12))
         ix = np.floor(x / self.Lx * self.Nx).astype(int)
         iy = np.floor(y / self.Ly * self.Ny).astype(int)
         return np.asarray([ix, iy])

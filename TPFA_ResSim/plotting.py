@@ -126,8 +126,8 @@ class Plot2D:
         # NB: If not showing grid, then don't locate ticks on grid, because they're
         #     generally uglier that mpl's default/automatic tick location. But, it
         #     should be safe to go with 'g' format instead of 'f'.
-        ax.xaxis.set_major_formatter("{x:.3g}")
-        ax.yaxis.set_major_formatter("{x:.3g}")
+        ax.xaxis.set_major_formatter("{x:g}")
+        ax.yaxis.set_major_formatter("{x:g}")
         ax.tick_params(which="minor", length=0, color="r")
         ax.tick_params(which="major", width=1.5, direction="in")
         if grid:

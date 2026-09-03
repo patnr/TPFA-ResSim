@@ -32,8 +32,9 @@ discretized here by backward Euler), the absolute pressure level is meaningful,
 and injection need not balance production (storage absorbs the difference),
 permitting primary depletion.
 
-.. note:: The middle term of eqn. (2) is the $O(c_t)$ counterpart of the first
-    term of eqn. (1): with $c_t > 0$ the total velocity is no longer
+.. note:: The middle term of eqn. (2) is the $O(c_t)$ counterpart of eqn. (1)'s first.
+
+    With $c_t > 0$ the total velocity is no longer
     divergence-free, $\nabla \cdot \mathbf{v} = q - \phi \, c_t \, \partial p /
     \partial t$, so the storage must be charged to the phases — here in
     proportion to their saturation, which is what makes the water and oil
@@ -59,8 +60,10 @@ The quantities involved are all 2D-spatial fields, namely
 The right hand side of (2) is further simplified (relabelled) as $q$,
 i.e. dropping the $w$ (for "water") subscripts.
 
-.. note:: Relative permeabilities, $k_{\text{phase}} \in [0, 1]$,
-    are set via a constituent relation that is a function of the (reducible) saturation.
+.. note:: Relative permeabilities are a constituent relation, not data.
+
+    $k_{\text{phase}} \in [0, 1]$ are set via a relation
+    that is a function of the (reducible) saturation.
     They do not generally sum to 1.
     Their approximation and uncertainty is significant,
     but usually less important than those of the absolute permeability, $\mathbf{K}$.

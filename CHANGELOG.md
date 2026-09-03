@@ -116,7 +116,30 @@ should pin a tag (or commit hash) and advance it deliberately.
   `assemble_wells`, `realize_bhp`, `bhp`, `well_controls` -- so the dependency
   runs one way, as it does for `Grid2D` and `Plot2D`.
   Some 400 lines lighter, `__init__.py` is left to the physics.
-
+- **`ResSim.cdarcy`**: Darcy's constant, whereby the model may be posed in
+  *practical* (non-coherent) units -- metric, say: m, day, bar, mD, cP. The
+  equations otherwise contain no conversion factors (any *coherent* system,
+  SI included, already works as-is), and this one constant is the whole of what
+  a unit system amounts to here. It enters at just two sites, both of them
+  Darcy's law: the transmissibilities of `TPFA` and the well index of
+  `peaceman_WI`. Its docstring is where the units question is documented --
+  the formula $C = u_k u_p u_t / (u_μ u_L^2)$ in terms of the units' SI sizes,
+  the *forced* rate unit $u_q = u_L^2/u_t$ (an **areal** rate, the model being
+  2D areal, so a rate per unit thickness), a table of systems and their $C$
+  (metric `0.008527`, i.e. ECLIPSE's `CDARCY`; field-like `0.006328`; lab
+  `3.6`), and the warning that $C$ neither names nor determines the units:
+  it is one scalar constraining five choices, and going from metres to feet
+  means re-expressing the *rates* too.
+  `tests/test_units.py` poses one reservoir in each of those four systems and
+  demands they agree -- which pins the constant's value, and the rate-unit
+  exponent, as no regression value could; two deliberately-wrong variants
+  confirm the check is not vacuous.
+  The default is `1`, so every existing result, doctest and reference value is
+  bit-for-bit unaffected. `examples/buildup.py` is re-posed in metric, and
+  interpreted as a real well test would be: the plateau of its semilog
+  derivative $dp/d\ln t$ recovers the 100 mD that went in, to within 4% (the
+  shortfall being the time step). Nothing reads the units: its axis labels say
+  "[bar]" because the script says so.
 ### Changed
 
 - **BREAKING**: injectors and producers are **unified into a single set of
@@ -226,6 +249,12 @@ should pin a tag (or commit hash) and advance it deliberately.
   raising `ValueError: cannot reshape array of size 2`. Broken since `4643295`
   ("Reshape K in setter", v0.1.1), which used `np.full_like(self.shape, ...)`
   -- i.e. filling an array shaped like the *tuple* `(Nx, Ny)`, not like the grid.
+- Two tolerances that were *absolute*, and so presumed values of order 1, are
+  now **relative** -- which they must be, the magnitudes being a matter of the
+  units (ref `ResSim.cdarcy`, above): the rate-balance check of `time_stepper` (an
+  `np.isclose(sum, 0)`, i.e. `atol=1e-8`, which large rates could trip) and
+  the upper-border nudge of `Grid2D.xy2sub` (`Lx - 1e-8`, which very large
+  domains could round away). Neither changes any existing result.
 
 ## [0.2.0] -- 2026-08-27
 

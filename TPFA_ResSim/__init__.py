@@ -84,6 +84,35 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
     name: str = "Unnamed"
     """Description."""
 
+    cdarcy: float = 1.0
+    """Unit conversion factor for Darcy's law, $C$ -- ECLIPSE's `CDARCY`.
+
+    If you want to change unit system you not only need to manually convert
+    the dimensional input quantities to the new units, but also change $C$ according to
+    $$ C = \\frac{u_k \\, u_p \\, u_t}{u_μ \\, u_L^2} \\,, $$
+    (with $u_k$ the SI magnitude of the unit chosen for $k$).
+    Any *coherent* system gives `1`: choose base units for length, time and mass,
+    derive $u_p = M/(L T^2)$, $u_μ = M/(L T)$ and $u_k = L^2$ from them.
+
+    | System | $u_L$ | $u_t$ | $u_p$ | $u_k$ | $u_μ$ | rate | $C$ |
+    |---|---|---|---|---|---|---|---|
+    | SI | m | s | Pa | m² | Pa·s | m²/s | `1` |
+    | CGS | cm | s | barye | cm² | poise | cm²/s | `1` |
+    | MTS | m | s | pièze | m² | pz·s | m²/s | `1` |
+    | mm-ms-g | mm | ms | MPa | mm² | kPa·s | mm²/ms | `1` |
+    | Darcy's own | cm | s | atm | darcy | cP | cm²/s | `1` |
+    | metric | m | day | bar | mD | cP | m²/day | `0.008527` |
+    | field-like | ft | day | psi | mD | cP | ft²/day | `0.006328` |
+    | lab | cm | hour | atm | mD | cP | cm²/hour | `3.6` |
+
+    .. note:: The rate unit is forced to $u_L^2/u_t$ -- an areal rate.
+        A well rate of `20` for a 25 m thick reservoir means 500 m³/day.
+
+    .. note:: $C$ enters 2 sites: the transmissibilities of `TPFA` and the well
+        index of `TPFA_ResSim.wells.peaceman_WI`, both of them Darcy's law.
+        Everything else is derivative and already consistent.
+    """
+
     vw: float = 1.0
     """Viscosity for water."""
     vo: float = 1.0
@@ -412,11 +441,12 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
         by finite differences.
         """
         # Compute transmissibilities by harmonic averaging.
+        C = self.cdarcy
         L = 1 / K
         TX = np.zeros((self.Nx + 1, self.Ny))
         TY = np.zeros((self.Nx, self.Ny + 1))
-        TX[1:-1, :] = 2 * self.hy / self.hx / (L[0, :-1, :] + L[0, 1:, :])
-        TY[:, 1:-1] = 2 * self.hx / self.hy / (L[1, :, :-1] + L[1, :, 1:])
+        TX[1:-1, :] = C * 2 * self.hy / self.hx / (L[0, :-1, :] + L[0, 1:, :])
+        TY[:, 1:-1] = C * 2 * self.hx / self.hy / (L[1, :, :-1] + L[1, :, 1:])
 
         # Assemble TPFA discretization matrix.
         x1 = TX[:-1, :].ravel()
@@ -519,7 +549,7 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
         """Explicit upwind FV discretisation of conserv. of mass (water sat.)."""
         # fmt: off
         A  = self.upwind_diff(V)                 # FV discretized transport operator
-        pv = self.h2 * self.por.ravel()          # Pore volume = cell volume * porosity
+        pv = self.h2 * self.por.ravel()          # Pore volume (per thickness)
         fi = self._Q.clip(min=0)                 # Well inflow
         st = self.storage_rate(V)                # Storage (0 if incompressible)
 
@@ -560,7 +590,7 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
         """
         # fmt: off
         A  = self.upwind_diff(V)                 # FV discretized transport operator
-        pv = self.h2 * self.por.ravel()          # Pore volume = cell.vol * por
+        pv = self.h2 * self.por.ravel()          # Pore volume (per thickness)
         fi = self._Q.clip(min=0)                 # Well inflow
         st = self.storage_rate(V)                # Storage (0 if incompressible)
 

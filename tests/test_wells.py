@@ -54,7 +54,10 @@ def depleted(N, ct=.1):
 def test_equivalent_radius_formula():
     """$ r_e = .28 \\sqrt{2} h / 2 ≈ .198 h $ on an isotropic, square grid."""
     model = ResSim(Lx=1, Ly=1, Nx=32, Ny=32)
-    r_e = rw * np.exp(2*np.pi / peaceman_WI(model, [[.5, .5]], rw)[0])
+    # NB: invert the formula *including* its Darcy constant, which is `1` here
+    # but need not be -- ref `ResSim.cdarcy`.
+    WI = peaceman_WI(model, [[.5, .5]], rw)[0]
+    r_e = rw * np.exp(2*np.pi * model.cdarcy / WI)
     assert np.isclose(r_e / model.hx, .198, atol=1e-3)
 
 

@@ -59,15 +59,10 @@ def peaceman_WI(model: "ResSim", xy: Any, rw: float, skin: float = 0.0) -> np.nd
         when asked for -- so a later edit of `K` does not retroactively change
         a `Wells.WI` computed from it.
 
-    .. note:: There is no thickness factor because the model is 2D *areal*,
-        i.e. of unit thickness -- as is already implicit in
-        `TPFA_ResSim.ResSim.TPFA`, whose transmissibilities read
-        $ k \\, h_y / h_x $, and in `h2` serving as the cell volume.
+    .. note:: $ WI \\, λ_t \\, Δp $ comes out as a rate *per unit thickness*,
+        ref. `TPFA_ResSim.ResSim.cdarcy`. 
 
-    .. warning:: `rw` is a *physical length*, whereas the rest of the model
-        is scale-free (ref the `Lx`, `K` and `vw` defaults). Only the ratio
-        $ r_e / r_w $ enters, so this is consistent -- but it does mean that
-        `rw` must be given in the same (arbitrary) length unit as `Lx`.
+    .. note:: `rw` must be given in the same length unit as `Lx`.
     """
     xy = np.asarray(xy, float).reshape((-1, 2))
     ix, iy = model.xy2sub(*xy.T)
@@ -75,7 +70,7 @@ def peaceman_WI(model: "ResSim", xy: Any, rw: float, skin: float = 0.0) -> np.nd
     # fmt: off
     a, b = np.sqrt(ky/kx), np.sqrt(kx/ky)
     r_e  = .28 * np.sqrt(a*model.hx**2 + b*model.hy**2) / (a**.5 + b**.5)
-    return 2*np.pi*np.sqrt(kx*ky) / (np.log(r_e/rw) + skin)
+    return model.cdarcy * 2*np.pi*np.sqrt(kx*ky) / (np.log(r_e/rw) + skin)
     # fmt: on
 
 
@@ -197,6 +192,8 @@ class Wells(AlignedRepr):
     **Signed**: a positive rate *injects* (water), a negative one *produces*
     (at the well cell's fractional flow). There is no other distinction
     between injectors and producers, anywhere in the model.
+    An **areal** rate, i.e. volumetric *per unit thickness* -- ref
+    `TPFA_ResSim.ResSim.cdarcy`.
 
     .. note:: When `ct == 0` (and no well is BHP-controlled) it is asserted
         that the rates sum to 0 at each time index, otherwise the model
