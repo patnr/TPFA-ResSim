@@ -34,7 +34,7 @@ from TPFA_ResSim import ResSim
 from TPFA_ResSim.plotting import show
 
 ## Setup
-grid = dict(Lx=1, Ly=1, Nx=64, Ny=64)
+grid: dict = dict(Lx=1, Ly=1, Nx=64, Ny=64)
 # Fluid properties are left at their defaults: vw = vo = 1, swc = sor = 0.
 
 

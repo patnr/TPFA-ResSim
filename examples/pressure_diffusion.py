@@ -51,7 +51,7 @@ from TPFA_ResSim.plotting import show
 
 ## Setup
 wells = [dict(xy=[0, 0], rate=+.25), dict(xy=[1, 1], rate=-.25)]
-grid = dict(Lx=1, Ly=1, Nx=32, Ny=32)
+grid: dict = dict(Lx=1, Ly=1, Nx=32, Ny=32)
 
 model = ResSim(**grid, wells=wells, ct=.01)
 model_inc = ResSim(**grid, wells=wells)  # ct = 0
@@ -77,8 +77,8 @@ elliptic = PP_inc[1] - PP_inc[1].mean()
 ## Plot: the pressure disturbance, dp, spreading out
 snapshots = [1, 5, nSteps]
 vmax = 1.05*np.abs(elliptic).max()
-kws = dict(levels=np.linspace(-vmax, vmax, 21), cmap="RdBu_r",
-           colorbar=False, finalize=False, wells=dict(size=.4))
+kws: dict = dict(levels=np.linspace(-vmax, vmax, 21), cmap="RdBu_r",
+                 colorbar=False, finalize=False, wells=dict(size=.4))
 
 fig, axs = freshfig("Pressure diffusion", nrows=2, ncols=2,
                     sharex=True, sharey=True, figsize=(7, 6))

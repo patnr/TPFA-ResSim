@@ -99,8 +99,8 @@ schedule = np.where(np.arange(nSteps) < kShut, q, 0)
 # expressed in the system -- i.e. 0.008527. Ref `ResSim.cdarcy`.
 C = 86400 * 9.869233e-16 * 1e5 / 1e-3
 
-grid = dict(Lx=L, Ly=L, Nx=N, Ny=N, cdarcy=C,
-            K=perm, por=por*np.ones((N, N)), vw=mu, vo=mu)  # fmt: skip
+grid: dict = dict(Lx=L, Ly=L, Nx=N, Ny=N, cdarcy=C,
+                  K=perm, por=por*np.ones((N, N)), vw=mu, vo=mu)  # fmt: skip
 
 model = ResSim(**grid, ct=ct,
                wells=[dict(name="P1", xy=[L/2, L/2], rate=-schedule)])  # fmt: skip
@@ -165,8 +165,8 @@ fig.tight_layout()
 ## Plot: the depression cone filling in
 fig, axs = freshfig("Buildup -- pressure", ncols=4, sharex=True, sharey=True,
                     figsize=(11, 3.2))
-kws = dict(levels=np.linspace(PP.min(), p_i, 21), cmap="viridis",
-           colorbar=False, finalize=False, wells=dict(size=.4))
+kws: dict = dict(levels=np.linspace(PP.min(), p_i, 21), cmap="viridis",
+                 colorbar=False, finalize=False, wells=dict(size=.4))
 for i, (ax, k) in enumerate(zip(axs, [kShut, kShut + 2, kShut + 10, nSteps])):
     cc = model.plt_field(ax, PP[k], **kws, labels=(i == 0),
                          title=f"t = {k*dt:.1f} day")

@@ -71,8 +71,8 @@ pore_volume = model.h2 * model.por.sum()
 ## Plot: the pressure field, subsiding
 fig, axs = freshfig("Depletion -- pressure", ncols=3, sharex=True, sharey=True,
                     figsize=(9, 3.5))
-kws = dict(levels=np.linspace(PP.min(), 1, 21), cmap="viridis",
-           colorbar=False, finalize=False, wells=dict(size=.4))
+kws: dict = dict(levels=np.linspace(PP.min(), 1, 21), cmap="viridis",
+                 colorbar=False, finalize=False, wells=dict(size=.4))
 for i, (ax, k) in enumerate(zip(axs, [3, 25, nSteps])):
     cc = model.plt_field(ax, PP[k], **kws, labels=(i == 0), title=f"t = {k*dt:.3f}")
 fig.colorbar(cc, ax=axs, shrink=.6, label="p")
