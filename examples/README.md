@@ -4,6 +4,10 @@ They double as regression tests: `tests/test_examples.py` runs them all
 - `heterogeneous.py` and `quarter_five_spot.py` reproduce Figs. 1 and 6 of the
   reference paper. The latter is what verifies our agreement with the Matlab codes.
 - `rate_scheduling.py` steers the water front using time-varying injection rates.
+- `buckley_leverett.py` is the only *verification* among them: in 1D the
+  saturation equation is exactly solvable (by the Welge tangent construction),
+  so here the numerical profile is compared with the truth rather than with
+  ourselves, and the error is shown to vanish under grid refinement.
 
 These concern the *well model* (`TPFA_ResSim.wells.peaceman_WI`), i.e. the sub-grid
 relation between a well and the (much larger) cell that holds it:

@@ -14,9 +14,22 @@ Provenance:
   (`rate_scheduling` at an early commit; the rest when they were written).
 - `buildup` was re-generated when it was re-posed in metric units
   (ref `TPFA_ResSim.ResSim.cdarcy`), so its values are in bar, `perm_est` in mD.
+- `buckley_leverett` is the exception to all of the above: it does not rest on
+  agreement with anything of ours -- the example itself asserts its agreement
+  with the *analytic* solution. Its `welge` and `bt` values therefore double as
+  a record that the analytics are being *derived*, not merely reproduced.
 """
 
 references = {
+    "buckley_leverett": dict(
+        explicit = [0.990892, 0.890209, 0.822683, 0.764926, 0.704659, 0, 0, 0],
+        implicit = [0.990162, 0.883361, 0.811672, 0.747063, 0.65349, 0, 0, 0],
+        case_B = [0.777486, 0.628901, 0.568772, 0.527752, 0.496966, 0.469208, 0.432117, 0.2],
+        welge = [0.707107, 1.20711, 0.444949, 2.87457],
+        water_cut = [0.146977, 0.869042, 0.892369, 0.90835, 0.919451, 0.929339, 0.937361, 0.943993],
+        bt = [0.82, 0.828427],
+        L1 = [0.0268856, 0.0167135, 0.00745601, 0.00510947, 0.00239238],
+    ),
     "buildup": dict(
         p_cell = [250, 232.86, 230.873, 246.473, 246.956, 246.996, 246.999, 247],
         p_far = [250, 249.567, 248.077, 246.99, 246.97, 246.984, 246.991, 246.995],
