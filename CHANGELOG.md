@@ -69,10 +69,16 @@ should pin a tag (or commit hash) and advance it deliberately.
   convenient way to set the wells up:
 
   ```python
-  model = ResSim(Lx=1, Ly=1, Nx=64, Ny=64, wells=[
-      dict(name="I1", path=[[0, 0], [0, 1]], rate=+1, rw=1e-3),
-      dict(name="P1", xy=[1, 1], rate=-1),
-  ])
+  model = ResSim(
+      Lx=1,
+      Ly=1,
+      Nx=64,
+      Ny=64,
+      wells=[
+          dict(name="I1", path=[[0, 0], [0, 1]], rate=+1, rw=1e-3),
+          dict(name="P1", xy=[1, 1], rate=-1),
+      ],
+  )
   ```
 
   A record may hold a position (`xy`, one or several) or a well *path*

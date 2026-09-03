@@ -259,7 +259,9 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
         is_bhp = np.isfinite(WI_lam)
         wls["rates"][is_bhp] = (WI_lam * (wls["p_bh"] - P[wls["inds"]]))[is_bhp]
 
-    def _record_actual_well_operation(self, S: np.ndarray, P: np.ndarray, k: int) -> None:
+    def _record_actual_well_operation(
+        self, S: np.ndarray, P: np.ndarray, k: int
+    ) -> None:
         """Record `actual_rates`/`actual_bhp`. Warn about flow direction flip."""
         wls = self._wells_now
         if k:

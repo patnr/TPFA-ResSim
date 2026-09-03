@@ -76,9 +76,7 @@ def peaceman_WI(model: "ResSim", xy: Any, rw: float, skin: float = 0.0) -> np.nd
     # fmt: on
 
 
-def well_path(
-    model: "ResSim", vertices: Any, rw: float, skin: float = 0.0
-) -> tuple:
+def well_path(model: "ResSim", vertices: Any, rw: float, skin: float = 0.0) -> tuple:
     """Discretize a well *path* (a polyline): 1 weighted completion per cell.
 
     Applied for you to a well of `Wells.from_records` given a `path`, which is
@@ -320,8 +318,11 @@ class Wells(AlignedRepr):
         # routes its assignments through it rather than writing past it.
         if key == "xy":
             # Completion positions -- collocate at some node
-            val = (np.zeros((0, 2)) if val is None else
-                   np.array(val, float).reshape((-1, 2)))
+            val = (
+                np.zeros((0, 2))
+                if val is None
+                else np.array(val, float).reshape((-1, 2))
+            )
             if self._grid is not None:
                 for i, (x, y) in enumerate(val):
                     val[i] = self._grid.ind2xy(self._grid.xy2ind(x, y))
@@ -331,8 +332,7 @@ class Wells(AlignedRepr):
                 val = np.array(val, float).reshape((self.nComp, -1))
             # Well indices
             elif key == "WI":
-                val = np.broadcast_to(np.asarray(val, float).ravel(),
-                                      self.nComp).copy()
+                val = np.broadcast_to(np.asarray(val, float).ravel(), self.nComp).copy()
             # Completion-to-well map
             elif key == "group":
                 val = np.asarray(val, int).reshape(self.nComp)
@@ -353,8 +353,7 @@ class Wells(AlignedRepr):
     (ref `group`, `well_path`)."""
 
     nWell = property(
-        lambda self: self.nComp if self.group is None
-        else 1 + int(self.group.max())
+        lambda self: self.nComp if self.group is None else 1 + int(self.group.max())
     )
     """Num. of *wells*, i.e. groups of completions (ref `group`)."""
 
@@ -495,14 +494,18 @@ class Wells(AlignedRepr):
             # Completions: their positions, and their well indices
             if (path := spec.pop("path", None)) is not None:
                 assert "xy" not in spec, (
-                    f"Well '{name}': give it `xy` or `path`, not both.")
+                    f"Well '{name}': give it `xy` or `path`, not both."
+                )
                 assert rw is not None, f"Well '{name}': a `path` requires `rw`."
                 _xy, _WI, _ = well_path(model, path, rw, skin)
             else:
                 assert "xy" in spec, f"Well '{name}': give it an `xy` (or a `path`)."
                 _xy = np.array(spec.pop("xy"), float).reshape((-1, 2))
-                _WI = (np.full(len(_xy), np.nan) if rw is None
-                       else peaceman_WI(model, _xy, rw, skin))
+                _WI = (
+                    np.full(len(_xy), np.nan)
+                    if rw is None
+                    else peaceman_WI(model, _xy, rw, skin)
+                )
             if (given := spec.pop("WI", None)) is not None:
                 _WI = np.broadcast_to(np.asarray(given, float).ravel(), len(_xy)).copy()
             nc = len(_xy)
