@@ -604,6 +604,17 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
 
         return Sn
 
+    def _validate(self):
+        # Catch some common issues before they become mysterious/insidious
+        # (e.g. mass imblance silently inserts deficit in SW corner).
+        if self.ct == 0 and not self._wells_now["bhp_diag"].any():
+            # Incompressible and no BHP control ⇒ no storage ⇒ src/sinks must balance.
+            SA = np.abs(self._Q).sum()
+            AS = abs(self._Q.sum())
+            assert AS <= 1e-10 * SA, "well rates do not sum to 0"
+        assert np.all((0 <= self.K) & np.isfinite(self.K))
+        assert np.all((0 <= self.por) & (self.por <= 1))
+
     def time_stepper(self, dt: float, implicit: bool = False) -> Callable:
         """Get ODE solver (integrator) for model.
 
@@ -615,15 +626,7 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
 
         def integrate(S, P, k):
             self.assemble_wells(S, P, k)
-
-            # Catch some common issues before they become mysterious/insidious
-            # (e.g. mass imblance silently inserts deficit in SW corner).
-            if self.ct == 0 and not self._wells_now["bhp_diag"].any():
-                # Incompressible and no BHP control ⇒ no storage ⇒ src/sinks must balance.
-                assert np.isclose(self._Q.sum(), 0), "well rates do not sum to 0"
-            assert np.all((0 <= self.K) & np.isfinite(self.K))
-            assert np.all((0 <= self.por) & (self.por <= 1))
-
+            self._validate()
             [P, V] = self.pressure_step(S, P, dt)
             self.realize_bhp(P)
             self._record_actual_well_operation(S, P, k)
