@@ -204,6 +204,46 @@ and that $u$ is determined only up to an arbitrary constant
 The constant is fixed, and the system is rendered invertible,
 by adding to the first element of the diagonal.
 
+## Missing features
+
+- The model is 2D
+  - No gravity effects (buoyancy, drainage)
+  - No coning
+  - No layering
+  - No vertical cross-section
+- Fluids
+  - No gas
+  - Constant viscosity
+  - No bubble point, no $R_s$, gas injection or WAG
+  - Immiscible, single-component (no compositional) and no polymer, surfactant, foam, or CO₂
+  - Isothermal
+  - No capillary pressure
+  - Rel-perm is hard-coded
+- Grid is uniform, rectangular
+  - No corner-point or unstructured (PEBI) geometry,
+  - no faults or transmissibility multipliers
+  - no local grid refinement, and no adaptivity.
+- Permeability is diagonal, not a full tensor, as indicated by "TPFA"
+- The boundary is no-flow, always. No aquifer model
+- No geostatistics, and no upscaling
+- Wells
+  - No wellbore hydrostatics, friction
+  - No control-mode switching, natively, outside of `TPFA_ResSim.ResSim.well_controls`
+  - Wells snap to cell centres (ref `TPFA_ResSim.ResSim.well_xy`)
+- Numerics
+  - First-order upwind in space, in both saturation schemes: the front is
+    smeared by numerical diffusion. No higher-order, TVD or flux-limited scheme,
+    no discontinuous Galerkin, and no streamline/front-tracking method.
+  - No I/O: no deck (`.DATA`) parsing, no restart or summary files, no
+    interoperability with the industry formats
+
+.. note:: What remains is nonetheless enough to exhibit most of what makes
+    reservoir simulation interesting: the nonlinear pressure-saturation
+    coupling, the hyperbolic front and its (fingering, channelling) instability,
+    the drive mechanisms of injection and of depletion, the sub-grid nature of a
+    well, and the disparity of scales that makes all of it a hard inverse
+    problem.
+
 ## Vocabulary of reservoir engineering
 
 Reservoir simulators implement porous media flow
