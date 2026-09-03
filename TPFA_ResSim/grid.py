@@ -116,6 +116,7 @@ class Grid2D:
         """Convert physical coordinate tuple to `(ix, iy)`, ix ∈ {0, ..., Nx-1}.
 
         .. warning:: `xy2sub` and `xy2ind` *round* to nearest cell center.
+
             I.e. they are not injective.
             The alternative would be to return some kind
             of interpolation weights distributing `(x, y)` over multiple nodes.

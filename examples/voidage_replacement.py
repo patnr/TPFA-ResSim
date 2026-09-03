@@ -19,8 +19,10 @@ Both the pressure and the transport equation carry their $O(c_t)$ terms
 (ref `ResSim.ct`), so the saturations stay bounded and, at `VRR = 1`, converge
 to the incompressible solution as $c_t → 0$ -- verified below.
 
-.. warning:: This example is deliberately extreme: it produces two pore volumes
-    while injecting one, so the fluids are asked to expand by 100%, i.e.
+.. warning:: This example is deliberately extreme.
+
+    It produces two pore volumes while injecting one,
+    so the fluids are asked to expand by 100%, i.e.
     $ c_t Δ\\bar{p} = 1 $, rather than the $ \\ll 1 $ that "slightly
     compressible" implies. The behaviour below is self-consistent and
     qualitatively right, but not quantitatively trustworthy. NB: lowering `ct`

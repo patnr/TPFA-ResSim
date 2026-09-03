@@ -53,14 +53,16 @@ def peaceman_WI(model: "ResSim", xy: Any, rw: float, skin: float = 0.0) -> np.nd
     >>> peaceman_WI(model, [[.5, .5]], rw=1e-3).round(4)
     array([3.4476])
 
-    .. note:: `model` is used for its grid and its `K` alone -- which is why
-        this is a free function, not a method: the well index is a property of
-        a *location*, not of the well configuration, and it is evaluated once,
-        when asked for -- so a later edit of `K` does not retroactively change
-        a `Wells.WI` computed from it.
+    .. note:: `model` is used for its grid and its `K` alone.
 
-    .. note:: $ WI \\, λ_t \\, Δp $ comes out as a rate *per unit thickness*,
-        ref. `TPFA_ResSim.ResSim.cdarcy`. 
+        Which is why this is a free function, not a method: the well index is a
+        property of a *location*, not of the well configuration, and it is
+        evaluated once, when asked for -- so a later edit of `K` does not
+        retroactively change a `Wells.WI` computed from it.
+
+    .. note:: $ WI \\, λ_t \\, Δp $ comes out as a rate *per unit thickness*.
+
+        Ref. `TPFA_ResSim.ResSim.cdarcy`.
 
     .. note:: `rw` must be given in the same length unit as `Lx`.
     """
@@ -105,16 +107,19 @@ def well_path(
     >>> alloc  # the end cells, entered mid-way, get half the rate
     array([0.125, 0.25 , 0.25 , 0.25 , 0.125])
 
-    .. note:: Under BHP control this `alloc` is exact (assuming 0 gravity
-        and friction): the completions simply share a `p_bh`. Under *rate*
-        control, `alloc` is an approximation unless the cell pressures are
-        equal. Solving for it would make $ p_\\mathrm{bh} $ an extra
+    .. note:: `alloc` is exact under BHP control, approximate under rate control.
+
+        Under BHP control (assuming 0 gravity and friction) the completions
+        simply share a `p_bh`. Under *rate* control, the allocation holds only
+        if the cell pressures are equal. Solving for it would make
+        $ p_\\mathrm{bh} $ an extra
         unknown, i.e. a bordered linear system -- which the 5-diagonal
         assembly of `TPFA_ResSim.ResSim.TPFA` (Listing 1) is not set up for. Use
         `TPFA_ResSim.ResSim.well_controls` to reallocate per step, if it matters.
 
-    .. warning:: The completions are treated as independent *vertical* wells,
-        which seems reasonable in a 2D areal model. Thus they count towards
+    .. warning:: The completions are treated as independent *vertical* wells.
+
+        Which seems reasonable in a 2D areal model. Thus they count towards
         `Wells.nComp`, not `Wells.nWell` -- ref `Wells.group`, which
         `Wells.from_records` sets for you.
     """
@@ -182,6 +187,7 @@ class Wells(AlignedRepr):
     there are no wells.
 
     .. warning:: The wells get co-located with grid nodes, ref `xy2sub`.
+
         This is a design choice, not a mathematical necessity.
         An alternative would be to distribute them over nearby nodes.
     """
@@ -195,12 +201,15 @@ class Wells(AlignedRepr):
     An **areal** rate, i.e. volumetric *per unit thickness* -- ref
     `TPFA_ResSim.ResSim.cdarcy`.
 
-    .. note:: When `ct == 0` (and no well is BHP-controlled) it is asserted
-        that the rates sum to 0 at each time index, otherwise the model
+    .. note:: With `ct == 0` the rates must sum to 0 at each time index.
+
+        This is asserted (unless a well is BHP-controlled), otherwise the model
         would silently input the deficit from the SW corner.
 
-    .. note:: Since the array is shared by all the wells, prefer `0` as (ignored)
-        fill value where control is by `bhp`.
+    .. note:: Prefer `0` as the (ignored) fill value where control is by `bhp`.
+
+        The array being shared by all the wells, an entry must be given there
+        regardless.
     """
     bhp: Any = None
     """Bottom-hole pressures for the wells. `None`, or an array shaped like
@@ -222,15 +231,18 @@ class Wells(AlignedRepr):
     rates are recorded in `actual_rates`, and the corresponding entries of
     `rates` are ignored (it may be left as `None`).
 
-    .. note:: BHP control also *anchors the pressure*. With `ct == 0` the
-        pressure equation is otherwise a pure-Neumann problem: solvable only up
-        to a constant (which `TPFA_ResSim.ResSim.TPFA` pins arbitrarily, ref
-        article p. 13), and only if injection balances production. A single BHP
+    .. note:: BHP control also *anchors the pressure*.
+
+        With `ct == 0` the pressure equation is otherwise a pure-Neumann
+        problem: solvable only up to a constant (which
+        `TPFA_ResSim.ResSim.TPFA` pins arbitrarily, ref article p. 13), and
+        only if injection balances production. A single BHP
         well lifts both restrictions -- the level is then set by
         $ p_\\mathrm{bh} $, and the voidage by the well model.
 
-    .. warning:: A BHP well's flow direction is *emergent*, not declared: it
-        flows whichever way $ p_\\mathrm{bh} $ vs. its cell pressure dictates
+    .. warning:: A BHP well's flow direction is *emergent*, not declared.
+
+        It flows whichever way $ p_\\mathrm{bh} $ vs. its cell pressure dictates
         (ref `TPFA_ResSim.ResSim.realize_bhp`) -- and, like any inflow, an
         inflow through a BHP well injects *water*. Since a reversal mid-`sim`
         may nonetheless be a surprise, a `UserWarning` is emitted when a BHP
@@ -265,8 +277,10 @@ class Wells(AlignedRepr):
     chosen discretisation size around a point source/sink (an idealized,
     theoretical singularity).
 
-    .. warning:: The drawdown is *not* a fixed offset, to be calibrated away
-        once and for all. Being $ q / (WI \\, λ_t) $, it tracks the mobility --
+    .. warning:: The drawdown is *not* a fixed offset.
+
+        It is not to be calibrated away once and for all: being
+        $ q / (WI \\, λ_t) $, it tracks the mobility --
         which, in a waterflood, dips as the front arrives (by half, for equal
         viscosities). So the gap doubles at breakthrough: precisely when the
         well is most interesting.
@@ -451,14 +465,16 @@ class Wells(AlignedRepr):
         rate-controlled ones in `Wells.bhp` -- the conventions that the specs,
         being shared arrays, call for (ref `Wells.rates`).
 
-        .. note:: A well must be given a control (`rate` and/or `bhp`);
+        .. note:: A well must be given a control (`rate` and/or `bhp`).
+
             `rate=0` shuts it in. This is deliberate: an uncontrolled well would
             silently be a shut one.
 
-        .. note:: The records are *not* retained: the arrays they produce are
-            the whole of the configuration, so there is nothing to fall out of
-            step with a subsequent edit of them (which is what the `repr`
-            therefore reports).
+        .. note:: The records are *not* retained.
+
+            The arrays they produce are the whole of the configuration, so
+            there is nothing to fall out of step with a subsequent edit of them
+            (which is what the `repr` therefore reports).
         """
         keys = ("name", "xy", "path", "rate", "bhp", "rw", "skin", "WI")
         if isinstance(wells, dict):

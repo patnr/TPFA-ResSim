@@ -47,9 +47,10 @@ $ r $, the *cell* pressure will do (no well model needed), and reading $ K $ off
 that plateau recovers the 100 mD that went in, to within 4%. The shortfall is
 the time discretization, not the units: at `dt = .05` it is 1%.
 
-.. note:: Nothing here knows that the numbers are metric -- the axis labels
-    below say "[bar]" because *this script* says so. `cdarcy` fixes the
-    arithmetic, not the nomenclature.
+.. note:: Nothing here knows that the numbers are metric.
+
+    The axis labels below say "[bar]" because *this script* says so.
+    `cdarcy` fixes the arithmetic, not the nomenclature.
 
 In the figures:
 

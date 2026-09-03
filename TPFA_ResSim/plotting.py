@@ -212,12 +212,13 @@ class Plot2D:
         The label, `text`, is either one string for all of them, one *per* well
         of `ww` (a list), or `False` for none.
 
-        .. note:: By default (`text=None`) the wells are labelled by their index
-            *within* `ww`, so that (as `plt_field` calls this, once per sign) the
-            producers are numbered as `plt_production` numbers them -- separately
-            from the injectors, and not as in the unified `TPFA_ResSim.wells.Wells.xy`.
-            But `plt_field` supplies the names of `TPFA_ResSim.wells.Wells.names`,
-            if the wells have been given any.
+        .. note:: The default labels are indices *within* `ww`, not global ones.
+
+            I.e. with `text=None`, and since `plt_field` calls this once per
+            sign, the producers are numbered as `plt_production` numbers them --
+            separately from the injectors, and not as in the unified
+            `TPFA_ResSim.wells.Wells.xy`. But `plt_field` supplies the names of
+            `TPFA_ResSim.wells.Wells.names`, if the wells have been given any.
         """
         # Well coordinates
         ww = self.sub2xy(*self.xy2sub(*ww.T)).T

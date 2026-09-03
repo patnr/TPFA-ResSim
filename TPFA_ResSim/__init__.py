@@ -106,11 +106,14 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
     | lab | cm | hour | atm | mD | cP | cm²/hour | `3.6` |
 
     .. note:: The rate unit is forced to $u_L^2/u_t$ -- an areal rate.
+
         A well rate of `20` for a 25 m thick reservoir means 500 m³/day.
 
-    .. note:: $C$ enters 2 sites: the transmissibilities of `TPFA` and the well
-        index of `TPFA_ResSim.wells.peaceman_WI`, both of them Darcy's law.
-        Everything else is derivative and already consistent.
+    .. note:: $C$ enters at exactly 2 sites, both of them Darcy's law.
+
+        The transmissibilities of `TPFA` and the well index of
+        `TPFA_ResSim.wells.peaceman_WI`. Everything else is derivative, and
+        already consistent.
     """
 
     vw: float = 1.0
@@ -133,9 +136,10 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
     Then total injection and production rates need not balance
     (storage absorbs the imbalance), enabling e.g. primary depletion.
 
-    .. note:: The corresponding term of the *transport* (saturation) equation
-        is included as well. Since the total velocity is no longer
-        divergence-free, $ ∇ ⋅ v = q - φ \\, c_t \\, ∂p/∂t $, the water eqn. reads
+    .. note:: The corresponding term of the *transport* equation is included too.
+
+        Since the total velocity is no longer divergence-free,
+        $ ∇ ⋅ v = q - φ \\, c_t \\, ∂p/∂t $, the water eqn. reads
         $$ φ \\, ∂s/∂t + s \\, φ \\, c_t \\, ∂p/∂t + ∇ ⋅ (f_w \\, v) = q_w $$
         i.e. the storage is charged to the phases in proportion to their
         saturation -- ref `storage_rate`. This is what makes the water and oil
@@ -148,13 +152,15 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
         only the lump-sum constant `ct` is known. The difference,
         $ O(s (1-s) (c_w - c_o)) $, is within the fidelity discussed below.
 
-    .. warning:: The model remains a *slightly* compressible one, accurate only
-        to $O(c_t)$: `ct` is a single constant, rather than the
-        saturation-weighted sum $ c_r + s \\, c_w + (1-s) \\, c_o $ of the rock and
-        phase compressibilities, and the densities in the fluxes and the well
-        rates are treated as constant (so reservoir and surface volumes are not
-        distinguished). Fidelity therefore requires $ c_t \\, Δp \\ll 1 $ -- and
-        note that this is *not* a matter of choosing `ct` small: summing the
+    .. warning:: The model remains only a *slightly* compressible one.
+
+        It is accurate to $O(c_t)$ alone: `ct` is a single constant, rather
+        than the saturation-weighted sum $ c_r + s \\, c_w + (1-s) \\, c_o $ of
+        the rock and phase compressibilities, and the densities in the fluxes
+        and the well rates are treated as constant (so reservoir and surface
+        volumes are not distinguished). Fidelity therefore requires
+        $ c_t \\, Δp \\ll 1 $ -- and note that this is *not* a matter of
+        choosing `ct` small: summing the
         rows of the pressure system (ref `tests/test_compressible.py`) gives
         $ c_t \\, Δ\\bar{p} = V_\\mathrm{voidage} / V_\\mathrm{pore} $, i.e. the
         expansion asked of the fluids is set by the *voidage* (production minus
@@ -325,30 +331,34 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
         >>> (-model.wells.actual_rates[0, [0, 5, 6, -1]]).round(3)
         array([0.25 , 0.25 , 0.182, 0.005])
 
-        .. warning:: With `ct == 0` the rates must still sum to 0 at every step
-            (ref `TPFA_ResSim.wells.Wells.rates`), so shutting one well
-            requires matching it on the other side -- as above -- else
-            `time_stepper` complains that the
-            "well rates do not sum to 0". Only with `ct > 0` (where storage
+        .. warning:: With `ct == 0` the rates must still sum to 0 at every step.
+
+            Ref `TPFA_ResSim.wells.Wells.rates`. So shutting one well requires
+            matching it on the other side -- as above -- else `time_stepper`
+            complains that the "well rates do not sum to 0".
+            Only with `ct > 0` (where storage
             absorbs the imbalance), or under BHP control
             (ref `TPFA_ResSim.wells.Wells.bhp`, where the well finds its own
             rate), may a well act alone.
 
-        .. note:: The mode switch is decided from the previous step's pressure,
-            whereas the well model itself is solved *simultaneously* with the
-            new one (ref `TPFA_ResSim.wells.Wells.bhp`). So it is an
-            approximation -- of the sort that a properly iterated switch would
-            avoid -- and the limit is breached for the one step in which it
-            comes to bind.
+        .. note:: The mode switch lags the solve by one step.
+
+            It is decided from the previous step's pressure, whereas the well
+            model itself is solved *simultaneously* with the new one (ref
+            `TPFA_ResSim.wells.Wells.bhp`). So it is an approximation -- of the
+            sort that a properly iterated switch would avoid -- and the limit is
+            breached for the one step in which it comes to bind.
             Shorten `dt` to refine.
 
-        .. note:: `S` and `P` are `None` if the caller has none to offer (as
-            when `assemble_wells` is used merely to set up a plot), so an
-            override should tolerate that.
+        .. note:: `S` and `P` may be `None`, so an override should tolerate that.
 
-        .. note:: `assemble_wells` discards the rate of a BHP-controlled well
-            (it is `realize_bhp` that fills it in), so setting both controls for
-            the same well is not an error, merely pointless.
+            They are `None` if the caller has none to offer -- as when
+            `assemble_wells` is used merely to set up a plot.
+
+        .. note:: Setting both controls for a well is not an error, just pointless.
+
+            `assemble_wells` discards the rate of a BHP-controlled well -- it
+            is `realize_bhp` that fills it in.
         """
         return dict(
             rates=self.wells.at_time("rates", 0.0, k),
@@ -367,12 +377,13 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
         *same* `pressure_step`, i.e. `SS[k]` and `PP[k+1]` of `sim` -- which is
         what `actual_bhp` records, so prefer reading that.
 
-        .. warning:: Unlike the cell pressure, this is (to the accuracy of the
-            well model) independent of the grid resolution -- which is the whole
-            point. But it inherits the model's premises: in particular $ λ_t $
-            is that of the well's *cell*, so an injector's injectivity is
-            governed by the mobility of whatever the cell currently holds,
-            rather than by that of the injectant.
+        .. warning:: This is grid-independent, but inherits the model's premises.
+
+            Unlike the cell pressure, it is (to the accuracy of the well model)
+            independent of the grid resolution -- which is the whole point. But
+            in particular $ λ_t $ is that of the well's *cell*, so an injector's
+            injectivity is governed by the mobility of whatever the cell
+            currently holds, rather than by that of the injectant.
         """
         if self.wells.WI is None:
             return np.full(self.nComp, np.nan)
@@ -580,11 +591,13 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
     ) -> np.ndarray:
         """Implicit FV discretisation of conserv. of mass (water sat.).
 
-        .. warning:: Far outside the $ c_t \\, Δp \\ll 1 $ regime (ref `ct`),
-            the Newton iteration can converge -- silently -- to a spurious root
-            of the residual, outside $[0, 1]$: the polynomial `RelPerm` extends
-            smoothly beyond the unit interval, and the sub-`dt` halving only
-            triggers on *non*-convergence. The explicit scheme
+        .. warning:: The Newton iteration can converge to a spurious root.
+
+            Far outside the $ c_t \\, Δp \\ll 1 $ regime (ref `ct`), it may
+            converge -- silently -- to a root of the residual outside $[0, 1]$:
+            the polynomial `RelPerm` extends smoothly beyond the unit interval,
+            and the sub-`dt` halving only triggers on *non*-convergence.
+            The explicit scheme
             (`saturation_step_upwind`), being monotone, stays within $[0, 1]$
             even for extreme `ct`.
         """
@@ -683,6 +696,7 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
         Returns the saturation and pressure trajectories, `(SS, PP)`.
 
         .. note:: `SS[0] == S0` and `PP[0] == P0`, hence both have `len = nSteps + 1`.
+
             `P0` defaults to zeros. It is only consequential if `ct > 0`.
         """
         step = self.time_stepper(dt, **kwargs)
