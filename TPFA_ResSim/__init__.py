@@ -686,9 +686,15 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
 
         .. note:: This scheme rarely earns its keep.
 
-            It is usually both slower and less accurate than
-            `saturation_step_upwind` -- ref the "How to solve" section of the
-            docs, and the branch `implicit-transport-scheme`.
+            It is usually both slower & less accurate than `saturation_step_upwind`.
+            Both schemes sub-divide `dt` internally, so it is not `dt` that decides
+            their cost but the stiffness of the grid -- and the well cells, being
+            normally the stiffest, hold the two requirements within a factor 3 of each
+            other (that being the safety margin of `ResSim.estimate_1CFL`), while an
+            implicit sub-step -- a sparse solve, or several -- 10 or 100x more.
+            It does pay off where the stiffest cell is *not* a well cell -- a tight
+            streak, a fracture, a locally refined region -- running 7 times faster at a
+            1000x pore-volume contrast. The branch `implicit-transport-scheme` says more.
         """
         # fmt: off
         A  = self.upwind_diff(V)                 # FV discretized transport operator

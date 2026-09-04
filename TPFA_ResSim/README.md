@@ -1,12 +1,7 @@
-As mentioned in the [**the main README**](https://github.com/patnr/TPFA-ResSim) this is a
+TPFA-ResSim is a
 2D, two-phase, black-oil, immiscible
-reservoir simulator, neglecting capillary forces and gravity,
-using TPFA (two-point flux approximation),
-equipped with explicit and implicit ode solvers.
-By default it is incompressible, but slight compressibility
-can be enabled via the `ResSim.ct` attribute.
-
-<img src="https://github.com/patnr/TPFA-ResSim/raw/main/collage.jpg" width="100%"/>
+reservoir simulator
+using TPFA (two-point flux approximation).
 
 ## Governing equations
 
@@ -19,28 +14,6 @@ $$\phi \, c_t \frac{\partial p}{\partial t}
 - \nabla \cdot \mathbf{K} \lambda(s) \, \nabla p = q \,, \tag{1}$$
 $$\; \phi \frac{\partial s}{\partial t} + s \, \phi \, c_t \frac{\partial p}{\partial t}
 + \nabla \cdot (f(s)\, \mathbf{v}) = \frac{q_w}{\rho_w} \,. \tag{2}$$
-
-Here, $c_t \geq 0$ is a constant total (rock + fluids) compressibility,
-in the so-called "slightly compressible" approximation
-(the reference paper treats only the incompressible case).
-The default, $c_t = 0$, recovers the incompressible model,
-where eqn. (1) is elliptic: pressure propagates infinitely fast,
-is only defined up to an additive constant,
-and sources/sinks must balance, $\sum q = 0$.
-With $c_t > 0$, eqn. (1) is parabolic (a diffusion equation for pressure,
-discretized here by backward Euler), the absolute pressure level is meaningful,
-and injection need not balance production (storage absorbs the difference),
-permitting primary depletion.
-
-.. note:: The middle term of eqn. (2) is the $O(c_t)$ counterpart of eqn. (1)'s first.
-
-    With $c_t > 0$ the total velocity is no longer
-    divergence-free, $\nabla \cdot \mathbf{v} = q - \phi \, c_t \, \partial p /
-    \partial t$, so the storage must be charged to the phases — here in
-    proportion to their saturation, which is what makes the water and oil
-    equations sum to eqn. (1). It vanishes for $c_t = 0$, recovering the
-    reference paper's transport equation exactly.
-    Ref `TPFA_ResSim.ResSim.ct` and `TPFA_ResSim.ResSim.storage_rate`.
 
 The quantities involved are all 2D-spatial fields, namely
 
@@ -68,75 +41,79 @@ i.e. dropping the $w$ (for "water") subscripts.
     Their approximation and uncertainty is significant,
     but usually less important than those of the absolute permeability, $\mathbf{K}$.
 
+Here, $c_t \geq 0$ is a constant total (rock + fluids) compressibility,
+in the so-called "slightly compressible" approximation
+(the reference paper treats only the incompressible case).
+The default, $c_t = 0$, recovers the incompressible model,
+where eqn. (1) is elliptic: pressure propagates infinitely fast,
+is only defined up to an additive constant,
+and sources/sinks must balance, $\sum q = 0$.
+With $c_t > 0$, eqn. (1) is parabolic (a diffusion equation for pressure,
+discretized here by backward Euler), the absolute pressure level is meaningful,
+and injection need not balance production (storage absorbs the difference),
+permitting primary depletion.
+
+.. note:: The middle term of eqn. (2) is the $O(c_t)$ counterpart of eqn. (1)'s first.
+
+    With $c_t > 0$ the total velocity is no longer
+    divergence-free, $\nabla \cdot \mathbf{v} = q - \phi \, c_t \, \partial p /
+    \partial t$, so the storage must be charged to the phases — here in
+    proportion to their saturation, which is what makes the water and oil
+    equations sum to eqn. (1). It vanishes for $c_t = 0$, recovering the
+    reference paper's transport equation exactly.
+    Ref `TPFA_ResSim.ResSim.ct` and `TPFA_ResSim.ResSim.storage_rate`.
+
 
 ## Derivation
 
 #### Single phase
 
-Conservation of mass in a (single-phase)
-fluid setting is usually derived along with the concept
-of "material derivative", i.e. $\frac{D}{D t}$.
-This would be a bit trickier in the case of a porous medium,
-but the same concepts lead to
+**Conservation of mass** in a porous ($\phi$) medium is expressed by
 
 $$\frac{∂(\rho \phi)}{∂t} + ∇ \cdot (\rho \mathbf{v}) = q \,. \tag{3}$$
 
 This equation is also called continuity eqn., advection eqn., transport eqn.,
 or even 1st-order wave eqn. (if constant $v$).
-Notice that it "simply" says that divergence/convergence must be balanced
+It says that divergence (or convergence) must be balanced
 by change in density or porosity, or sinks or sources.
 If we assume constant porosity, $\phi$, and incompressibility (constant $\rho$),
 then the time derivative vanishes, yielding the steady-state equation
 $$\nabla \cdot \mathbf{\mathbf{v}} = \frac{q}{\rho} \,. \tag{4}$$
 
-This still leaves us with one equation for 3 unknowns.
-The system is closed by *Darcy*'s law:
+We now have 1 equation and 2 unknowns (in 2D).
+Closing the system,
+*Darcy's law* provides 2 additional equations and 1 additional unknown, pressure $p$:
 $$\mathbf{v} = − \frac{\mathbf{K}}{\mu} \nabla u \,, \tag{5}$$
 where
-$$u = p - \rho g z $$
-is the *velocity potential*,
-Darcy's law provides us with 3 additional equations and 1 additional unknown, $p$.
-It is analogous to Fourier's heat diffusion and Ohm's conduction law,
-but contains *two* forces (pressure gradient and gravity).
-
-Darcy's law (5) may be derived from Navier-Stokes momentum equations,
-but was empirically derived by Darcy.
-Indeed, it is simply a formula for the velocity,
-as the gradient of the potential, $u$,
+$u = p - \rho g z \,.$
+Analogously to Fourier's heat diffusion and Ohm's conduction law,
+Darcy's law (5) was initially derived empirically,
+but can be shown to be a special case of Navier-Stokes' momentum equation.
+It says that $\mathbf{v}$ is the gradient of the *velocity potential*, $u$,
 linearly transformed by the permeability tensor (matrix).
 Inserting the formula (5) into eqn. (4) yields
 $$− \nabla \cdot \frac{\mathbf{K}}{\mu} \nabla u = \frac{q}{\rho} \,. \tag{6}$$
 which can be solved for $u$.
-In reservoir engineering, *no-flow* boundary conditions are most often used.
-Still, $u$ is only determined up to a constant (as behoves a *potential*).
+In reservoir engineering, *no-flow* boundary conditions are most often used,
+and $u$ is only determined up to a constant (as behoves a *potential*).
 Finally, $u$ can be inserted in Darcy's law (5) to yield the (steady-state) velocity.
 
 #### Two phases
 
-The [reference paper](1) explains how to apply the continuity equation (3)
-and Darcy's law (5) for each phase in a multiphase (and even multicomponent) flow system.
-Even the black-oil case involves 27 unknowns and equations.
-By assuming immiscibility and incompressibility,
-and constituent relations, and astute combination of the equations,
-they arrive at eqn. (1) and (2).
-
-Here we shall be more heuristic but brief.
-
 - Incompressibility again yields eqn. (4) for the *total* (volumetric) velocity.
 - Darcy's law (5) is assumed for each (both) individual phase,
-  meaning that $\mathbf{K}$ is replaced by $\mathbf{K} \lambda_{\text{phase}}(s)$.
+  with $\mathbf{K}$ replaced by $\mathbf{K} \lambda_{\text{phase}}(s)$.
 - Neglecting $\nabla z$ (gravity, i.e. hydrostatic pressure),
   the flow potential, $u$, reduces to the pressure field, $p$.
 - Summing Darcy's law over the two phases yields
   $$\mathbf{v} = − \mathbf{K} \lambda (s) \nabla p \,. \tag{7}$$
-- Hence, repeating the derivation for eqn. (6), we obtain eqn. (1).
-
-Meanwhile, conservation of mass (3)
-for a *single*, incompressible phase is obtained by
-replacing the density $\rho$ in eqn. (3)
-by $s_{\text{phase}} \, \rho_{\text{phase}}$,
-and $\mathbf{v}$ by $\mathbf{v}_{\text{phase}} = f_{\text{phase}}(s)\, \mathbf{v}$.
-This immediately yields eqn. (2).
+- Repeating the steps right above eqn. (6), one arrives at eqn. (1).
+- Meanwhile, conservation of mass (3)
+  for a *single*, incompressible phase is obtained by
+  replacing the density $\rho$ in eqn. (3)
+  by $s_{\text{phase}} \, \rho_{\text{phase}}$,
+  and $\mathbf{v}$ by $\mathbf{v}_{\text{phase}} = f_{\text{phase}}(s)\, \mathbf{v}$.
+  This immediately yields eqn. (2).
 
 
 ## How to solve
@@ -145,49 +122,25 @@ Equations (1) and (2) are nonlinearly coupled:
 $s$ and $p$ (yielding $v$ via eqn. (7)) appear in both equations.
 Trying to solve both equations simultaneously is a nonlinear root-finding problem,
 requiring Newton iterations and matrix inversions.
-Given this complication, it is then possible to use *implicit* time discretization
-(like ECLIPSE 100) where $s_{t+1}$ is expressed as a (nonlinear) function of itself,
-which also requires iterative solution.
+In this context, it is tempting to use *implicit* time discretization (like ECLIPSE 100)
+where $s_{t+1}$ is expressed as a (nonlinear) function of itself,
+since this would also requires iterations
 
 Here, instead, we apply sequential operator splitting,
 meaning that the two equations are solved independently,
 inserting the previous solution of (1) into (2), and vice-versa.
 Since it yields smaller systems (which can potentially be discretized explicitly)
 this is faster, but less accurate.
-The simulator code contains both an implicit and explicit (upwind) time discretization
+The simulator contains both an implicit and explicit (upwind) time discretization
 for the nearly-hyperbolic saturation equation.
+The implicit scheme for the saturation equation scheme does not appear to earn its keep,
+however, ref `ResSim.saturation_step_implicit`.
 When using the explicit one, the strategy is called IMPES
-(implicit pressure, explicit saturation), although I'm not sure why,
-since the pressure equation itself does not contain a time derivative
-(with $s$ fixed, equation (1) is a nearly-elliptic
-boundary value problem for the pressure, $p$).
-
-.. note:: The implicit scheme does not appear to earn its keep.
-
-    Both schemes sub-divide `dt` internally, so it is not `dt` that decides
-    their cost but the stiffness of the grid -- and the well cells, being
-    normally the stiffest, hold the two requirements within a factor 3 of each
-    other (that being the safety margin of `ResSim.estimate_1CFL`), while an
-    implicit sub-step -- a sparse solve, or several -- costs one to two orders
-    of magnitude more than an explicit one, a matrix-vector product. Measured
-    on the quarter five-spot ($64^2$): 2.5 times the slower at equal `dt`, and
-    10 times the less accurate, being the more diffusive (likewise 4 times the
-    error in the rarefaction of `examples/buckley_leverett.py`). Nor is it
-    monotone, so it can converge -- silently -- to a spurious root outside
-    $[0, 1]$, which the explicit scheme cannot
-    (ref `ResSim.saturation_step_implicit`).
-
-    It does pay off where the stiffest cell is *not* a well cell -- a tight
-    streak, a fracture, a locally refined region -- running 7 times faster at a
-    1000x pore-volume contrast. Absent such a case, prefer the default.
-    The branch `implicit-transport-scheme` carries the investigation: the
-    benchmark that produced these numbers (`examples/tight_streak.py`, sweeping
-    the contrast to find the crossover), guards that make the silent failure
-    above loud instead, and the tests for both.
+(implicit pressure, explicit saturation).
 
 The spatial discretization is carried out by finite volumes (FV),
 which is similar to finite differences (FD),
-but arguably easier to formulate for non-structured (irregular) grids.
+but arguably easier to formulate for non-structured (irregular) grids (not our case).
 For the pressure equation, using only two points two approximate the transmissibility
 and fluxes at the interfaces is called it is called two-point flux approximation (TPFA);
 simple, but used widely (nearly default) in oil industry, due to its robustness and efficiency.
@@ -235,12 +188,9 @@ the time steps (`ResSim.cached_precond`).
 
     Its matrix changes only through the mobility $λ(s)$ (and, with $c_t > 0$,
     the accumulation term), so the factorization of an earlier step is an
-    excellent preconditioner for the current one: 1--2 iterations where the
-    saturation is nearly static, ~12 behind a moving front, each the cost of
+    excellent **preconditioner** for the current one, at the cost of
     a back-substitution, and a refactorization only once the iteration stalls.
-    `tests/test_precond.py` records the measurements -- 2--6x faster on the
-    well-test and depletion examples, 15--40% on the waterfloods, where the
-    explicit transport dominates -- and what was tried besides.
+    `tests/test_precond.py` benchmarks.
 
 ## Sensitivities
 
@@ -290,30 +240,6 @@ for that of a production-history misfit, put to use in a few descent steps.
     no discontinuous Galerkin, and no streamline/front-tracking method.
   - No I/O: no deck (`.DATA`) parsing, no restart or summary files, no
     interoperability with the industry formats
-
-.. note:: Spreading a well over its neighbouring cells was implemented, then omitted.
-
-    Snapped to a cell centre, a well has its every effect a staircase function
-    of its coordinates -- constant within a cell -- which leaves an
-    optimisation over well *positions* with no gradient to work with until the
-    well crosses into the next cell (as in the EnOpt of
-    [HistoryMatching](https://github.com/patnr/HistoryMatching)). Distributing
-    it over the 4 surrounding cells by bilinear weights -- a *mollified* rather
-    than a rounded delta -- fixes that, and is not merely cosmetic: the
-    position dependence so obtained tracks that of a 3-times-refined grid to
-    within that grid's own discretization spread, i.e. some 5 times closer than
-    rounding manages. It does require the well index to be corrected for the
-    cells dividing the load, Peaceman's equivalent radius being derived for the
-    whole source in one cell: a well divided 4 ways under-reports its drawdown
-    by 23%, non-convergently, unless the weighted geometric mean of the
-    intercell distances is substituted for $r_e$ (which recovers 0.3%).
-
-    It was nonetheless judged not to earn its complexity -- a stencil threaded
-    through the well assembly, the well model and the plotting, for a
-    convenience of the optimiser rather than a fidelity of the simulator. The
-    work is preserved on the branch `well-spread` (`ResSim.spread_wells`,
-    `Grid2D.xy2stencil`, `wells._share_WI`, and `tests/test_spread.py`, which
-    pins each of the measurements quoted above).
 
 .. note:: What remains is nonetheless enough to exhibit most of what makes
     reservoir simulation interesting: the nonlinear pressure-saturation

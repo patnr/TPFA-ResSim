@@ -13,6 +13,32 @@ solves for. Hence `Wells.nComp` counts the rows of every array here, whereas
 `Wells.nWell` counts the wells that `Wells.group` says they compose --
 a distinction that serves the *reporting* alone (`Wells.rates_by_well`, the
 plot labels); the physics never groups.
+
+
+.. note:: Spreading a well over its neighbouring cells was implemented, then omitted.
+
+    Snapped to a cell centre, a well has its every effect a staircase function
+    of its coordinates -- constant within a cell -- which leaves an
+    optimisation over well *positions* with no gradient to work with until the
+    well crosses into the next cell (as in the EnOpt of
+    [HistoryMatching](https://github.com/patnr/HistoryMatching)). Distributing
+    it over the 4 surrounding cells by bilinear weights -- a *mollified* rather
+    than a rounded delta -- fixes that, and is not merely cosmetic: the
+    position dependence so obtained tracks that of a 3-times-refined grid to
+    within that grid's own discretization spread, i.e. some 5 times closer than
+    rounding manages. It does require the well index to be corrected for the
+    cells dividing the load, Peaceman's equivalent radius being derived for the
+    whole source in one cell: a well divided 4 ways under-reports its drawdown
+    by 23%, non-convergently, unless the weighted geometric mean of the
+    intercell distances is substituted for $r_e$ (which recovers 0.3%).
+
+    It was nonetheless judged not to earn its complexity -- a stencil threaded
+    through the well assembly, the well model and the plotting, for a
+    convenience of the optimiser rather than a fidelity of the simulator. The
+    work is preserved on the branch `well-spread` (`ResSim.spread_wells`,
+    `Grid2D.xy2stencil`, `wells._share_WI`, and `tests/test_spread.py`, which
+    pins each of the measurements quoted above).
+
 """
 
 from dataclasses import dataclass
