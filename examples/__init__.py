@@ -6,6 +6,10 @@ whose docstring says what it shows, and whose figures are reproduced on its page
 They double as regression tests: `tests/test_examples.py` runs them all
 (plotting included) and compares the output with `tests/references.py`.
 
+One panel per feature, drawn from their results:
+
+![One panel per feature, from the examples](collage_features.png)
+
 - `examples.heterogeneous` and `examples.quarter_five_spot` reproduce Figs. 1 and 6 of
   the reference paper. The latter is what verifies our agreement with the Matlab codes.
 - `examples.rate_scheduling` steers the water front using time-varying injection rates.
