@@ -131,3 +131,128 @@ nav.pdoc footer a {
         --cover: calc(.5rem + 1.875rem + 1rem + 1.875rem + .5rem);
     }
 }
+
+/* Dark mode, when the reader's system asks for it. The palette is pdoc's own dark-mode
+   example (examples/dark-mode in the pdoc repo), the code colours its Monokai from the
+   same, plus what pdoc's content.css hard-codes in light colours: the admonitions and a
+   couple of button details. Everything above uses pdoc's variables, so follows along. */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --pdoc-background: #212529;
+        color-scheme: dark;  /* form controls, scrollbars */
+    }
+    .pdoc {
+        --text: #f7f7f7;
+        --muted: #9d9d9d;
+        --link: #58a6ff;
+        --link-hover: #3989ff;
+        --code: #333;
+        --active: #555;
+        --accent: #343434;
+        --accent2: #555;
+        --nav-hover: rgba(0, 0, 0, 0.1);
+        --name: #77C1FF;
+        --def: #0cdd0c;
+        --annotation: #00c037;
+    }
+    .pdoc .pdoc-button {
+        border-color: var(--muted);
+    }
+    .pdoc .view-value-button:hover {
+        background: var(--code);
+    }
+    .pdoc .alert.note {
+        color: #9ec5fe;
+        background-color: #1c2a44;
+        border-color: #2d4a80;
+    }
+    .pdoc .alert.warning {
+        color: #ffda6a;
+        background-color: #3a2f0b;
+        border-color: #664d03;
+    }
+    .pdoc .alert.danger {
+        color: #f1aeb5;
+        background-color: #3b1a1e;
+        border-color: #842029;
+    }
+
+    /* Monokai (Pygments), for the code blocks. */
+    .pdoc-code .hll { background-color: #49483e }
+    .pdoc-code { background: #272822; color: #f8f8f2 }
+    .pdoc-code .c { color: #75715e }
+    .pdoc-code .err { color: #960050; background-color: #1e0010 }
+    .pdoc-code .esc { color: #f8f8f2 }
+    .pdoc-code .g { color: #f8f8f2 }
+    .pdoc-code .k { color: #66d9ef }
+    .pdoc-code .l { color: #ae81ff }
+    .pdoc-code .n { color: #f8f8f2 }
+    .pdoc-code .o { color: #f92672 }
+    .pdoc-code .x { color: #f8f8f2 }
+    .pdoc-code .p { color: #f8f8f2 }
+    .pdoc-code .ch { color: #75715e }
+    .pdoc-code .cm { color: #75715e }
+    .pdoc-code .cp { color: #75715e }
+    .pdoc-code .cpf { color: #75715e }
+    .pdoc-code .c1 { color: #75715e }
+    .pdoc-code .cs { color: #75715e }
+    .pdoc-code .gd { color: #f92672 }
+    .pdoc-code .ge { color: #f8f8f2; font-style: italic }
+    .pdoc-code .gr { color: #f8f8f2 }
+    .pdoc-code .gh { color: #f8f8f2 }
+    .pdoc-code .gi { color: #a6e22e }
+    .pdoc-code .go { color: #66d9ef }
+    .pdoc-code .gp { color: #f92672; font-weight: bold }
+    .pdoc-code .gs { color: #f8f8f2; font-weight: bold }
+    .pdoc-code .gu { color: #75715e }
+    .pdoc-code .gt { color: #f8f8f2 }
+    .pdoc-code .kc { color: #66d9ef }
+    .pdoc-code .kd { color: #66d9ef }
+    .pdoc-code .kn { color: #f92672 }
+    .pdoc-code .kp { color: #66d9ef }
+    .pdoc-code .kr { color: #66d9ef }
+    .pdoc-code .kt { color: #66d9ef }
+    .pdoc-code .ld { color: #e6db74 }
+    .pdoc-code .m { color: #ae81ff }
+    .pdoc-code .s { color: #e6db74 }
+    .pdoc-code .na { color: #a6e22e }
+    .pdoc-code .nb { color: #f8f8f2 }
+    .pdoc-code .nc { color: #a6e22e }
+    .pdoc-code .no { color: #66d9ef }
+    .pdoc-code .nd { color: #a6e22e }
+    .pdoc-code .ni { color: #f8f8f2 }
+    .pdoc-code .ne { color: #a6e22e }
+    .pdoc-code .nf { color: #a6e22e }
+    .pdoc-code .nl { color: #f8f8f2 }
+    .pdoc-code .nn { color: #f8f8f2 }
+    .pdoc-code .nx { color: #a6e22e }
+    .pdoc-code .py { color: #f8f8f2 }
+    .pdoc-code .nt { color: #f92672 }
+    .pdoc-code .nv { color: #f8f8f2 }
+    .pdoc-code .ow { color: #f92672 }
+    .pdoc-code .w { color: #f8f8f2 }
+    .pdoc-code .mb { color: #ae81ff }
+    .pdoc-code .mf { color: #ae81ff }
+    .pdoc-code .mh { color: #ae81ff }
+    .pdoc-code .mi { color: #ae81ff }
+    .pdoc-code .mo { color: #ae81ff }
+    .pdoc-code .sa { color: #e6db74 }
+    .pdoc-code .sb { color: #e6db74 }
+    .pdoc-code .sc { color: #e6db74 }
+    .pdoc-code .dl { color: #e6db74 }
+    .pdoc-code .sd { color: #e6db74 }
+    .pdoc-code .s2 { color: #e6db74 }
+    .pdoc-code .se { color: #ae81ff }
+    .pdoc-code .sh { color: #e6db74 }
+    .pdoc-code .si { color: #e6db74 }
+    .pdoc-code .sx { color: #e6db74 }
+    .pdoc-code .sr { color: #e6db74 }
+    .pdoc-code .s1 { color: #e6db74 }
+    .pdoc-code .ss { color: #e6db74 }
+    .pdoc-code .bp { color: #f8f8f2 }
+    .pdoc-code .fm { color: #a6e22e }
+    .pdoc-code .vc { color: #f8f8f2 }
+    .pdoc-code .vg { color: #f8f8f2 }
+    .pdoc-code .vi { color: #f8f8f2 }
+    .pdoc-code .vm { color: #f8f8f2 }
+}
