@@ -33,8 +33,7 @@ jobs:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
 
-      - name: Install dependencies
-        run: uv sync --locked --no-default-groups --group test
-
+      # `uv run` syncs implicitly, so it both installs and runs: no separate
+      # `uv sync` step, and therefore no `--no-sync` to undo its default group.
       - name: Run tests
-        run: uv run --no-sync pytest
+        run: uv run --locked --no-default-groups --group test pytest

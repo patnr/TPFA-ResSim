@@ -19,12 +19,15 @@ The main consumer is [patnr/HistoryMatching](https://github.com/patnr/HistoryMat
 Dev environment is managed with uv (`uv sync`), but a plain `pip install -e .` also works. Note: `mise.toml` sets `UV_PROJECT_ENVIRONMENT` so the venv lives at `~/.cache/venvs/TPFA-ResSim`, not in-project — if mise isn't active in your shell, export that variable before running uv to avoid creating a duplicate `.venv`.
 
 Plain `uv sync` installs the default (`dev`) group, i.e. everything. CI instead installs
-only what it runs, via the narrower `test` and `docs` groups that `dev` includes
-(`uv sync --no-default-groups --group test`) — which keeps the interactive tools out of
-the CI environment, notably `pdbpp`, whose shadowing of the stdlib `pdb` that pytest and
-`doctest` import can break *collection* on an interpreter it dislikes. The subsequent step
-is then `uv run --no-sync`, since `uv run` would otherwise re-sync the default group and
-reinstall what the sync step just excluded.
+only what it runs, via the narrower `test` and `docs` groups that `dev` includes — which
+keeps the interactive tools out of the CI environment, notably `pdbpp`, whose shadowing of
+the stdlib `pdb` that pytest and `doctest` import can break *collection* on an interpreter
+it dislikes. It does the installing and the running in **one** step, e.g.
+`uv run --locked --no-default-groups --group test pytest`: since `uv run` syncs
+implicitly, a separate `uv sync` step would have to be undone with `--no-sync` in the
+next, stating the group selection twice — so don't reintroduce one. Locally none of this
+applies: plain `uv run` is right (as the commands below), its implicit sync converging on
+the `dev` group you want.
 
 - **Run all tests**: `uv run pytest` (no further args). `addopts` in pyproject.toml makes this run `tests/` **plus doctests** in all `TPFA_ResSim` modules (`--doctest-modules`). Doctests are part of the test suite.
 - **Run a single test**: override addopts, e.g. `uv run pytest -o addopts="" "tests/test_examples.py::test_example[quarter_five_spot]"`

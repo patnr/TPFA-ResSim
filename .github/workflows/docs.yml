@@ -29,11 +29,9 @@ jobs:
           enable-cache: true
           python-version: 3.12
 
-      - name: Install dependencies
-        run: uv sync --locked --no-default-groups --group docs
-
+      # `uv run` syncs implicitly: installs the `docs` group and runs pdoc in one.
       - name: Generate docs
-        run: uv run --no-sync pdoc --math -o docs/ ./TPFA_ResSim
+        run: uv run --locked --no-default-groups --group docs pdoc --math -o docs/ ./TPFA_ResSim
 
       - name: Upload docs
         uses: actions/upload-pages-artifact@v3
