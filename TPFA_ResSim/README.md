@@ -162,6 +162,29 @@ since the pressure equation itself does not contain a time derivative
 (with $s$ fixed, equation (1) is a nearly-elliptic
 boundary value problem for the pressure, $p$).
 
+.. note:: The implicit scheme does not appear to earn its keep.
+
+    Both schemes sub-divide `dt` internally, so it is not `dt` that decides
+    their cost but the stiffness of the grid -- and the well cells, being
+    normally the stiffest, hold the two requirements within a factor 3 of each
+    other (that being the safety margin of `ResSim.estimate_1CFL`), while an
+    implicit sub-step -- a sparse solve, or several -- costs one to two orders
+    of magnitude more than an explicit one, a matrix-vector product. Measured
+    on the quarter five-spot ($64^2$): 2.5 times the slower at equal `dt`, and
+    10 times the less accurate, being the more diffusive (likewise 4 times the
+    error in the rarefaction of `examples/buckley_leverett.py`). Nor is it
+    monotone, so it can converge -- silently -- to a spurious root outside
+    $[0, 1]$, which the explicit scheme cannot
+    (ref `ResSim.saturation_step_implicit`).
+
+    It does pay off where the stiffest cell is *not* a well cell -- a tight
+    streak, a fracture, a locally refined region -- running 7 times faster at a
+    1000x pore-volume contrast. Absent such a case, prefer the default.
+    The branch `implicit-transport-scheme` carries the investigation: the
+    benchmark that produced these numbers (`examples/tight_streak.py`, sweeping
+    the contrast to find the crossover), guards that make the silent failure
+    above loud instead, and the tests for both.
+
 The spatial discretization is carried out by finite volumes (FV),
 which is similar to finite differences (FD),
 but arguably easier to formulate for non-structured (irregular) grids.

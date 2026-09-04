@@ -602,6 +602,12 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
             The explicit scheme
             (`saturation_step_upwind`), being monotone, stays within $[0, 1]$
             even for extreme `ct`.
+
+        .. note:: This scheme rarely earns its keep.
+
+            It is usually both slower and less accurate than
+            `saturation_step_upwind` -- ref the "How to solve" section of the
+            docs, and the branch `implicit-transport-scheme`.
         """
         # fmt: off
         A  = self.upwind_diff(V)                 # FV discretized transport operator
