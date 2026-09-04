@@ -1,19 +1,18 @@
-"""The tangent linear model (TLM) of `TPFA_ResSim.ResSim.time_stepper`, and its adjoint, by hand.
+"""The adjoint of `TPFA_ResSim.ResSim.time_stepper`, derived by hand.
 
-I.e. the Jacobian of one time step, $ (s^n, p^n) ↦ (s^{n+1}, p^{n+1}) $, with
-respect to the *state* -- and to the parameter $ \\log K $ -- applied to a
-perturbation (`tlm_step`) or transposed onto a sensitivity (`adj_step`), rather
-than formed (it is dense, through $A^{-1}$). Chained along a trajectory
-(`tlm`, `adjoint`), the latter yields the gradient of an objective with respect
-to the initial state, `S0` and `P0` of `TPFA_ResSim.ResSim.sim`, and to
-$ \\log K $, at the cost of one more sweep -- whatever the number of parameters.
+I.e. the transpose of the Jacobian of one time step,
+$ (s^n, p^n) ↦ (s^{n+1}, p^{n+1}) $, with respect to the *state* -- and to the
+parameter $ \\log K $ -- applied to a sensitivity (`adj_step`), rather than
+formed (it is dense, through $A^{-1}$). Chained backwards along a trajectory
+(`adjoint`), it yields the gradient of an objective with respect to the
+initial state, `S0` and `P0` of `TPFA_ResSim.ResSim.sim`, and to $ \\log K $,
+at the cost of about one more simulation -- whatever the number of parameters.
 
 `linearize` recomputes one forward step -- from the state it is given, so the
 trajectory that `sim` returns is all the record it needs (checkpointing) -- and
-returns a `Tape` of the intermediates. `tlm_step` then propagates a perturbation
-through that step, and `adj_step` a sensitivity back through it. `tlm` does the
-former along a whole trajectory, which the following checks against a finite
-difference:
+returns a `Tape` of the intermediates, about which `adj_step` transposes. The
+following checks the gradient of a final-time quantity -- the water saturation
+at the producer, $ J = S_N[i_\\mathrm{prd}] $ -- against a finite difference:
 
 >>> from TPFA_ResSim import ResSim
 >>> model = ResSim(Lx=1, Ly=1, Nx=8, Ny=8, ct=.1, cached_precond=False, wells=[
@@ -25,26 +24,34 @@ difference:
 >>> P0 = rng.random(model.Nxy)
 >>> dt, nSteps = .0337, 3
 >>> SS, PP = model.sim(dt, nSteps, S0, P0, pbar=False)
+>>> prd = model.xy2ind(1, 1)
+>>> dJ_dSS = np.zeros_like(SS)
+>>> dJ_dSS[-1, prd] = 1
+>>> grad = adjoint(model, dt, SS, PP, dJ_dSS)
+
+Its directional derivative along a random $ (δS_0, δP_0, δ\\log K) $ ...
+
 >>> dS0, dP0 = rng.standard_normal((2, model.Nxy))
 >>> dlogK = rng.standard_normal(model.K.shape)
->>> dSS, dPP = tlm(model, dt, SS, PP, dS0, dP0, dlogK)
+>>> directional = grad.S0 @ dS0 + grad.P0 @ dP0 + (grad.logK * dlogK).sum()
+
+... is that of the simulation:
 
 >>> eps, K = 1e-6, model.K.copy()
 >>> model.K = K * np.exp(+eps*dlogK)
->>> SSp, PPp = model.sim(dt, nSteps, S0 + eps*dS0, P0 + eps*dP0, pbar=False)
+>>> SSp, _ = model.sim(dt, nSteps, S0 + eps*dS0, P0 + eps*dP0, pbar=False)
 >>> model.K = K * np.exp(-eps*dlogK)
->>> SSm, PPm = model.sim(dt, nSteps, S0 - eps*dS0, P0 - eps*dP0, pbar=False)
+>>> SSm, _ = model.sim(dt, nSteps, S0 - eps*dS0, P0 - eps*dP0, pbar=False)
 >>> model.K = K
->>> bool(np.abs((SSp - SSm) / (2*eps) - dSS).max() < 1e-6)
-True
->>> bool(np.abs((PPp - PPm) / (2*eps) - dPP).max() < 1e-6)
+>>> fd = (SSp[-1, prd] - SSm[-1, prd]) / (2*eps)
+>>> bool(abs(fd - directional) < 1e-6 * abs(directional))
 True
 
 (`cached_precond=False` merely spares the finite difference the noise of the
 iterative solver's tolerance, $10^{-10}$, which `eps` would amplify a
-million-fold; the TLM itself does not care.)
+million-fold; the adjoint itself does not care.)
 
-## Seeding the adjoint with an objective
+## Seeding with an objective
 
 `adjoint` sweeps backwards along the trajectory, from the partial derivatives
 of a scalar objective, $ J(S, P) $, with respect to the *stored* states --
@@ -52,22 +59,7 @@ of a scalar objective, $ J(S, P) $, with respect to the *stored* states --
 `PP` -- and returns $ ∂J/∂S_0 $, $ ∂J/∂P_0 $ and $ ∂J/∂\\log K $ (a `Gradient`).
 The seeds are simply what the objective says they are:
 
-- A quantity of the *final* state seeds index `-1` alone. E.g. the water
-  saturation at the producer, $ J = S_N[i_\\mathrm{prd}] $:
-
-  >>> prd = model.xy2ind(1, 1)
-  >>> dJ_dSS = np.zeros_like(SS)
-  >>> dJ_dSS[-1, prd] = 1
-  >>> grad = adjoint(model, dt, SS, PP, dJ_dSS)
-
-  whose directional derivative along any $ (δS_0, δP_0, δ\\log K) $ is what
-  the TLM propagates:
-
-  >>> lhs = dSS[-1, prd]
-  >>> rhs = grad.S0 @ dS0 + grad.P0 @ dP0 + (grad.logK * dlogK).sum()
-  >>> bool(abs(lhs - rhs) < 1e-10 * abs(lhs))
-  True
-
+- A quantity of the *final* state seeds index `-1` alone, as above.
 - A data misfit, $ J = \\frac{1}{2} \\sum_k \\| H_k S_k - y_k \\|^2 / σ^2 $ (the
   history-matching case), seeds every observed time with its weighted
   residual, scattered back onto the observed cells:
@@ -82,35 +74,14 @@ both permeability components. For an *isotropic* field (a scalar or
 `(Nx, Ny)`-shaped `K`, which `ResSim.__setattr__` broadcasts to both), the
 gradient with respect to the single $ \\log k $ field is `grad.logK.sum(0)`.
 
-## Written to be reversed
+## How it is derived
 
-`tlm_step` is a straight-line sequence of statements (the one loop being over
-the transport sub-steps), each linear in the perturbations, and each of one of
-three kinds:
-
-- `y = M @ x`, with `M` a sparse matrix held by the tape (`Tape.Grad`,
-  `Tape.Up`, ...);
-- `y = a * x`, with `a` a vector (i.e. a diagonal matrix) held by the tape,
-  or computed from it;
-- `y = tape.solve(x)`, the pressure solve, $ A^{-1} x $.
-
-`adj_step` is the same statements in *reverse* order, each transposed --
-`x̄ += M.T @ ȳ`, `x̄ += a * ȳ` -- with the pressure solve its own transpose,
-$ A $ being symmetric (that is what makes the TPFA system SPD, ref
-`TPFA_ResSim.ResSim.cached_precond`), so `Tape.solve` serves both directions
-unchanged. Nothing else happens in there: no indexing gymnastics (the
-5-diagonal assemblies of `TPFA_ResSim.ResSim.TPFA` and
-`TPFA_ResSim.ResSim.upwind_diff` are recast on the face operators below, whose
-transposes are just `.T`), no branching on the perturbations. The two are
-verified against each other by the dot-product test of `tests/test_tlm.py`,
-$ ⟨ \\mathbf{M} δx, \\bar{y} ⟩ = ⟨ δx, \\mathbf{M}^T \\bar{y} ⟩ $, to round-off.
-
-To that end the discretization is expressed on the **interior faces** (the
-boundary ones carry no flux), numbered x-faces first, in C-order, as
-`TX[1:-1, :]` and `TY[:, 1:-1]` of `TPFA` flatten. With `Grad` the
-$ (n_F × N) $ difference operator, $ (∇p)_f = p_\\mathrm{lo} - p_\\mathrm{hi} $,
-whose transpose is the divergence (cell $i$ gets its high faces minus its low
-ones), the whole step reads
+The step is first expressed on the **interior faces** (the boundary ones carry
+no flux), numbered x-faces first, in C-order, as `TX[1:-1, :]` and
+`TY[:, 1:-1]` of `TPFA` flatten. With `Grad` the $ (n_F × N) $ difference
+operator, $ (∇p)_f = p_\\mathrm{lo} - p_\\mathrm{hi} $, whose transpose is the
+divergence (cell $i$ gets its high faces minus its low ones), the whole step
+reads
 
 $$ A = ∇^T \\, \\mathrm{diag}(T) \\, ∇ + \\mathrm{diag}(a + w) \\,, \\qquad
    p^{n+1} = A^{-1} (Q + a \\, p^n + r) \\,, \\qquad
@@ -127,8 +98,20 @@ $$ s ← s + \\frac{Δt}{n_T \\, |Ω|}
    + Q^- f(s) + Q^+ - s \\, \\mathrm{st} \\Big) \\,, $$
 
 with `Up` the $ (n_F × N) $ upwind *selector* (1 in the column of the face's
-upwind cell) and `st` the storage rate (0 if incompressible). `tlm_step`
-differentiates exactly that, term by term.
+upwind cell) and `st` the storage rate (0 if incompressible). This recasts the
+5-diagonal assemblies of `TPFA_ResSim.ResSim.TPFA` and
+`TPFA_ResSim.ResSim.upwind_diff` (which `tests/test_tlm.py` checks) on
+operators whose transposes are just `.T` -- so that the *tangent* of the step
+is a straight line of statements of three kinds, each linear in the
+perturbations: `y = M @ x` (a sparse `M` on the tape), `y = a * x` (a vector
+`a`), and `y = tape.solve(x)`, the pressure solve. `adj_step` is that tangent
+in *reverse* order, each statement transposed -- `x̄ += M.T @ ȳ`, `x̄ += a * ȳ`
+-- with the solve its own transpose, $ A $ being symmetric (that is what makes
+the TPFA system SPD, ref `TPFA_ResSim.ResSim.cached_precond`), so `Tape.solve`
+serves as it is. Each line's comment names the tangent statement it
+transposes. (The tangent model itself, and the dot-product test binding the
+two to round-off, are in the git history, should a statement need
+re-deriving.)
 
 ## What is (and is not) differentiated
 
@@ -136,8 +119,8 @@ differentiates exactly that, term by term.
   mobilities, the transmissibilities, the pressure and the fluxes, the well
   model of a BHP-controlled well (its $ WI λ_t $ and the rate it realizes),
   the storage rate and the transport. If `ct == 0` and no well is on BHP
-  control, $ p^{n+1} $ does not depend on $ p^n $ at all, so `dP` is
-  simply dropped there (a gradient with respect to `P0` is then `0`).
+  control, $ p^{n+1} $ does not depend on $ p^n $ at all, so the gradient
+  with respect to `P0` is then `0`.
 - The **permeability**, as $ \\log K $ (positivity built in, and the natural
   history-matching parameter), through the transmissibilities alone. Its two
   other appearances are *not* differentiated, and rightly so: the pin of the
@@ -160,8 +143,8 @@ differentiates exactly that, term by term.
   integer) the forward map has a kink, and a finite difference across it
   will disagree.
 - Only the **explicit** transport scheme (`saturation_step_upwind`, the
-  default). The implicit one has no TLM here (ref the "How to solve" section
-  of the docs for why it is not used).
+  default). The implicit one has no adjoint here (ref the "How to solve"
+  section of the docs for why it is not used).
 
 .. warning:: `linearize` mutates the model, as a forward step does.
 
@@ -248,9 +231,9 @@ def fractional_flow(model: "ResSim", S: np.ndarray) -> tuple[np.ndarray, np.ndar
 class Tape(AlignedRepr):
     """The linearization of one step of `TPFA_ResSim.ResSim.time_stepper`.
 
-    Produced by `linearize`, consumed by `tlm_step` and `adj_step`. Holds the
-    state it was taken about, the step's result, and the coefficients -- sparse
-    matrices and vectors -- of the linear statements of `tlm_step`, evaluated
+    Produced by `linearize`, consumed by `adj_step`. Holds the state it was
+    taken about, the step's result, and the coefficients -- sparse matrices
+    and vectors -- of the linear statements of the step's tangent, evaluated
     at that state.
     """
 
@@ -339,8 +322,7 @@ def linearize(
     linearization are evaluated at that state.
 
     The cost is about that of a forward step plus a factorization of the
-    pressure matrix (held in `Tape.solve`, for both the tangent and the
-    adjoint solves).
+    pressure matrix (held in `Tape.solve`, for the adjoint solve).
 
     .. warning:: This mutates the model, exactly as a step of `sim` does.
 
@@ -431,61 +413,19 @@ def linearize(
     )  # fmt: skip
 
 
-def tlm_step(
-    tape: Tape,
-    dS: np.ndarray,
-    dP: np.ndarray,
-    dlogK: np.ndarray | None = None,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Propagate the perturbation `(dS, dP, dlogK)` through the step of `tape`.
-
-    Returns `(dS1, dP1)`. `dlogK` is shaped like `K` (or `None`: `0`). Each
-    statement is linear in the perturbations, with coefficients from the tape;
-    `adj_step` is its reverse, statement by statement.
-    """
-    t = tape
-    dlogK = np.zeros(2 * len(dS)) if dlogK is None else np.asarray(dlogK).reshape(-1)
-    # fmt: off
-    # Pressure equation
-    dMt      = t.dMt_dS * dS                                # cell mobilities λ_t
-    dT       = t.dT_dMt @ dMt + t.dT_dlogK @ dlogK          # transmissibilities
-    dWI_lam  = t.WI_b * (t.Gb @ dMt)                        # BHP well model: WI λ_t
-    dw       = t.Gb.T @ dWI_lam                             #   its diagonal ...
-    dr       = t.Gb.T @ (t.p_bh_b * dWI_lam)                #   ... and right-hand side
-    dAP      = t.Grad.T @ (t.gradP * dT) + dw * t.P1        # (δA) p¹
-    dq       = t.accum * dP + dr                            # δq
-    dP1      = t.solve(dq - dAP)                            # δp¹ = A⁻¹ (δq - δA p¹)
-    dV       = t.T * (t.Grad @ dP1) + t.gradP * dT          # fluxes, δ(T ⊙ ∇p¹)
-    dQ       = dr - dw * t.P1 - t.bhp_diag * dP1            # BHP wells' realized rates
-
-    # Transport equation
-    fp       = t.Q.clip(max=0)                              # production
-    dfi      = dQ * (t.Q > 0)                               # injection
-    dfp      = dQ * (t.Q < 0)
-    dst      = (dQ - t.Grad.T @ dV) if t.model.ct > 0 else 0*dQ   # storage rate
-    dVm      = dV * (t.V != 0)                              # d(V⁺), d(V⁻) of `upwind_diff`
-    for Sj in t.Ssub:
-        fw, dfw_dS = fractional_flow(t.model, Sj)
-        dfw  = dfw_dS * dS
-        dF   = dVm * (t.Up @ fw) + t.V * (t.Up @ dfw)       # water flux, δ(v ⊙ Up f)
-        drhs = -t.Grad.T @ dF + dfp*fw + fp*dfw + dfi - dS*t.st - Sj*dst
-        dS   = dS + t.dtx * drhs
-    # fmt: on
-    return dS, dP1
-
-
 def adj_step(
     tape: Tape, aS1: np.ndarray, aP1: np.ndarray
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Propagate the sensitivity `(aS1, aP1)` back through the step of `tape`.
 
-    The transpose of `tlm_step`: given $ ∂J/∂s^{n+1} $ and $ ∂J/∂p^{n+1} $,
-    returns `(aS, aP, alogK)` $ = (∂J/∂s^n, ∂J/∂p^n, ∂J/∂\\log K) $, the last
-    shaped like `K` and being this step's *contribution* (to be summed over
-    the steps, as `adjoint` does). Each statement of `tlm_step` appears here,
-    in reverse order, transposed: `y = M @ x` as `x̄ += M.T @ ȳ`, `y = a * x`
-    as `x̄ += a * ȳ`, the (symmetric) solve as itself. The comments name the
-    statement being transposed.
+    The transpose of the step's tangent: given $ ∂J/∂s^{n+1} $ and
+    $ ∂J/∂p^{n+1} $, returns `(aS, aP, alogK)`
+    $ = (∂J/∂s^n, ∂J/∂p^n, ∂J/∂\\log K) $, the last shaped like `K` and being
+    this step's *contribution* (to be summed over the steps, as `adjoint`
+    does). Each statement of the tangent appears here, in reverse order,
+    transposed: `y = M @ x` as `x̄ += M.T @ ȳ`, `y = a * x` as `x̄ += a * ȳ`,
+    the (symmetric) solve as itself. The comments name the tangent statement
+    being transposed (ref the module docstring).
 
     Does not modify `aS1`, `aP1`.
     """
@@ -537,36 +477,6 @@ def adj_step(
     aS    = aS + t.dMt_dS * adMt                            # dMt = dMt_dS * dS
     # fmt: on
     return aS, aP, alogK.reshape(t.model.K.shape)
-
-
-def tlm(
-    model: "ResSim",
-    dt: float,
-    SS: np.ndarray,
-    PP: np.ndarray,
-    dS0: np.ndarray,
-    dP0: np.ndarray | None = None,
-    dlogK: np.ndarray | None = None,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Propagate `(dS0, dP0, dlogK)` along the trajectory `(SS, PP)` of `sim(dt, ...)`.
-
-    Returns `(dSS, dPP)`, shaped like `SS`, `PP` (flat): the perturbed
-    trajectory to first order,
-    $ x(S_0 + ε δS_0, P_0 + ε δP_0, K e^{ε δ\\log K}) = x + ε δx + O(ε^2) $.
-    `dP0` and `dlogK` default to `0` (the former is inconsequential anyway
-    unless `ct > 0` or a well is BHP-controlled). Each step is re-linearized
-    (`linearize`) on the way.
-    """
-    nSteps = len(SS) - 1
-    dSS = np.zeros((nSteps + 1, model.Nxy))
-    dPP = np.zeros((nSteps + 1, model.Nxy))
-    dSS[0] = dS0
-    if dP0 is not None:
-        dPP[0] = dP0
-    for k in range(nSteps):
-        tape = linearize(model, dt, SS[k], PP[k], k)
-        dSS[k + 1], dPP[k + 1] = tlm_step(tape, dSS[k], dPP[k], dlogK)
-    return dSS, dPP
 
 
 def adjoint(

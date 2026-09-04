@@ -1,31 +1,30 @@
-"""Tests of the tangent linear model and its adjoint, `TPFA_ResSim.tlm`.
+"""Tests of the adjoint, `TPFA_ResSim.tlm`.
 
-Both are hand-derived, so the tests that matter are (i) the TLM against a
-finite difference of the forward model, and (ii) the adjoint against the TLM
-by the dot-product test, $ ⟨ M δx, ȳ ⟩ = ⟨ δx, M^T ȳ ⟩ $, which holds to
-round-off; (iii) then closes the loop, checking `adjoint`'s gradient of an
-objective against a finite difference of the objective. The configurations
-exercise each term: heterogeneous `K` (the harmonic averaging), irreducible
-saturations and a viscosity contrast (the mobilities), compressibility (the
-accumulation and storage terms, through which `P0` matters), BHP-controlled
-wells (the well model in the system and the realized rates), the pinned,
-incompressible pressure system, and a 1D row (`Ny = 1`: no y-faces). The tapes
-are of the *unperturbed* run, as an adjoint's would be.
+It is hand-derived, so the test that matters is the gradient it returns, of an
+objective of the whole trajectory, against a finite difference of that
+objective -- in a random direction of `(S0, P0, log K)`, on configurations
+that exercise each term: heterogeneous `K` (the harmonic averaging),
+irreducible saturations and a viscosity contrast (the mobilities),
+compressibility (the accumulation and storage terms, through which `P0`
+matters), BHP-controlled wells (the well model in the system and the realized
+rates), the pinned, incompressible pressure system, and a 1D row (`Ny = 1`: no
+y-faces). The tapes are of the *unperturbed* run, as they are in use.
 
 Central differences with `eps = 1e-6` on a smooth map should agree to
 ~`1e-8`; the tolerance below is a hundred times that. The models solve their
 pressure directly (`cached_precond=False`) so that the iterative solver's
 tolerance (`1e-10`, amplified a million-fold by `eps`) does not enter the
-comparison -- the TLM itself is indifferent (it factorizes its own system).
+comparison -- the adjoint itself is indifferent (it factorizes its own system).
+
+(The tangent linear model that `adj_step` was transposed from, and the
+dot-product test that bound the two to round-off, are in the git history.)
 """
 
 import numpy as np
 import pytest
 
 from TPFA_ResSim import ResSim
-from TPFA_ResSim.tlm import (
-    adj_step, adjoint, face_operators, fractional_flow, linearize, tlm, tlm_step,
-)
+from TPFA_ResSim.tlm import adj_step, adjoint, face_operators, fractional_flow, linearize
 
 n = 12
 dt = .0337  # not a round number, lest `dt * 1/CFL` land on an integer
@@ -84,38 +83,7 @@ def perturbed_sim(model, S0, P0, dS0, dP0, dlogK, eps):
 
 
 @pytest.mark.parametrize("name", configs)
-def test_tlm_against_finite_difference(name):
-    model, S0, P0, dS0, dP0, dlogK = make_case(name)
-    SS, PP = model.sim(dt, nSteps, S0, P0, pbar=False)
-    dSS, dPP = tlm(model, dt, SS, PP, dS0, dP0, dlogK)
-
-    SSp, PPp = perturbed_sim(model, S0, P0, dS0, dP0, dlogK, +eps)
-    SSm, PPm = perturbed_sim(model, S0, P0, dS0, dP0, dlogK, -eps)
-    fdS, fdP = (SSp - SSm) / (2*eps), (PPp - PPm) / (2*eps)
-
-    assert abs(dSS).max() > .1 and abs(dPP).max() > .1  # non-trivial
-    assert abs(fdS - dSS).max() < 1e-6 * abs(dSS).max()
-    assert abs(fdP - dPP).max() < 1e-6 * abs(dPP).max()
-
-
-@pytest.mark.parametrize("name", configs)
-def test_adjoint_dot_product(name):
-    """`adj_step` is the transpose of `tlm_step`, to round-off."""
-    model, S0, P0, dS0, dP0, dlogK = make_case(name)
-    tape = linearize(model, dt, S0, P0, 0)
-    aS1, aP1 = rng.standard_normal((2, model.Nxy))
-    dS1, dP1 = tlm_step(tape, dS0, dP0, dlogK)
-    aS0, aP0, alogK = adj_step(tape, aS1, aP1)
-    lhs = dS1 @ aS1 + dP1 @ aP1
-    rhs = dS0 @ aS0 + dP0 @ aP0 + (dlogK * alogK).sum()
-    assert abs(lhs - rhs) < 1e-12 * abs(lhs)
-    # Every input reaches every output (else the test above proves less)
-    assert abs(aS0).max() > 0 and abs(alogK).max() > 0
-    assert (abs(aP0).max() > 0) == (model.ct > 0)
-
-
-@pytest.mark.parametrize("name", configs)
-def test_adjoint_gradient_against_finite_difference(name):
+def test_gradient_against_finite_difference(name):
     """`adjoint`'s gradient of a (random, linear) objective of the whole
     trajectory, in a random direction of `(S0, P0, log K)`."""
     model, S0, P0, dS0, dP0, dlogK = make_case(name)
@@ -127,6 +95,9 @@ def test_adjoint_gradient_against_finite_difference(name):
     Jp = J(*perturbed_sim(model, S0, P0, dS0, dP0, dlogK, +eps))
     Jm = J(*perturbed_sim(model, S0, P0, dS0, dP0, dlogK, -eps))
     assert abs((Jp - Jm) / (2*eps) - directional) < 1e-6 * abs(directional)
+    # Every parameter contributes (else the test above proves less)
+    assert abs(grad.S0).max() > 0 and abs(grad.logK).max() > 0
+    assert (abs(grad.P0 - wP[0]).max() > 0) == (model.ct > 0)  # beyond the direct seed
     assert grad.logK.shape == model.K.shape
 
 
@@ -160,27 +131,24 @@ def test_face_operators_recast_the_assemblies():
     assert np.allclose(A_up @ fw, rhs, rtol=0, atol=1e-14)
 
 
+def test_adj_step_is_linear_and_leaves_its_inputs():
+    model, S0, P0, aS1, aP1, _ = make_case("bhp_compressible")
+    tape = linearize(model, dt, S0, P0, 0)
+    aS1_, aP1_ = aS1.copy(), aP1.copy()
+    a, b = 2.5, -1.5
+    out1 = adj_step(tape, aS1, aP1)
+    out2 = adj_step(tape, aS1[::-1], aP1[::-1])
+    out3 = adj_step(tape, a*aS1 + b*aS1[::-1], a*aP1 + b*aP1[::-1])
+    for x1, x2, x3 in zip(out1, out2, out3):
+        assert np.allclose(x3, a*x1 + b*x2)
+    assert np.array_equal(aS1, aS1_) and np.array_equal(aP1, aP1_)
+
+
 def test_incompressible_pressure_ignores_P0():
     """With `ct == 0` and rate control only, `P1` is a function of `S` alone."""
-    model, S0, P0, dS0, dP0, _ = make_case("incompressible")
+    model, S0, P0, aS1, aP1, _ = make_case("incompressible")
     tape = linearize(model, dt, S0, P0, 0)
-    dS1, dP1 = tlm_step(tape, dS0, dP0)
-    dS1b, dP1b = tlm_step(tape, dS0, 0 * dP0)
-    assert np.array_equal(dS1, dS1b) and np.array_equal(dP1, dP1b)
-    assert np.array_equal(adj_step(tape, dS0, dP0)[1], 0 * P0)
-
-
-def test_linearity():
-    """`tlm_step` is linear in `(dS, dP, dlogK)`, and does not touch its inputs."""
-    model, S0, P0, dS0, dP0, dlogK = make_case("bhp_compressible")
-    tape = linearize(model, dt, S0, P0, 0)
-    dS0_, dP0_ = dS0.copy(), dP0.copy()
-    a, b = 2.5, -1.5
-    dS1, dP1 = tlm_step(tape, dS0, dP0, dlogK)
-    dS2, dP2 = tlm_step(tape, dS0[::-1], dP0[::-1], -dlogK)
-    dS3, dP3 = tlm_step(tape, a*dS0 + b*dS0[::-1], a*dP0 + b*dP0[::-1], (a - b)*dlogK)
-    assert np.allclose(dS3, a*dS1 + b*dS2) and np.allclose(dP3, a*dP1 + b*dP2)
-    assert np.array_equal(dS0, dS0_) and np.array_equal(dP0, dP0_)
+    assert np.array_equal(adj_step(tape, aS1, aP1)[1], 0 * P0)
 
 
 def test_linearize_leaves_the_reports_alone():
