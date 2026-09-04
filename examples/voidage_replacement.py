@@ -13,7 +13,7 @@ compressibility affects the *saturation* history, not just the pressure:
   sweep is not simply a "slowed down" version of `VRR = 1`: per unit of water
   injected, it is also *less efficient*.
 - The pressure declines at the rate given by material balance
-  (see `examples/depletion.py`), which is the price paid for the deferral.
+  (see `examples.depletion`), which is the price paid for the deferral.
 
 Both the pressure and the transport equation carry their $O(c_t)$ terms
 (ref `ResSim.ct`), so the saturations stay bounded and, at `VRR = 1`, converge

@@ -33,6 +33,55 @@ The class link sits in the <summary>: clicking the *link* navigates without togg
     </ul>
 {% endmacro %}
 
+{#
+pdoc's, except on a top-level page, where pdoc's "Module Index" button (there being two
+roots, `TPFA_ResSim` and `examples`) leads to the other root instead; the index itself
+(`index.html.jinja2`) merely redirects to `TPFA_ResSim`.
+#}
+{% block module_list_link %}
+    {% if "." in module.modulename %}
+        {{ super() }}
+    {% else %}
+        {% for name in all_modules if "." not in name and name != module.modulename %}
+            <a class="pdoc-button module-list-button" href="{{ name }}.html">{{ name }} &rarr;</a>
+        {% endfor %}
+    {% endif %}
+{% endblock %}
+
+{#
+As pdoc's (less the edit button, unused here), but with the figures an example makes
+inserted between its prose and its source: `build.py` runs the examples, saves their
+figures, and hands the template the files and captions as `example_figures`.
+#}
+{% block module_info %}
+    <section class="module-info">
+        {{ module_name() }}
+        {{ docstring(module) }}
+        {% for file, caption in (example_figures | default({})).get(module.modulename, []) %}
+            <figure class="example-figure">
+                <img src="{{ file }}" alt="{{ caption }}">
+                <figcaption>{{ caption }}</figcaption>
+            </figure>
+        {% endfor %}
+        {{ view_source_state(module) }}
+        {{ view_source_button(module) }}
+        {{ view_source_code(module) }}
+    </section>
+{% endblock %}
+
+{#
+An example is a script: its module-level names (`model`, `dt`, ...) are not an API, so
+neither the sidebar's "API Documentation" nor the member sections are rendered for it.
+Its page is the docstring, the figures, and the source.
+#}
+{% set is_example = module.modulename.split(".")[0] == "examples" %}
+{% block nav_members %}
+    {% if not is_example %}{{ super() }}{% endif %}
+{% endblock %}
+{% block module_contents %}
+    {% if not is_example %}{{ super() }}{% endif %}
+{% endblock %}
+
 {% block nav_footer %}
     <footer>
         <a href="https://github.com/patnr/TPFA-ResSim">patnr/TPFA-ResSim</a> on GitHub

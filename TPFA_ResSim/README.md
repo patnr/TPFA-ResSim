@@ -3,6 +3,8 @@ TPFA-ResSim is a
 reservoir simulator
 using TPFA (two-point flux approximation).
 
+The `examples` (whose figures make up the collage) have pages of their own here.
+
 ## Governing equations
 
 [1]: https://folk.ntnu.no/andreas/papers/ResSimMatlab.pdf
@@ -258,7 +260,7 @@ Compared to the incompressible model:
   the whole of the drainage volume, whereafter the pressure declines uniformly.
   **Well testing** is the inverse problem of inferring $\mathbf{K}$ and the skin
   (ref `TPFA_ResSim.wells.peaceman_WI`) from a measured transient,
-  typically during the *build-up* after shutting a well in -- as `examples/buildup.py` does.
+  typically during the *build-up* after shutting a well in -- as `examples.buildup` does.
 
 ### Vocabulary
 
@@ -302,8 +304,8 @@ of about one more simulation. The step's tangent is a straight line of
 sparse-matrix and diagonal statements around one symmetric solve, and the
 adjoint is its reversal, statement by statement -- verified against finite
 differences of the objective in `tests/test_tlm.py`. See
-`examples/water_cut_gradient.py` for the gradient of one producer's water cut
-with respect to the $ \log K $ field, and `examples/history_match_gradient.py`
+`examples.water_cut_gradient` for the gradient of one producer's water cut
+with respect to the $ \log K $ field, and `examples.history_match_gradient`
 for that of a production-history misfit, put to use in a few descent steps.
 
 ## Missing features

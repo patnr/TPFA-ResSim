@@ -62,7 +62,7 @@ In the figures:
   breakthrough. The explicit scheme follows the rarefaction to within 0.017 in
   saturation (0.005 on average), and smears the shock over some 4 cells. The
   implicit scheme is four times as far off in the rarefaction, and spreads the
-  shock over five times as many cells -- as in `quarter_five_spot.py`, it is
+  shock over five times as many cells -- as in `examples.quarter_five_spot`, it is
   the more diffusive of the two. Note that neither *overshoots*.
 - "verification" (left): the water cut at the producer, against Welge's
   forecast. It breaks through a shade early (the producer being half a cell

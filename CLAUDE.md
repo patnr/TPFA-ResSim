@@ -33,7 +33,7 @@ the `dev` group you want.
 - **Run a single test**: override addopts, e.g. `uv run pytest -o addopts="" "tests/test_examples.py::test_example[quarter_five_spot]"`
 - **Lint**: `uv run ruff check` (config in pyproject.toml; max line length 88; deliberately permissive about operator/array alignment — preserve the aligned formatting style used in the code).
 - **Type check**: `uv run ty check` (clean). ty cannot verify `**dict` splatting into a typed signature, so the examples' splatted dicts (`grid`, `kws`, ...) carry a bare `: dict` annotation to opt out of that check -- keep it when adding such a dict. Not run in CI — CI lints with `uvx ruff check` only. NB: ty narrows an `Any`-declared attribute to whatever was last assigned to it, so it cannot see through the `__setattr__` normalization — e.g. `model.wells = [records]` followed by `model.wells.names` reads as a `list`. Route the assignment through an `Any`-annotated local if that matters.
-- **Docs**: `uv run pdoc_template/build.py` (published to GitHub Pages by `.github/workflows/docs.yml`). The script is `pdoc --math -t pdoc_template -o docs/ ./TPFA_ResSim` plus one setting the CLI cannot make: the sidebar's "Contents" lists the README's headings to depth 3 (pdoc's default is 2). `pdoc_template/` also holds a `custom.css` (which pdoc layers over its default stylesheets: the sidebar's look, dark mode) and a `module.html.jinja2` extending pdoc's default page (the sidebar's collapsible classes, footer, and scroll-spy script). pdoc cannot ship static assets, which is why there is no logo. Docstrings are pdoc-flavoured markdown with LaTeX math; `TPFA_ResSim/README.md` is included into the package docstring via `.. include::`.
+- **Docs**: `uv run pdoc_template/build.py` (published to GitHub Pages by `.github/workflows/docs.yml`, which runs the same). The script is `pdoc --math -t pdoc_template -o docs/ ./TPFA_ResSim ./examples` plus what the CLI cannot do. It documents two roots, `TPFA_ResSim` and `examples`: it first imports each example (pdoc would import it anyway) and saves the figures it made as `docs/examples/<name>-<i>.png`, then calls pdoc with the template, which reads the figure list (`example_figures`) to put them on the example's page between its docstring and its "View Source". So the build takes ~15 s, and `docs/` (untracked) ends up holding the PNGs too. It also sets the sidebar's "Contents" to list the README's headings to depth 3 (pdoc's default is 2). `pdoc_template/` also holds a `custom.css` (which pdoc layers over its default stylesheets: the sidebar's look, the figures, dark mode), a `module.html.jinja2` extending pdoc's default page (the sidebar's collapsible classes, the button between the two roots, the figures, no member sections for examples, footer, scroll-spy script), and an `index.html.jinja2` that redirects to the package page (pdoc would list the two roots there). pdoc cannot ship static assets itself — a logo would go via `build.py`, like the figures. Docstrings are pdoc-flavoured markdown with LaTeX math; `TPFA_ResSim/README.md` is included into the package docstring via `.. include::`.
 
 The supported Python range is whatever `requires-python` in pyproject.toml says (currently `>=3.12`); the floor tracks Colab's Python so the package installs there without re-installs. CI tests 3.12–3.14 on ubuntu + macos.
 
@@ -59,9 +59,13 @@ The package is six files; the physics lives in `TPFA_ResSim/__init__.py`:
 - **`AlignedRepr`** (`_repr.py`): the `repr` mixin shared by `ResSim` and `Wells` (arrays summarized, nested reprs indented). Its own module because `wells.py` needs it too, and importing from `__init__.py` would be circular. It replaced `struct-tools`' `NicePrint` (as `Fluxes` and the `_wells_now` dict replaced its `DotDict`), that dependency having been dropped.
 
 `examples/` holds the runnable illustrations; they
-double as the regression tests. Each is a plain top-to-bottom script whose only concession
-to the harness is a final `__digest__` dict of the values to be checked, and the guarded
-`if __name__ == "__main__": show()`. `tests/test_examples.py` runs them all with `runpy`
+double as the regression tests, and are published in the docs (see **Docs** above). Each
+is a plain top-to-bottom script whose only concession to the harness is a final
+`__digest__` dict of the values to be checked, and the guarded
+`if __name__ == "__main__": show()`. The folder's `__init__.py` is a docstring only — the
+examples' README, in effect, rendered as the `examples` page of the docs, so cross-refer
+to them as modules (`` `examples.depletion` ``), which pdoc links. Its module-level docstring
+and the figures are what an example's page shows: its members (`model`, `dt`, ...) are not. `tests/test_examples.py` runs them all with `runpy`
 (so `show()` is skipped, but the plotting *is* exercised) and compares a fingerprint of
 `__digest__` with `tests/references.py` (regenerate that table with
 `uv run python tests/test_examples.py`, but only if the change is intended).

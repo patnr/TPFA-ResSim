@@ -15,7 +15,7 @@ In the figures:
 - "saturation": at t = 0.125, and still at t = 0.25 (the moment of the switch),
   all of the water has come from the SW. By t = 0.45 a second front has grown
   from the NW injector, and by t = 0.70 the two have merged into a distinctly
-  lopsided sweep -- compare the symmetric front of `quarter_five_spot.py`.
+  lopsided sweep -- compare the symmetric front of `examples.quarter_five_spot`.
 - "wells": the schedule itself (left), and the oil saturation in the producer
   (right), which shows that the water only breaks through at the very end
   (step 27 of 28).

@@ -14,11 +14,11 @@ Everything here is a consequence of `ct > 0`:
 
 For contrast, we also run the incompressible model -- where a shut-in is
 felt everywhere immediately, and completely: the pressure (which is then only
-defined up to a constant, ref `examples/pressure_diffusion.py`) instantly
+defined up to a constant, ref `examples.pressure_diffusion`) instantly
 becomes uniform. NB: since `ct = 0` demands balanced rates, that run needs an
 active injector, whose rate is switched off at the same time.
 
-As in `examples/depletion.py`, no water is present, so `S = 0` throughout --
+As in `examples.depletion`, no water is present, so `S = 0` throughout --
 and, likewise, every pressure plotted here is a *cell* pressure, not a wellbore
 one; ref that example's note on the well model.
 

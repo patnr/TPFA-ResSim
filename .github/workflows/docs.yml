@@ -31,7 +31,8 @@ jobs:
           enable-cache: true
           python-version: 3.12
 
-      # `uv run` syncs implicitly: installs the `docs` group and runs pdoc in one.
+      # `uv run` syncs implicitly: installs the `docs` group and builds in one.
+      # `build.py` runs the examples (for their figures), then pdoc.
       - name: Generate docs
         run: uv run --locked --no-default-groups --group docs pdoc_template/build.py
 

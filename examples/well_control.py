@@ -11,7 +11,7 @@ That distinction is the first thing shown here: the cell pressure is a *grid
 artefact*, whereas the bottom-hole pressure obtained from it is not.
 
 The two modes are then contrasted on the same closed, depleting reservoir
-(cf. `depletion.py`), where they behave quite differently:
+(cf. `examples.depletion`), where they behave quite differently:
 
 - at constant **rate**, the pressure declines linearly, as material balance
   dictates: $ d\\bar{p}/dt = -q / (c_t V_p) $;
@@ -63,7 +63,7 @@ dt, nSteps = 2e-3, 150
 tt = dt*np.arange(1, nSteps + 1)
 
 def depleter(N=32, cls=ResSim, **control):
-    """A single producer at the centre of a closed square. Cf. `depletion.py`.
+    """A single producer at the centre of a closed square. Cf. `examples.depletion`.
 
     The `control` is a `rate` and/or a `bhp`; `rw` is what gives it a well model.
     """

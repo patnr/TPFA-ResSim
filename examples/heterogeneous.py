@@ -11,7 +11,7 @@ There are some discrepancies, of course, because of
   (in their panels it seems to have minimum value 0).
   As a *velocity* potential, this should not matter.
   Indeed, since `ct == 0` here, the pressure is only defined up to a constant;
-  ref `examples/pressure_diffusion.py`.
+  ref `examples.pressure_diffusion`.
 
 In the figure:
 

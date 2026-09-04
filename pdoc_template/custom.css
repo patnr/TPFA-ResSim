@@ -132,6 +132,23 @@ nav.pdoc footer a {
     }
 }
 
+/* An example's figures (`module.html.jinja2`, saved by `build.py`), between its
+   prose and its source. Scaled to the column; captioned by the figure's label. */
+.pdoc figure.example-figure {
+    margin: 1.5rem 0;
+}
+.pdoc figure.example-figure img {
+    display: block;
+    max-width: 100%;
+    margin: 0 auto;
+}
+.pdoc figure.example-figure figcaption {
+    margin-top: .375rem;
+    font-size: .8rem;
+    text-align: center;
+    color: var(--muted);
+}
+
 /* Dark mode, when the reader's system asks for it. The palette is pdoc's own dark-mode
    example (examples/dark-mode in the pdoc repo), the code colours its Monokai from the
    same, plus what pdoc's content.css hard-codes in light colours: the admonitions and a
