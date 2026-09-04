@@ -446,6 +446,19 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
         return P, V
 
     def _spdiags(self, data: Any, diags: Any) -> sparse.dia_matrix:
+        """`sparse.spdiags` of the `(Nxy, Nxy)` matrix -- tolerating coincident offsets.
+
+        `TPFA` and `upwind_diff` place the x- and y-neighbours at offsets
+        $ ±N_y $ and $ ±1 $, which coincide when $ N_y = 1 $ (a 1D row of
+        cells). `scipy` rejects duplicate offsets, so they are summed here --
+        the y-diagonals then holding only zeros, there being no y-faces.
+        """
+        diags = np.atleast_1d(diags)
+        if len(diags) > len(set(diags)):
+            uniq, inv = np.unique(diags, return_inverse=True)
+            summed = np.zeros((len(uniq), self.Nxy))
+            np.add.at(summed, inv, np.atleast_2d(data))
+            data, diags = summed, uniq
         return sparse.spdiags(data, diags, self.Nxy, self.Nxy)
 
     def rescale_sat(self, s: np.ndarray) -> np.ndarray:

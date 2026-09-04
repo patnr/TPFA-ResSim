@@ -29,6 +29,13 @@ should pin a tag (or commit hash) and advance it deliberately.
 
 ### Fixed
 
+- **`Ny = 1` runs.** A 1D *row* of cells used to raise `ValueError: offset
+  array contains duplicate values`: `TPFA` and `upwind_diff` place the x- and
+  y-neighbours at offsets `±Ny` and `±1`, which coincide when `Ny == 1`.
+  `_spdiags` now sums coincident diagonals (the y-ones then being all zeros),
+  so a row reproduces the column (`Nx=1`) to round-off. Pinned by
+  `tests/test_transport.py`. Plotting a 1D field is still not possible
+  (`plt_field` uses `contourf`, which wants at least a `(2, 2)` array).
 - The explicit scheme's sub-step count, `ceil(dt * cfl1)`, is kept off the
   round-off (`estimate_1CFL` shaves a relative `1e-9`): round-numbered set-ups
   put it exactly on an integer, where the linear solver's last bits decided

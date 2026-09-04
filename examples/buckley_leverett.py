@@ -39,8 +39,8 @@ Notes on the setup:
   fractions of the length ($x_D$). The rate, pore volume and length are all
   $1$ here, so $ t_D = t $ and $ x_D = y $ -- no scaling clutters the plots.
 - The 1D domain is a single **column** of cells (`Nx=1`), i.e. the flow is
-  along $y$. The transpose (`Ny=1`) is not available: `TPFA` places its
-  off-diagonals at offsets $ ±N_y $ and $ ±1 $, which collide when $ N_y = 1 $.
+  along $y$. A **row** (`Ny=1`) works just the same (`tests/test_transport.py`
+  checks that the two agree); the column is merely what the plots below assume.
 - The ends are **wells** (a source and a sink), not boundary conditions, which
   costs two $O(h)$ discrepancies with the textbook problem: the inlet cell only
   approaches $ s = 1 - s_\\mathrm{or} $ (it is filled at a finite rate, not

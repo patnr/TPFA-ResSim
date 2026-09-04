@@ -1,4 +1,4 @@
-"""Tests of the explicit transport scheme's sub-stepping.
+"""Tests of the explicit transport scheme's sub-stepping, and of the 1D layouts.
 
 The upwind scheme (`ResSim.saturation_step_upwind`) splits each `dt` into
 `nT = ceil(dt / dt_CFL)` sub-steps, and the *result depends on `nT`*: more
@@ -61,3 +61,29 @@ def test_sub_stepping_is_insensitive_to_round_off():
     S1, _ = ResSim(**kws).sim(dt, nSteps, S0, pbar=False)
     S2, _ = ResSim(K=1 + 1e-14, **kws).sim(dt, nSteps, S0, pbar=False)
     assert abs(S1 - S2).max() < 1e-9
+
+
+def test_row_equals_column():
+    """A 1D row of cells (`Ny=1`) must reproduce the 1D column (`Nx=1`).
+
+    The two are the same problem, transposed. But `TPFA` and `upwind_diff`
+    place the x- and y-neighbours at offsets `±Ny` and `±1`, which coincide
+    when `Ny == 1` -- and `scipy.sparse` rejects duplicate offsets, so
+    `ResSim._spdiags` has to merge them. Heterogeneous `K`, compressibility
+    and a BHP well exercise every diagonal that gets merged.
+    """
+    N = 40
+    K = np.linspace(1, 3, N)
+    fluid: dict = dict(swc=.2, sor=.2, vw=1., vo=2., ct=.1)
+    col = ResSim(Lx=1, Ly=1, Nx=1, Ny=N, K=K.reshape(1, N), **fluid,
+                 wells=[dict(xy=[0, 0], rate=+1), dict(xy=[0, 1], bhp=0., rw=.01)])
+    row = ResSim(Lx=1, Ly=1, Nx=N, Ny=1, K=K.reshape(N, 1), **fluid,
+                 wells=[dict(xy=[0, 0], rate=+1), dict(xy=[1, 0], bhp=0., rw=.01)])
+    S_col, P_col = col.sim(.05, 10, np.zeros(N), np.zeros(N), pbar=False)
+    S_row, P_row = row.sim(.05, 10, np.zeros(N), np.zeros(N), pbar=False)
+    assert S_col.shape == S_row.shape == (11, N)
+    assert np.allclose(S_col, S_row, atol=1e-12)
+    assert np.allclose(P_col, P_row, atol=1e-9)
+    assert np.allclose(col.wells.actual_rates, row.wells.actual_rates, atol=1e-12)
+    # And the water has actually travelled (i.e. the flow is not trivial).
+    assert .3 < S_row[-1].mean() < .7
