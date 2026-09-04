@@ -312,38 +312,23 @@ differences of the objective in `tests/test_tlm.py`. See
 with respect to the $ \log K $ field, and `examples.history_match_gradient`
 for that of a production-history misfit, put to use in a few descent steps.
 
-## Missing features
+## Missing features, and alternatives
 
-- The model is 2D
-  - No gravity effects (buoyancy, drainage)
-  - No coning
-  - No layering
-  - No vertical cross-section
-- Fluids
-  - No gas
-  - Constant viscosity
-  - No bubble point, no $R_s$, gas injection or WAG
-  - Immiscible, single-component (no compositional) and no polymer, surfactant, foam, or CO₂
-  - Isothermal
-  - No capillary pressure
-  - Rel-perm is hard-coded
-- Grid is uniform, rectangular
-  - No corner-point or unstructured (PEBI) geometry,
-  - no faults or transmissibility multipliers
-  - no local grid refinement, and no adaptivity.
-- Permeability is diagonal, not a full tensor, as indicated by "TPFA"
-- The boundary is no-flow, always. No aquifer model
-- No geostatistics, and no upscaling
-- Wells
-  - No wellbore hydrostatics, friction
-  - No control-mode switching, natively, outside of `TPFA_ResSim.ResSim.well_controls`
-  - Wells snap to cell centres (ref `TPFA_ResSim.wells.Wells.xy`, and the note below)
-- Numerics
-  - First-order upwind in space, in both saturation schemes: the front is
-    smeared by numerical diffusion. No higher-order, TVD or flux-limited scheme,
-    no discontinuous Galerkin, and no streamline/front-tracking method.
-  - No I/O: no deck (`.DATA`) parsing, no restart or summary files, no
-    interoperability with the industry formats
+The model is 2D and areal: no gravity (buoyancy, drainage), no coning, layering or
+vertical cross-section. The fluids are two, immiscible and isothermal -- water and oil of
+constant viscosity -- with no gas (no bubble point, $R_s$, gas injection or WAG), no
+compositional, polymer, surfactant, foam or CO₂ modelling, no capillary pressure, and
+hard-coded relative permeabilities. The grid is uniform and rectangular: no corner-point
+or unstructured (PEBI) geometry, no faults or transmissibility multipliers, no local
+refinement or adaptivity; and the permeability is diagonal, not a full tensor, as "TPFA"
+indicates. The boundary is always no-flow, without an aquifer model, and there is neither
+geostatistics nor upscaling. The wells have no wellbore hydrostatics or friction, no
+control-mode switching natively (only via `TPFA_ResSim.ResSim.well_controls`), and snap
+to cell centres (ref `TPFA_ResSim.wells.Wells.xy`, and the note below). The numerics are
+first-order upwind in space, in both saturation schemes, so the front is smeared by
+numerical diffusion -- no higher-order, TVD or flux-limited scheme, no discontinuous
+Galerkin, no streamline or front-tracking method. And there is no I/O: no deck (`.DATA`)
+parsing, no restart or summary files, no interoperability with the industry formats.
 
 .. note:: What remains is nonetheless enough to exhibit most of what makes
     reservoir simulation interesting: the nonlinear pressure-saturation
@@ -351,6 +336,93 @@ for that of a production-history misfit, put to use in a few descent steps.
     the drive mechanisms of injection and of depletion, the sub-grid nature of a
     well, and the disparity of scales that makes all of it a hard inverse
     problem.
+
+Nor is there much else to choose from. This simulator exists because, when the
+[HistoryMatching](https://github.com/patnr/HistoryMatching) tutorial needed a forward
+model, there was no Python reservoir simulator that was at once *simple* (readable in a
+sitting), *two-phase* (fronts and breakthrough being the instructive part), *reliable*
+(verified against a published reference, tested in CI), *importable* as a plain object for
+ensemble loops, and permissively licensed. A survey in August 2026 found that combination
+still unoccupied: searching GitHub for Python reservoir simulation turns up ensemble
+*tooling* ([ERT](https://github.com/equinor/ert), [pyscal](https://github.com/equinor/pyscal))
+and abandoned toolboxes -- the scarcity is on the forward-model side.
+
+### Simple, teaching-oriented simulators
+
+| Project | Physics | Status (Aug 2026) | Remarks |
+|---|---|---|---|
+| [chanshing/ressim](https://github.com/chanshing/ressim) | 2D two-phase, source terms only | dead since 2019 | Nearest sibling, from the *same* Aarnes, Gimse & Lie paper; but no well API, no verification against the Matlab original, no tests or packaging |
+| [dageo](https://github.com/tuda-geo/dageo) (ex-*resmda*) | 2D **single-phase** | active, on PyPI/conda | Data-assimilation teaching package (ES-MDA, localization, random fields) with a pressure-only toy model attached, so no saturation fronts. Complements rather than replaces this one; its docs invite external simulators |
+| [mashadab/Reservoir-Simulator](https://github.com/mashadab/Reservoir-Simulator) | 1D/2D, two-phase, wells, gravity | inactive since 2022 | Benchmarked against CMG, but course-homework structure, no license, no tests |
+| [reservoirflow](https://github.com/hiesabx/reservoirflow) | single-phase so far | beta | Ambitious, pip-installable, but "most modules not fully functional"; CC BY-NC-SA |
+| [pyMRST](https://github.com/yohanesnuwara/pyMRST) | wraps MRST via Octave | maintained | Real install friction, subprocess and file I/O per call; GPL |
+
+### Full-featured simulators
+
+Reliable, but not simple, and not readable end-to-end by a student:
+[open-DARTS](https://open-darts.readthedocs.io) (C++ core with a Python API, and the
+biggest change since 2022 in being a genuine `pip install`),
+[OPM Flow](https://opm-project.org) (industrial black-oil, deck-driven, invoked as a
+subprocess per realization by ensemble tools such as ERT),
+[JutulDarcy.jl](https://github.com/sintefmath/JutulDarcy.jl) (arguably the best open-source
+simulator today -- SPE-validated, MRST-compatible, differentiable -- but Julia), and
+MRST itself (Matlab, the original motivation).
+
+At scale these are vastly faster: compiled kernels, AMG/CPR iterative solvers, parallelism.
+At tutorial scale ($10^3$--$10^4$ cells) those advantages are irrelevant and their fixed
+overheads dominate -- process launch, deck generation and parsing, result-file I/O, package
+loading and JIT warm-up, engine initialization -- while a direct sparse solve on a small 2D
+system is near-optimal. So a simulator that runs in-process as a plain Python object, with
+no files or handshakes, is plausibly as fast or faster wall-clock for the thousands of short
+runs an ensemble tutorial performs. That is reasoning; the following is measurement.
+
+### Measured against JutulDarcy.jl
+
+Three of JutulDarcy's own examples fall inside this simulator's envelope (2D areal, two
+immiscible phases, quadratic Corey, rate/BHP wells, weak compressibility) and were posed
+identically in both codes: **Buckley--Leverett** (1D, 25--800 cells), the **quarter
+five-spot** of `five_spot_ensemble.jl` (rate injector, BHP producer, grid and report steps
+refined together from $25^2$ to $200^2$), and **SPE10 model 2, layer 1** (60x220, the
+injector on rate under a BHP limit that binds throughout, 25--400 report steps).
+
+A fully implicit Newton code and a sequential explicit-transport code do not do comparable
+work per step, so the comparison is of wall time at *equal RMS error of the produced water
+cut* -- against the analytic Welge forecast for Buckley--Leverett, otherwise against each
+code's own finest run -- with grid and report steps as the knobs. Single thread, warm (JIT
+and package loading excluded), JutulDarcy 0.3.10 at default tolerances and "relaxed" by one
+order (`tol_cnv 1e-2`, `tol_mb 1e-6`), TPFA-ResSim at commit `d061a41`. The codes agree:
+finest runs within 0.003--0.005 RMS of each other.
+
+| case | RMS error | TPFA-ResSim | JutulDarcy default | JutulDarcy relaxed |
+|---|---|---|---|---|
+| Buckley--Leverett | 0.08 | 0.021 s | 0.14 s | 0.10 s |
+| Buckley--Leverett | 0.05 | 0.17 s | 1.3 s | 1.0 s |
+| Quarter five-spot | 0.012 | 2.4 s | 0.98 s | 0.90 s |
+| Quarter five-spot | 0.008 | 10.7 s | 8.2 s | 7.5 s |
+| Quarter five-spot | 0.006 | 28 s | 23 s | 18 s |
+| SPE10 layer 1 | 0.004 | 3.3 s | 5.5 s | 4.4 s |
+| SPE10 layer 1 | 0.0015 | 5.2 s | 9.6 s | 6.9 s |
+
+- **Buckley--Leverett: TPFA-ResSim 6--7x faster.** Its explicit upwind transport smears
+  the shock over fewer cells than the fully implicit scheme, so at equal grid it is both
+  faster and more accurate.
+- **Quarter five-spot: JutulDarcy 1.2--2.4x faster.** At equal *grid* TPFA-ResSim is
+  faster (4--5x at $50^2$, parity at $400^2$: its cost grows as $\sim N^{3.5}$ from the
+  CFL sub-steps, JutulDarcy's as $\sim N^3$), but its error at equal grid is 1.3--1.7x
+  larger, and with error falling only as $\sim t^{-0.3}$ in either code, buying that
+  accuracy back costs a factor 2--3 in time.
+- **SPE10 layer 1: TPFA-ResSim 1.4--1.8x faster.** JutulDarcy's temporal error per report
+  step is 2--3x smaller (the sequential splitting lags pressure one step behind
+  saturation), but each of its steps costs 2x more.
+- Relaxing JutulDarcy's tolerances saves 10--25% at no measurable accuracy cost; its
+  defaults are conservative, and the relaxed column is the fairer one to quote.
+
+So "as fast or faster at tutorial scale" holds for the small grids and short runs of an
+ensemble tutorial, but not as a rule: on a 2D flood at equal accuracy the fully implicit
+code is the more efficient from $\sim 50^2$ up -- and the comparison excludes everything
+JutulDarcy has that this simulator lacks (3D, gravity, black-oil, general grids,
+parallelism). The scripts, per-run curves and write-up are in `benchmarks/jutul/` on the
+branch `bench-jutul`.
 
 ## Vocabulary of reservoir engineering
 
