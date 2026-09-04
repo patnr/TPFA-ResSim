@@ -133,46 +133,24 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
     sor: float = 0.0
     """Irreducible saturation, oil."""
     ct: float = 0.0
-    """Total (rock + fluids) compressibility. The default, `0`, yields the
-    incompressible model, whose pressure eqn. is elliptic
-    (infinite speed of propagation), requires balanced source/sink terms,
-    and only defines pressure up to an additive constant.
+    """Total (rock + fluids) compressibility, $c_t$, as a single constant.
 
-    Setting `ct > 0` ("slightly compressible" model) makes the pressure eqn.
-    parabolic, $ φ \\, c_t \\, ∂p/∂t - ∇ ⋅ (K λ(s) ∇p) = q $,
-    discretized by backward Euler over the same `dt` as the saturation step.
-    Then total injection and production rates need not balance
-    (storage absorbs the imbalance), enabling e.g. primary depletion.
+    The default, `0`, yields the incompressible model, whose pressure eqn. is
+    elliptic: pressure is defined only up to an additive constant, and the
+    sources/sinks must balance. Setting `ct > 0` yields the *slightly
+    compressible* model: the pressure eqn. gains the accumulation term
+    $ φ \\, c_t \\, ∂p/∂t $ (discretized by backward Euler over the same `dt` as
+    the saturation step, which is what makes `P0` of `sim` consequential), and
+    the transport eqn. the matching storage term, charged to the phases in
+    proportion to their saturation (ref `storage_rate`). Injection and
+    production then need not balance, enabling e.g. primary depletion.
 
-    .. note:: The corresponding term of the *transport* equation is included too.
-
-        Since the total velocity is no longer divergence-free,
-        $ ∇ ⋅ v = q - φ \\, c_t \\, ∂p/∂t $, the water eqn. reads
-        $$ φ \\, ∂s/∂t + s \\, φ \\, c_t \\, ∂p/∂t + ∇ ⋅ (f_w \\, v) = q_w $$
-        i.e. the storage is charged to the phases in proportion to their
-        saturation -- ref `storage_rate`. This is what makes the water and oil
-        equations sum to the pressure equation, so that e.g. depleting a fully
-        water-saturated reservoir leaves $s = 1$, rather than conjuring oil out
-        of the produced volume.
-        NB: deriving each phase equation individually would instead charge the
-        water $ s \\, (c_r + c_w) \\, φ \\, ∂p/∂t $; the proportional split
-        coincides with that iff $ c_w = c_o $, and is the natural closure when
-        only the lump-sum constant `ct` is known. The difference,
-        $ O(s (1-s) (c_w - c_o)) $, is within the fidelity discussed below.
-
-    .. warning:: The model remains only a *slightly* compressible one.
-
-        It is accurate to $O(c_t)$ alone: `ct` is a single constant, rather
-        than the saturation-weighted sum $ c_r + s \\, c_w + (1-s) \\, c_o $ of
-        the rock and phase compressibilities, and the densities in the fluxes
-        and the well rates are treated as constant (so reservoir and surface
-        volumes are not distinguished). Fidelity therefore requires
-        $ c_t \\, Δp \\ll 1 $ -- and note that this is *not* a matter of
-        choosing `ct` small: summing the
-        rows of the pressure system (ref `tests/test_compressible.py`) gives
-        $ c_t \\, Δ\\bar{p} = V_\\mathrm{voidage} / V_\\mathrm{pore} $, i.e. the
-        expansion asked of the fluids is set by the *voidage* (production minus
-        injection), whatever `ct` may be.
+    Derivation, approximation and vocabulary: ref the "Compressibility" section
+    of the docs. In short, the model is accurate to $O(c_t)$ alone, so fidelity
+    requires $ c_t \\, Δp \\ll 1 $ -- which is *not* a matter of choosing `ct`
+    small, since $ c_t \\, Δ\\bar{p} = V_\\mathrm{voidage} / V_\\mathrm{pore} $:
+    the expansion asked of the fluids is set by the voidage (production minus
+    injection), whatever `ct` may be.
     """
     cached_precond: bool = True
     """Solve the pressure system iteratively, preconditioned by a cached factorization.
