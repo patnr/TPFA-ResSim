@@ -12,6 +12,29 @@ should pin a tag (or commit hash) and advance it deliberately.
 
 ### Added
 
+- **Cached preconditioning of the pressure solve**, on by default
+  (`ResSim.cached_precond`): conjugate gradients, preconditioned by the
+  factorization of an earlier step's system (refreshed only on non-convergence),
+  in place of a fresh direct factorization per step. Exact to the solver
+  tolerance (`1e-10`), so no recorded value changes. Where the saturation hardly
+  moves (well test, depletion), the run gets 2--6 times faster
+  (`examples/buildup.py`: 6x); in a waterflood 15--40%, the explicit transport
+  sub-stepping dominating. The cache is dropped on pickling and `deepcopy`
+  (a `SuperLU` is not picklable), so ensembles copy and fork as before.
+  `cached_precond=False` restores the direct solve -- now ordered by MMD on
+  `A + A'` rather than `spsolve`'s COLAMD, which halves its fill: 1.5x, for free.
+  The same for the implicit scheme's Newton solves was tried and rejected
+  (1.5--30 times slower: the upwind Jacobian factorizes for nearly nothing).
+  Pinned by `tests/test_precond.py`.
+
+### Fixed
+
+- The explicit scheme's sub-step count, `ceil(dt * cfl1)`, is kept off the
+  round-off (`estimate_1CFL` shaves a relative `1e-9`): round-numbered set-ups
+  put it exactly on an integer, where the linear solver's last bits decided
+  whether an extra sub-step was taken -- differently across platforms. Only
+  `examples/buckley_leverett.py` sat there; its references now take the smaller
+  (correct) count throughout. Pinned by `tests/test_transport.py`.
 - A **well model**: `peaceman_WI` computes Peaceman's well index from the
   grid, the (possibly anisotropic) permeability, the well radius and the skin;
   assigning it to the new `Wells.WI` attribute (`(nComp,)`, `nan` entries

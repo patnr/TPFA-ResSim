@@ -6,7 +6,7 @@ from typing import Any, Callable, NamedTuple
 
 import numpy as np
 from scipy import sparse
-from scipy.sparse.linalg import spsolve
+from scipy.sparse.linalg import LinearOperator, cg, splu, spsolve
 from tqdm.auto import tqdm
 
 from TPFA_ResSim._repr import AlignedRepr
@@ -80,6 +80,14 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
             val._bind(self)
         # Set
         super().__setattr__(key, val)
+
+    def __getstate__(self) -> dict:
+        # The cached factorization (ref `cached_precond`) is a `SuperLU`, which
+        # cannot be pickled -- and is a mere cache, so `deepcopy` and
+        # multiprocessing (as HistoryMatching does) simply leave it behind.
+        state = self.__dict__.copy()
+        state.pop("_pLU", None)
+        return state
 
     name: str = "Unnamed"
     """Description."""
@@ -166,6 +174,29 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
         expansion asked of the fluids is set by the *voidage* (production minus
         injection), whatever `ct` may be.
     """
+    cached_precond: bool = True
+    """Solve the pressure system iteratively, preconditioned by a cached factorization.
+
+    The alternative (`False`) is a fresh sparse direct factorization each
+    time step. But the system changes slowly -- only through the mobility
+    $λ(s)$, i.e. where the front has moved -- so the factorization of an
+    *earlier* step remains an excellent preconditioner: with it, conjugate
+    gradients converges in 1--2 iterations if the saturation is (nearly)
+    static, and in ~12 behind a moving front (each the cost of one
+    back-substitution, i.e. 1/30 of a factorization). The factorization is
+    refreshed only when convergence fails (as it does when the mobility has
+    drifted too far, e.g. after many steps at a strong viscosity contrast),
+    so the result is exact to the solver tolerance (`1e-10`) either way. It
+    requires the system to be SPD, which the TPFA system is (ref the "How to
+    solve" section of the docs).
+
+    The cache is per instance (`_pLU`) and is dropped on pickling and
+    `deepcopy`, a `SuperLU` not being picklable; a copy simply refactorizes
+    on its next step. The measurements (2--6x on the well-test and depletion
+    examples, 15--40% on the waterfloods), and what was tried besides, are
+    recorded in `tests/test_precond.py`.
+    """
+
     # NB: the array attributes are typed `Any` since `__setattr__` normalizes
     # whatever array-like (nested lists, scalars) is assigned to them.
     K: Any = None
@@ -489,9 +520,8 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
 
         # Solve; compute A\q to update P
         A = self._spdiags(DiagVecs, DiagIndx)
+        P = self._solve_pressure(A.tocsr(), q, P)
         # P = np.linalg.solve(A.A, q) # direct dense solver
-        P = spsolve(A.tocsr(), q)  # direct sparse solver.
-        # P, _info = cg(A, q)         # conjugate gradient
         # Could also try scipy.linalg.solveh_banded which, according to
         # https://scicomp.stackexchange.com/a/30074 uses the Thomas algorithm,
         # as recommended by Aziz and Settari ("Petro. Res. simulation").
@@ -507,6 +537,36 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
         V.x[1:-1, :] = (P2d[:-1, :] - P2d[1:, :]) * TX[1:-1, :]
         V.y[:, 1:-1] = (P2d[:, :-1] - P2d[:, 1:]) * TY[:, 1:-1]
         return P, V
+
+    def _solve_pressure(
+        self, A: sparse.csr_matrix, q: np.ndarray, P0: np.ndarray | None
+    ) -> np.ndarray:
+        """Solve the (SPD) pressure system `A P = q`, ref `cached_precond`.
+
+        `P0` is the initial guess of the iterative solver (the previous pressure).
+        The cached factorization is `_pLU`; being a mere preconditioner, it is
+        safe to hold stale (across `sim` calls, or a change of `K`), since the
+        iteration converges to the solution of the *current* `A` regardless,
+        and refactorizes when it does not converge.
+
+        Either way, the factorization orders the columns by MMD on `A + A'`
+        (the ordering for a symmetric matrix), which halves the fill, hence
+        the cost, of the COLAMD that `spsolve` would use: 1.5x on the direct
+        solve, for free.
+        """
+        if self.cached_precond:
+            LU = getattr(self, "_pLU", None)
+            if LU is not None and LU.shape == A.shape:
+                LinOp: Any = LinearOperator  # (ty cannot see its factory `__new__`)
+                M = LinOp(A.shape, matvec=LU.solve, dtype=A.dtype)
+                P, info = cg(A, q, x0=P0, M=M, rtol=1e-10, maxiter=30)
+                if info == 0:
+                    return P
+        # Direct solve: first call, non-convergence, or `not cached_precond`.
+        LU = splu(A.tocsc(), permc_spec="MMD_AT_PLUS_A")
+        if self.cached_precond:
+            self._pLU = LU
+        return LU.solve(q)
 
     # GenA() -- listing 7
     def upwind_diff(self, V: Fluxes) -> sparse.dia_matrix:

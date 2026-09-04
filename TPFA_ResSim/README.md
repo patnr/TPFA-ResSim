@@ -227,6 +227,21 @@ and that $u$ is determined only up to an arbitrary constant
 The constant is fixed, and the system is rendered invertible,
 by adding to the first element of the diagonal.
 
+The system is thus symmetric positive definite, and is solved by conjugate
+gradients, preconditioned by a sparse LU factorization that is *cached* across
+the time steps (`ResSim.cached_precond`).
+
+.. note:: The pressure system need not be factorized afresh each step.
+
+    Its matrix changes only through the mobility $λ(s)$ (and, with $c_t > 0$,
+    the accumulation term), so the factorization of an earlier step is an
+    excellent preconditioner for the current one: 1--2 iterations where the
+    saturation is nearly static, ~12 behind a moving front, each the cost of
+    a back-substitution, and a refactorization only once the iteration stalls.
+    `tests/test_precond.py` records the measurements -- 2--6x faster on the
+    well-test and depletion examples, 15--40% on the waterfloods, where the
+    explicit transport dominates -- and what was tried besides.
+
 ## Missing features
 
 - The model is 2D
