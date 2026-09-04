@@ -89,3 +89,35 @@ nav.pdoc details[open] > summary::after {
 nav.pdoc summary:hover {
     background-color: var(--code);
 }
+
+/* The search box, and the button back to the parent module, stay put while the sidebar
+   scrolls. What scrolls under them is hidden by a cover in the ground colour: a sticky
+   pseudo-element at the top of the sidebar, taking no room (negative bottom margin),
+   stacked between the scrolling entries and the two. Its height, and the input's offset
+   below the button, are the button's height (.75rem type at line-height 1.5, padding,
+   border) plus its 1rem margin. Only where the sidebar scrolls on its own. */
+@media (min-width: 770px) {
+    nav.pdoc .module-list-button,
+    nav.pdoc input[type=search] {
+        position: sticky;
+        top: .5rem;
+        z-index: 2;
+    }
+    nav.pdoc .module-list-button + input[type=search] {
+        top: calc(.5rem + 1.875rem + 1rem);
+    }
+    nav.pdoc > div::before {
+        content: "";
+        display: block;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        --cover: calc(.5rem + 1.875rem + .5rem);
+        height: var(--cover);
+        margin: 0 0 calc(-1 * var(--cover)) calc(-1 * var(--pad));
+        background-color: var(--pdoc-background);
+    }
+    nav.pdoc > div:has(> .module-list-button)::before {
+        --cover: calc(.5rem + 1.875rem + 1rem + 1.875rem + .5rem);
+    }
+}
