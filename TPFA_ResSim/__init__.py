@@ -145,12 +145,8 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
     proportion to their saturation (ref `storage_rate`). Injection and
     production then need not balance, enabling e.g. primary depletion.
 
-    Derivation, approximation and vocabulary: ref the "Compressibility" section
-    of the docs. In short, the model is accurate to $O(c_t)$ alone, so fidelity
-    requires $ c_t \\, Δp \\ll 1 $ -- which is *not* a matter of choosing `ct`
-    small, since $ c_t \\, Δ\\bar{p} = V_\\mathrm{voidage} / V_\\mathrm{pore} $:
-    the expansion asked of the fluids is set by the voidage (production minus
-    injection), whatever `ct` may be.
+    Derivation, fidelity ($ c_t \\, Δp \\ll 1 $, which the voidage sets, not
+    `ct`) and vocabulary: ref the "Compressibility" section of the docs.
     """
     cached_precond: bool = True
     """Solve the pressure system iteratively, preconditioned by a cached factorization.
@@ -193,8 +189,7 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
     *bound* to this model, whereupon its completions snap onto the grid.
 
     The arrays remain writable throughout (`model.wells.rates = ...`), as an
-    ensemble or optimisation loop requires, and there is no second,
-    record-shaped copy of the configuration to fall out of step with them.
+    ensemble or optimisation loop requires.
     """
 
     nComp = property(lambda self: self.wells.nComp)
@@ -253,8 +248,7 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
         """Compute rates for BHP wells. Enter into `_Q` and `_wells_now["rates"]`.
 
         The rate, $ WI λ_t (p_\\mathrm{bh} - p_\\mathrm{cell}) $, is signed by
-        nature: the flow direction is *emergent*, not declared (ref the
-        `TPFA_ResSim.wells.Wells.bhp` warning).
+        nature (ref the `TPFA_ResSim.wells.Wells.bhp` warning).
 
         By construction of the linear system of `TPFA`, this leaves `_Q` equal
         to the *total* well flux, which is what keeps `storage_rate` -- and
@@ -345,20 +339,13 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
         .. warning:: With `ct == 0` the rates must still sum to 0 at every step.
 
             Ref `TPFA_ResSim.wells.Wells.rates`. So shutting one well requires
-            matching it on the other side -- as above -- else `time_stepper`
-            complains that the "well rates do not sum to 0".
-            Only with `ct > 0` (where storage
-            absorbs the imbalance), or under BHP control
-            (ref `TPFA_ResSim.wells.Wells.bhp`, where the well finds its own
-            rate), may a well act alone.
+            matching it on the other side -- as above.
 
         .. note:: The mode switch lags the solve by one step.
 
             It is decided from the previous step's pressure, whereas the well
-            model itself is solved *simultaneously* with the new one (ref
-            `TPFA_ResSim.wells.Wells.bhp`). So it is an approximation -- of the
-            sort that a properly iterated switch would avoid -- and the limit is
-            breached for the one step in which it comes to bind.
+            model itself is solved *simultaneously* with the new one. So the
+            limit is breached for the one step in which it comes to bind.
             Shorten `dt` to refine.
 
         .. note:: `S` and `P` may be `None`, so an override should tolerate that.
@@ -388,13 +375,11 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
         *same* `pressure_step`, i.e. `SS[k]` and `PP[k+1]` of `sim` -- which is
         what `actual_bhp` records, so prefer reading that.
 
-        .. warning:: This is grid-independent, but inherits the model's premises.
+        .. warning:: $ λ_t $ is that of the well's *cell*.
 
-            Unlike the cell pressure, it is (to the accuracy of the well model)
-            independent of the grid resolution -- which is the whole point. But
-            in particular $ λ_t $ is that of the well's *cell*, so an injector's
-            injectivity is governed by the mobility of whatever the cell
-            currently holds, rather than by that of the injectant.
+            So an injector's injectivity is governed by the mobility of
+            whatever the cell currently holds, rather than by that of the
+            injectant.
         """
         if self.wells.WI is None:
             return np.full(self.nComp, np.nan)
@@ -722,9 +707,8 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
 
     def _validate(self):
         # Catch some common issues before they become mysterious/insidious
-        # (e.g. mass imblance silently inserts deficit in SW corner).
         if self.ct == 0 and not self._wells_now["bhp_diag"].any():
-            # Incompressible and no BHP control ⇒ no storage ⇒ src/sinks must balance.
+            # No storage, no anchor ⇒ src/sinks must balance (ref `Wells.rates`)
             SA = np.abs(self._Q).sum()
             AS = abs(self._Q.sum())
             assert AS <= 1e-10 * SA, "well rates do not sum to 0"

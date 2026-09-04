@@ -8,8 +8,7 @@ whence the `rw` of the record) -- because a well is far smaller than the cell
 that holds it, so its cell pressure is not its wellbore pressure.
 
 That distinction is the first thing shown here: the cell pressure is a *grid
-artefact* (an average over an area of $h^2$, which deepens without limit as the
-grid is refined), whereas the bottom-hole pressure obtained from it is not.
+artefact*, whereas the bottom-hole pressure obtained from it is not.
 
 The two modes are then contrasted on the same closed, depleting reservoir
 (cf. `depletion.py`), where they behave quite differently:
@@ -24,15 +23,13 @@ The two modes are then contrasted on the same closed, depleting reservoir
 
 Neither mode alone is how a well is actually run: the industry standard is a
 rate *target* with a BHP *limit*, i.e. whichever of the two currently binds.
-The model does not switch modes natively (a BHP well simply flows whichever
-way its `p_bh` vs. cell pressure dictates), but `ResSim.well_controls`
-returns both controls, so an override can switch between them -- lagged by the
-step whose pressure it must judge from. That is the third case shown here.
+The model does not switch modes natively, but `ResSim.well_controls` returns
+both controls, so an override can switch between them -- lagged by the step
+whose pressure it must judge from. That is the third case shown here.
 
 Finally, the two are shown to be one and the same model, seen from either end:
 prescribing the BHP that the rate-controlled run *reported* recovers that run
-exactly (to ~1e-15, since the well model is solved simultaneously with the
-pressure field, not lagged by a step).
+exactly (to ~1e-15).
 
 In the figures:
 

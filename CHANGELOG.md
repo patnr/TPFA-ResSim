@@ -12,112 +12,49 @@ should pin a tag (or commit hash) and advance it deliberately.
 
 ### Added
 
-- **An adjoint model** (`TPFA_ResSim.tlm`), derived by hand: the transpose
-  of the Jacobian of a `time_stepper` step with respect to the state `(S, P)`
-  and to `log K`, applied to a sensitivity (`adj_step`). `linearize`
-  recomputes a step from the trajectory that `sim` returns (checkpointing;
-  the forward model is untouched and records nothing) into a `Tape`;
-  `adjoint` sweeps the steps backwards, returning the gradient of an
-  objective -- seeded by its partials with respect to the stored trajectory
-  -- with respect to `S0`, `P0` and `log K`, at the cost of about one `sim`.
-  The step is recast on interior-face operators so that its tangent is a
-  straight line of sparse-matrix, diagonal and (symmetric) solve statements,
-  of which `adj_step` is the reversal, statement by statement (the tangent
-  model itself, and the dot-product test binding the two, are in the git
-  history). Parameters other than `K`, the controls' dependence on the state,
-  and the discrete decisions (sub-step count, upwind directions) are held
-  fixed; explicit scheme only. Verified against finite differences of the
-  objective (~1e-8 relative), `tests/test_tlm.py`. NB: `linearize` mutates
-  the model as a step does (`_Q`, `_wells_now`, `_pLU`), but not the well
-  reports. Illustrated by `examples/water_cut_gradient.py` (the gradient of
-  one producer's water cut at one time, wrt. the `log K` field) and
-  `examples/history_match_gradient.py` (the gradient of a production-history
-  misfit, and a few steps of steepest descent on it).
+- **An adjoint model**, `TPFA_ResSim.tlm`, derived by hand: `linearize`
+  recomputes a step of `time_stepper` (from the trajectory that `sim` returns)
+  into a `Tape`, `adj_step` propagates a sensitivity back through it, and
+  `adjoint` sweeps a whole trajectory, returning the gradient of an objective
+  with respect to `S0`, `P0` and `log K` at the cost of about one `sim`. The
+  other parameters, the controls' dependence on the state, and the discrete
+  decisions (sub-step count, upwind directions) are held fixed; explicit scheme
+  only. Verified against finite differences (`tests/test_tlm.py`); derivation
+  and caveats in the module docstring. Illustrated by
+  `examples/water_cut_gradient.py` and `examples/history_match_gradient.py`.
 - **Cached preconditioning of the pressure solve**, on by default
-  (`ResSim.cached_precond`): conjugate gradients, preconditioned by the
-  factorization of an earlier step's system (refreshed only on non-convergence),
-  in place of a fresh direct factorization per step. Exact to the solver
-  tolerance (`1e-10`), so no recorded value changes. Where the saturation hardly
-  moves (well test, depletion), the run gets 2--6 times faster
-  (`examples/buildup.py`: 6x); in a waterflood 15--40%, the explicit transport
-  sub-stepping dominating. The cache is dropped on pickling and `deepcopy`
-  (a `SuperLU` is not picklable), so ensembles copy and fork as before.
-  `cached_precond=False` restores the direct solve -- now ordered by MMD on
-  `A + A'` rather than `spsolve`'s COLAMD, which halves its fill: 1.5x, for free.
-  The same for the implicit scheme's Newton solves was tried and rejected
-  (1.5--30 times slower: the upwind Jacobian factorizes for nearly nothing).
-  Pinned by `tests/test_precond.py`.
-
-### Fixed
-
-- **`Ny = 1` runs.** A 1D *row* of cells used to raise `ValueError: offset
-  array contains duplicate values`: `TPFA` and `upwind_diff` place the x- and
-  y-neighbours at offsets `±Ny` and `±1`, which coincide when `Ny == 1`.
-  `_spdiags` now sums coincident diagonals (the y-ones then being all zeros),
-  so a row reproduces the column (`Nx=1`) to round-off. Pinned by
-  `tests/test_transport.py`. Plotting a 1D field is still not possible
-  (`plt_field` uses `contourf`, which wants at least a `(2, 2)` array).
-- The explicit scheme's sub-step count, `ceil(dt * cfl1)`, is kept off the
-  round-off (`estimate_1CFL` shaves a relative `1e-9`): round-numbered set-ups
-  put it exactly on an integer, where the linear solver's last bits decided
-  whether an extra sub-step was taken -- differently across platforms. Only
-  `examples/buckley_leverett.py` sat there; its references now take the smaller
-  (correct) count throughout. Pinned by `tests/test_transport.py`.
-- A **well model**: `peaceman_WI` computes Peaceman's well index from the
-  grid, the (possibly anisotropic) permeability, the well radius and the skin;
-  assigning it to the new `Wells.WI` attribute (`(nComp,)`, `nan` entries
-  allowed, for wells without a well model) makes `sim` record the
-  implied bottom-hole pressures in the new `wells.actual_bhp`
-  (via the new `ResSim.bhp`).
-  Unlike the cell pressure -- which `sim`'s docstring could only advertise as a
-  "bottom-hole pressure-*like* observable", and which varies by some 45% over a
-  16² -> 64² refinement -- this is grid-independent, matching the analytic
-  (Dietz) drawdown to within 0.2% on every grid (`tests/test_wells.py`).
-  The well index is also a diagnostic in its own right: it defaults to `None`
-  (whereupon `wells.actual_bhp` is `nan`), and a rate-controlled well is
-  unaffected by it, so adding one changes no existing result.
-- **BHP-controlled wells**, opt-in via the new `wells.bhp` attribute
-  (shaped like the rates, so likewise time-varying; `nan` entries stay
-  rate-controlled, hence the two modes may be mixed across wells and in time).
-  The rate is solved for *simultaneously* with the pressure -- `TPFA` puts
-  $WI λ_t$ on its diagonal and $WI λ_t p_{bh}$ on its right-hand side -- rather
-  than lagged by a step: prescribing the `wells.actual_bhp` of a rate-controlled
-  run reproduces it to machine precision (`tests/test_wells.py`). The realized rates
-  are reported in `wells.actual_rates`, so `wells.rates` may be left `None`.
-  A BHP well also *anchors* the incompressible (`ct == 0`) pressure equation,
-  which is otherwise a pure-Neumann problem: the arbitrary pin at the SW corner
-  (ref article p. 13) is then skipped, the absolute pressure level becomes
-  meaningful, and injection need no longer balance production.
-  There is no switching of control modes, nor a declared flow direction: a BHP
-  well flows whichever way `p_bh` vs. its cell pressure dictates, an inflow
-  injecting water like any other -- with a `UserWarning` if that direction
-  flips mid-`sim`, such a reversal being more often a mistake than an intent.
-- **Well paths**: `well_path` walks a polyline through the grid and
-  returns the traversed cells, their well indices (each scaled by how much of
-  its cell the path actually crosses), and the resulting split of the well's
-  rate. Several completions act as one well by being superimposed in
-  `assemble_wells`,
-  which already worked; what is new is the discretization, the well indices, and
-  the rate allocation. Under BHP control the completions simply share a
-  `p_bh` -- all a wellbore does, absent the gravity and friction that a 2D areal
-  model has no room for -- so their split is then *solved for* rather than
-  prescribed. A rate-controlled multi-cell well whose split is solved for would
-  need `p_bh` as an extra unknown, i.e. a bordered linear system, and is
-  deliberately not implemented.
+  (`ResSim.cached_precond`): conjugate gradients preconditioned by an earlier
+  step's factorization, refreshed on non-convergence, in place of a fresh
+  factorization per step. Exact to the solver tolerance, so no recorded value
+  changes; 2--6x faster where the saturation hardly moves (well test,
+  depletion), 15--40% in a waterflood. `cached_precond=False` restores the
+  direct solve, itself 1.5x faster from a symmetric ordering. Pinned by
+  `tests/test_precond.py`.
+- **A well model**: `peaceman_WI` computes Peaceman's well index from the grid,
+  the (possibly anisotropic) permeability, the well radius and the skin.
+  Assigned to the new `Wells.WI`, it makes `sim` record bottom-hole pressures
+  in the new `wells.actual_bhp` (via the new `ResSim.bhp`) -- grid-independent
+  to 0.2% (`tests/test_wells.py`), unlike the cell pressure that `sim` used to
+  advertise as "BHP-like". Defaults to `None`, so no existing result changes.
+- **BHP-controlled wells**, opt-in via the new `wells.bhp` (shaped like
+  `rates`; `nan` entries stay rate-controlled, so the modes mix across wells
+  and in time). Solved simultaneously with the pressure, not lagged: prescribing
+  a rate-controlled run's `actual_bhp` reproduces it to machine precision. A
+  BHP well also anchors the incompressible pressure equation, lifting both its
+  pin and its balance requirement. No native mode switching, and no declared
+  flow direction -- ref the docstring's warning.
+- **Well paths**: `well_path` discretizes a polyline into one completion per
+  traversed cell, with well indices (scaled by the traversed fraction) and a
+  rate allocation. Under BHP control the completions share a `p_bh`, so the
+  split is solved for; under rate control it is prescribed (the bordered
+  system that would solve it is deliberately not implemented).
 - `ResSim.well_controls(S, P, k)`: the feedback-control hook, replacing
-  `dynamic_rate` (ref Changed, below). It returns `dict(rates=..., bhp=...)`
-  (each a `(nComp,)` array),
-  and is handed the pressure as well as the saturation, so an override governs
-  the wells' *modes* as well as their rates -- which is what it takes to
-  approximate the mode *switching* that the model does not do natively (ref
-  `wells.bhp`): e.g. rate control with a BHP limit, wherein a producer holds its
-  rate only until that would draw it below some `p_min` (worked examples in its
-  docstring). Being judged from the previous step's pressure, the switch lags:
-  the limit is breached for the one step in which it comes to bind, by less the
-  shorter `dt` is (`tests/test_wells.py`).
-- **`ResSim.wells`**: the well configuration -- one record (`dict`) per well,
-  assigned to this new attribute, or straight to the constructor. Which is the
-  convenient way to set the wells up:
+  `dynamic_rate` (ref Changed). It returns `dict(rates=..., bhp=...)`, so an
+  override governs the wells' *modes* as well as their rates, approximating
+  the mode switching (e.g. a rate target with a BHP limit) that the model does
+  not do natively -- lagged by one step. Worked examples in its docstring.
+- **`ResSim.wells`**: the well configuration as one record (`dict`) per well,
+  assigned to this attribute or passed to the constructor:
 
   ```python
   model = ResSim(
@@ -132,186 +69,108 @@ should pin a tag (or commit hash) and advance it deliberately.
   )
   ```
 
-  A record may hold a position (`xy`, one or several) or a well *path*
-  (`path`), a `rate` and/or a `bhp` (a scalar, or a schedule over time), the
-  wellbore radius `rw` (and `skin`) or the well index `WI` itself, and a
-  `name`. Whence the helper computes what the model runs on: it discretizes a
-  path into completions (`well_path`), computes their well indices
-  (`peaceman_WI`), apportions the well's rate among them, shares out its BHP,
-  broadcasts the constants against the schedules, and fills in the `0`/`nan`
-  conventions of the specs it assembles.
-  Assigning it is what applies it -- `__setattr__` forwards to
-  `Wells.from_records`, in keeping with the normalization it already does for
-  `K` -- and the arrays it assembles are the whole of the configuration: the
-  records themselves are read, not retained, so nothing can fall out of step
-  with a subsequent edit of the arrays (which remain assignable, ensemble
-  methods perturbing `wells.xy` being unaffected). A hand-written config and
-  its record equivalent produce the same run, bit for bit
+  `Wells.from_records` documents the keys and assembles the per-completion
+  arrays, which remain the whole of the (writable) configuration. A
+  hand-written config and its record equivalent run bit for bit alike
   (`tests/test_well_config.py`).
-- **Well grouping**, so that the reporting may speak of wells while the model
-  solves for completions: `wells.group` maps each completion to its well, and
-  `wells.names` names them (`wells` sets both; a `path` well's completions are
-  thereby recognizably one well). Hence `nComp` -- the number of completions,
-  i.e. the rows of `wells.xy`, `wells.actual_rates`, ... -- alongside
-  `wells.nWell`, which counts *wells*; `wells.rates_by_well`, which sums
-  `wells.actual_rates` per well; and plot markers labelled by name rather than
-  by index (`plt_production` accepts `labels` to match).
-  There is deliberately no `bhp_by_well`: rates aggregate, pressures do not.
-- `examples/well_control.py` and `examples/well_path.py` illustrate the above
-  (and, like the other examples, double as regression tests). The former's
-  "modes" figure now contrasts all three: rate control, BHP control, and the
-  rate target with a BHP limit -- whose curve traces the first until the limit
-  binds, and the second thereafter.
-
-- **`TPFA_ResSim.wells`**, a module of its own -- alongside `grid` and
-  `plotting` -- holding everything that depends on the wells and the geometry
-  alone: the `Wells` dataclass (the per-completion arrays, their
-  normalization, the grouping, `rates_by_well`, `signs`, `at_time`) and the
-  two free functions `peaceman_WI` and `well_path`, which take the model for
-  its grid and `K`. What couples the wells to the *fluids* (`RelPerm`) or to
-  the linear system (`_Q`, `_wells_now`) stays with the simulator --
-  `assemble_wells`, `realize_bhp`, `bhp`, `well_controls` -- so the dependency
-  runs one way, as it does for `Grid2D` and `Plot2D`.
-  Some 400 lines lighter, `__init__.py` is left to the physics.
+- **Well grouping**: `wells.group` maps each completion to its well and
+  `wells.names` names them (set by the records above). Hence `wells.nWell`,
+  `wells.rates_by_well`, and plot markers labelled by name (`plt_production`
+  accepts `labels`). Deliberately no `bhp_by_well`: rates aggregate,
+  pressures do not.
+- `examples/well_control.py` (rate control, BHP control, and a rate target with
+  a BHP limit) and `examples/well_path.py` illustrate the above.
+- **`TPFA_ResSim.wells`**, a module of its own, holding the `Wells` dataclass
+  and the free functions `peaceman_WI` and `well_path`. What couples the wells
+  to the fluids or to the linear system (`assemble_wells`, `realize_bhp`,
+  `bhp`, `well_controls`) stays in `__init__.py`, some 400 lines lighter.
 - **`ResSim.cdarcy`**: Darcy's constant, whereby the model may be posed in
-  *practical* (non-coherent) units -- metric, say: m, day, bar, mD, cP. The
-  equations otherwise contain no conversion factors (any *coherent* system,
-  SI included, already works as-is), and this one constant is the whole of what
-  a unit system amounts to here. It enters at just two sites, both of them
-  Darcy's law: the transmissibilities of `TPFA` and the well index of
-  `peaceman_WI`. Its docstring is where the units question is documented --
-  the formula $C = u_k u_p u_t / (u_μ u_L^2)$ in terms of the units' SI sizes,
-  the *forced* rate unit $u_q = u_L^2/u_t$ (an **areal** rate, the model being
-  2D areal, so a rate per unit thickness), a table of systems and their $C$
-  (metric `0.008527`, i.e. ECLIPSE's `CDARCY`; field-like `0.006328`; lab
-  `3.6`), and the warning that $C$ neither names nor determines the units:
-  it is one scalar constraining five choices, and going from metres to feet
-  means re-expressing the *rates* too.
-  `tests/test_units.py` poses one reservoir in each of those four systems and
-  demands they agree -- which pins the constant's value, and the rate-unit
-  exponent, as no regression value could; two deliberately-wrong variants
-  confirm the check is not vacuous.
-  The default is `1`, so every existing result, doctest and reference value is
-  bit-for-bit unaffected. `examples/buildup.py` is re-posed in metric, and
-  interpreted as a real well test would be: the plateau of its semilog
-  derivative $dp/d\ln t$ recovers the 100 mD that went in, to within 4% (the
-  shortfall being the time step). Nothing reads the units: its axis labels say
-  "[bar]" because the script says so.
+  *practical* (non-coherent) units -- metric (m, day, bar, mD, cP) being
+  `0.008527`, ECLIPSE's `CDARCY`. Its docstring is the units story (the
+  formula, the forced *areal* rate unit, a table of systems);
+  `tests/test_units.py` pins it across four unit systems. The default `1`
+  leaves every existing result unchanged. `examples/buildup.py` is re-posed in
+  metric and read as a well test.
+
 ### Changed
 
 - **BREAKING**: injectors and producers are **unified into a single set of
-  wells**, removing every per-kind code path (the `("inj", +1)/("prd", -1)`
-  loops, the dicts-by-kind, the paired attributes):
+  wells**, removing every per-kind code path:
   - `inj_xy`/`prd_xy` -> `wells.xy`; `nInj`/`nPrd` -> `wells.nWell`.
   - `inj_rates`/`prd_rates` -> `wells.rates`, now **signed**: positive injects
-    (water), negative produces (at the cell's fractional flow). This is the
-    whole trick: the transport step already discriminated by the sign of the
-    assembled source field, so with the sign in the spec, nothing anywhere
-    needs to know a well's kind. The positivity assertion is gone; the
-    incompressible balance assertion is now that the rates sum to 0, and
-    `assemble_wells` asserts that a *rate*-controlled well has a finite rate
-    (`nan` being tolerated only as a BHP-controlled well's placeholder).
-  - `wells.actual_rates` is a single `(nComp, nSteps)` array (signed), no
-    longer a dict by kind -- likewise the rates handed out by the hook (ref
-    the `dynamic_rate` -> `well_controls` entry below).
-  - Plot markers are inferred from the sign of each well's rates: the spec,
-    `wells.rates`, falling back on the realized `wells.actual_rates` for the wells it
-    leaves undecided (as pure BHP control does); only the still-undecided get
-    the new neutral marker. Their *numbering* is unchanged, being per sign, so
-    the producers are still numbered (and coloured) as in `plt_production`.
-    `well_scatter`'s `inj: bool` parameter becomes `sgn: int` (+1/-1/0) --
-    which, `bool` being an `int`, silently reinterprets an old positional
-    `False` (producer) as `0` (neutral) rather than raising.
-  - A lone well no longer needs a zero-rate partner of the other kind
-    (e.g. `examples/depletion.py` sheds its idle injector).
-  - The regression values are all unaffected (the physics is unchanged);
-    where an example's digest recorded production rates, they are negated
-    back to positive to keep `tests/references.py` identical.
-
-- **BREAKING**: `wells.nWell` counts **wells**, not completions -- the count of
-  those (the rows of `wells.xy`, `wells.rates`, `wells.actual_rates`, ...) being
-  `wells.nComp`, which `ResSim.nComp` forwards, the equations being assembled
-  per completion. The two coincide unless some well has several completions
-  (ref `wells.group`). Since `nWell` itself only arrived with the unification
-  above (from `nInj`/`nPrd`), no released version is affected.
-- The examples all configure their wells by records now
-  (`examples/well_path.py` most tellingly: its three cases no longer assemble
-  the completions' arrays by `vstack`/`append` by hand). The regression values
-  are unchanged.
-- `_set_Q` is renamed `assemble_wells` -- and made public, together with its
-  partner, `realize_bhp`: `examples/heterogeneous.py` and a couple of the tests
-  already called the private names, to set up a pressure solve without `sim`.
-  What they compute for the step now travels by one channel, in two places: the
-  source field, `_Q`, and a bundle, `_wells_now`, holding the per-well arrays
-  (`inds`, `rates`, `p_bh`, `WI_lam`) and the
-  per-cell terms that the BHP wells contribute to `TPFA` (`bhp_diag`,
-  `bhp_rhs`). Neither method returns anything.
-- `wells.actual_rates` and `wells.actual_bhp` are now declared (and documented)
-  attributes, `None` until `sim` allocates them -- rather than springing into existence
-  mid-simulation, guarded by `hasattr`. The recording itself moved out of the
-  well physics (`assemble_wells`/`realize_bhp`) and into `time_stepper`.
-- **BREAKING**: `dynamic_rate` is removed in favour of `well_controls`, which
-  is a superset of it: the rates are one of the two controls it returns.
-  Porting an override means unwrapping that dict --
+    (water), negative produces. The transport step already discriminated by
+    the sign of the source field, so nothing else needs to know a well's kind.
+    The incompressible balance assertion is now that the rates sum to 0.
+  - `wells.actual_rates` is a single, signed `(nComp, nSteps)` array, no
+    longer a dict by kind -- likewise the rates of the control hook.
+  - Plot markers are inferred from the sign of each well's rates (ref
+    `Wells.signs`), with a new neutral marker for the undecided. The
+    numbering is unchanged, being per sign. `well_scatter`'s `inj: bool`
+    becomes `sgn: int` (+1/-1/0), which silently reinterprets an old
+    positional `False` as `0`.
+  - A lone well no longer needs a zero-rate partner of the other kind.
+  - The regression values are unaffected; where a digest recorded production
+    rates, they are negated back to positive.
+- **BREAKING**: `wells.nWell` counts **wells**, not completions -- the latter
+  being `wells.nComp` (forwarded by `ResSim.nComp`), the equations being
+  assembled per completion. Since `nWell` only arrived with the unification
+  above, no released version is affected.
+- The examples all configure their wells by records now. Regression values
+  unchanged.
+- `_set_Q` is renamed `assemble_wells` and made public, with its partner
+  `realize_bhp` (a few callers set up a pressure solve without `sim`). They
+  write the source field `_Q` and a bundle `_wells_now` of per-well arrays and
+  the BHP wells' contributions to `TPFA`; neither returns anything.
+- `wells.actual_rates` and `wells.actual_bhp` are declared attributes, `None`
+  until `sim` allocates them, and recorded from `time_stepper` rather than
+  from the well physics.
+- **BREAKING**: `dynamic_rate` is removed in favour of `well_controls`, a
+  superset of it. Porting an override:
   `rates = super().dynamic_rate(S, k)` becomes
-  `ctrl = super().well_controls(S, P, k)`, and `rates` becomes `ctrl["rates"]`,
-  a single signed array over all wells
-  -- as `tests/test_wells.py` illustrates. Keeping it as a shim was considered,
-  but the hook had no known downstream overriders, and a rate-only hook cannot
-  express a control-mode switch.
-- **BREAKING**: `assemble_wells(S, k)` -> `assemble_wells(S, P, k)`, with `P`
-  the pressure at the *start* of the step, which it passes on to
-  `well_controls`. This affects only the direct callers that set up a pressure
-  solve without `sim` (`examples/heterogeneous.py` and two tests, all updated);
-  pass `None` if there is no pressure to offer.
+  `ctrl = super().well_controls(S, P, k)`, with `rates` now `ctrl["rates"]`,
+  a single signed array (ref `tests/test_wells.py`). No shim: the hook had no
+  known downstream overriders, and a rate-only hook cannot express a mode
+  switch.
+- **BREAKING**: `assemble_wells(S, k)` -> `assemble_wells(S, P, k)`, `P`
+  being the pressure at the start of the step (`None` if there is none).
 - **BREAKING**: `sim`'s initial-condition arguments are renamed `x0, p0` ->
-  `S0, P0`, matching the `(SS, PP)` trajectories it returns. Only `p0` was
-  likely passed by keyword; `S0` is positional in practice.
-- **BREAKING**: `TPFA` and `pressure_step` now return the pressure *flat*
-  (`Nxy`), i.e. shaped like the saturation state, rather than grid-shaped --
-  reshaping only internally, for the flux extraction. Callers that plot it (or
-  `reshape`/`ravel` it) are unaffected; those that index it in 2D must reshape.
-  Their `p_prev` argument is likewise renamed `P`, the pressure now being a
-  state variable that the call advances in time.
-- The **`struct-tools` dependency is dropped** -- only two of its facilities
-  were used. `NicePrint` is replaced by `AlignedRepr`, a mixin of some 15 lines
-  in the new (private) `TPFA_ResSim._repr`: the `repr` keeps its shape, but now
-  *summarizes* big arrays (`K`, `por`) rather than dumping them in full, while
-  `str` is no longer an alternative rendering (the bulleted one of
-  `NicePrint.__str__`) -- it is simply the `repr`. And the two `DotDict`s
-  become plain structs: the face fluxes are a `Fluxes` named tuple, which keeps
-  `V.x`/`V.y` but *types* the `V` parameter of `upwind_diff`, `storage_rate`,
-  `estimate_1CFL` and the two `saturation_step_*` (as well as the return of
-  `TPFA` and `pressure_step`), whereas the internal `_wells_now` bundle is a
-  `dict`, so its fields are keyed (`_wells_now["rates"]`, ...) rather than
-  attributes. NB: a downstream that imported `struct_tools` *transitively* from
-  here (HistoryMatching does) must add it to its own requirements.
+  `S0, P0`, matching the `(SS, PP)` it returns.
+- **BREAKING**: `TPFA` and `pressure_step` return the pressure *flat* (`Nxy`),
+  like the saturation, rather than grid-shaped; their `p_prev` argument is
+  renamed `P`. Callers that index the pressure in 2D must reshape.
+- The **`struct-tools` dependency is dropped**. `NicePrint` is replaced by
+  `AlignedRepr` (`TPFA_ResSim._repr`), whose `repr` summarizes big arrays and
+  is also the `str`. The two `DotDict`s become a `Fluxes` named tuple (still
+  `V.x`/`V.y`) and the plain `dict` `_wells_now`. NB: a downstream that
+  imported `struct_tools` transitively from here (HistoryMatching does) must
+  add it to its own requirements.
 
 ### Fixed
 
-- The `O(ct)` term of the **transport** equation, previously neglected, is now
-  included: `ResSim.storage_rate` is the volume rate going into storage, and the
-  saturation steps charge it to the phases in proportion to their saturation
-  (the split that makes the water and oil equations sum to the pressure
-  equation). Consequently a single-phase reservoir now stays single-phase --
-  whereas previously, depleting a water-filled one drained the saturation by the
-  voidage, and an injector's cell accumulated water (`~ ct*dp_well`) until, via
-  the mobility of the excess, it ran away. The limit this imposed on `ct` is
-  thereby lifted (for the explicit scheme, which is monotone; the implicit
-  Newton solver can still stray outside `[0, 1]` far beyond the model's
-  premise); what remains is the model's own `ct*dp << 1` premise.
-  Saturations for `ct > 0` change accordingly (the compressible examples'
-  reference values are updated); `ct = 0` is bit-for-bit unaffected.
-- Scalar `K` (e.g. `ResSim(..., K=3.)`) now broadcasts as documented, instead of
-  raising `ValueError: cannot reshape array of size 2`. Broken since `4643295`
-  ("Reshape K in setter", v0.1.1), which used `np.full_like(self.shape, ...)`
-  -- i.e. filling an array shaped like the *tuple* `(Nx, Ny)`, not like the grid.
-- Two tolerances that were *absolute*, and so presumed values of order 1, are
-  now **relative** -- which they must be, the magnitudes being a matter of the
-  units (ref `ResSim.cdarcy`, above): the rate-balance check of `time_stepper` (an
-  `np.isclose(sum, 0)`, i.e. `atol=1e-8`, which large rates could trip) and
-  the upper-border nudge of `Grid2D.xy2sub` (`Lx - 1e-8`, which very large
-  domains could round away). Neither changes any existing result.
+- **`Ny = 1` runs** used to raise `ValueError: offset array contains duplicate
+  values`, the x- and y-neighbour diagonals coinciding at `±1`. `_spdiags` now
+  sums coincident diagonals, so a row reproduces a column (`Nx=1`) to
+  round-off (`tests/test_transport.py`). Plotting a 1D field is still not
+  possible (`contourf` wants a `(2, 2)` array).
+- The explicit scheme's sub-step count is kept off the round-off
+  (`estimate_1CFL` shaves a relative `1e-9`): round-numbered set-ups put
+  `dt * cfl1` exactly on an integer, where the linear solver's last bits
+  decided the count, differently across platforms. Only
+  `examples/buckley_leverett.py` sat there; its references now take the
+  smaller count throughout (`tests/test_transport.py`).
+- The $O(c_t)$ term of the **transport** equation, previously neglected, is
+  now included (`ResSim.storage_rate`; ref the "Compressibility" section of
+  the docs). A single-phase reservoir now stays single-phase, whereas
+  previously an injector's cell accumulated water until it ran away, which
+  limited `ct`. Saturations for `ct > 0` change accordingly (the compressible
+  examples' references are updated); `ct = 0` is bit-for-bit unaffected.
+- Scalar `K` (e.g. `ResSim(..., K=3.)`) broadcasts as documented, instead of
+  raising `ValueError: cannot reshape array of size 2` (broken since
+  `4643295`, v0.1.1).
+- Two tolerances that were *absolute* are now **relative**, the magnitudes
+  being a matter of the units (ref `cdarcy`): the rate-balance check of
+  `time_stepper` and the upper-border nudge of `Grid2D.xy2sub`. Neither
+  changes any existing result.
 
 ## [0.2.0] -- 2026-08-27
 

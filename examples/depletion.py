@@ -1,9 +1,8 @@
 """Primary depletion: production *without* injection.
 
-Impossible with `ct = 0`: incompressibility leaves nowhere for the produced
-fluid to come from, so `time_stepper` asserts that the rates balance.
-With `ct > 0` the deficit is instead drawn from *storage*, i.e. from the
-expansion of the rock and fluids as the pressure drops.
+Impossible with `ct = 0` (the rates must balance, ref `Wells.rates`); with
+`ct > 0` the deficit is drawn from *storage*, i.e. from the expansion of the
+rock and fluids as the pressure drops.
 
 Two flow regimes are visible:
 
@@ -35,11 +34,9 @@ In the figures:
   boundary (dotted).
 
 Throughout, $p_\\mathrm{cell}$ is the pressure of the *cell* that holds the well,
-not the pressure in the wellbore: it is an average over an area of $h^2$, so
-refining the grid deepens it without limit (here, 0.15 at 32² but 0.18 at 64²).
-Converting it to a bottom-hole pressure is the job of the *well model* -- set
-give the well an `rw` (ref `ResSim.wells`, `peaceman_WI`) and read
-`model.wells.actual_bhp` instead.
+not that of the wellbore, so it deepens under grid refinement (0.15 at 32², 0.18
+at 64²). For a bottom-hole pressure, give the well an `rw` and read
+`model.wells.actual_bhp` instead; ref `examples/well_control.py`.
 """
 
 from mpl_tools.place import freshfig

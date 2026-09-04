@@ -26,8 +26,8 @@ to the incompressible solution as $c_t → 0$ -- verified below.
     $ c_t Δ\\bar{p} = 1 $, rather than the $ \\ll 1 $ that "slightly
     compressible" implies. The behaviour below is self-consistent and
     qualitatively right, but not quantitatively trustworthy. NB: lowering `ct`
-    does *not* remedy it -- that merely rescales the pressure decline, leaving
-    the demanded expansion (the voidage) unchanged. Ref `ResSim.ct`.
+    does *not* remedy it, the voidage being what sets the demanded expansion
+    (ref the "Compressibility" section of the docs).
 
 In the figures:
 

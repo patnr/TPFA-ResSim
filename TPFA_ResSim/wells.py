@@ -259,9 +259,8 @@ def well_path(model: "ResSim", vertices: Any, rw: float, skin: float = 0.0) -> t
 class Wells(AlignedRepr):
     """The wells of a `TPFA_ResSim.ResSim`: the flat, per-completion arrays.
 
-    These arrays *are* the configuration -- there is no second, record-shaped
-    copy of it to fall out of step -- and they are meant to be written to, as
-    an ensemble or optimisation loop does:
+    These arrays *are* the configuration (ref `from_records`), and they are
+    meant to be written to, as an ensemble or optimisation loop does:
 
     >>> from TPFA_ResSim import ResSim
     >>> model = ResSim(Lx=1, Ly=1, Nx=16, Ny=16,
@@ -351,12 +350,8 @@ class Wells(AlignedRepr):
         inflow through a BHP well injects *water*. Since a reversal mid-`sim`
         may nonetheless be a surprise, a `UserWarning` is emitted when a BHP
         well's realized rate flips sign between steps of `sim`.
-        Nor is there native switching of control modes:
-        rate control with a BHP limit -- the industrial default -- would mean
-        iterating each well's mode within each step. But
-        `TPFA_ResSim.ResSim.well_controls` sets the modes as well as the rates,
-        and sees the previous step's pressure, so it can approximate the switch
-        (as its docstring demonstrates) -- to within the lag thereby incurred.
+        Nor is there native switching of control modes (e.g. rate control with
+        a BHP limit), but `TPFA_ResSim.ResSim.well_controls` can approximate it.
     """
     WI: Any = None
     """Well indices: `None`, or an array of shape `(nComp,)`, `nan` allowed.
@@ -366,20 +361,13 @@ class Wells(AlignedRepr):
     A well whose entry is `nan` (or all of them, if `None`) has no well model:
     its `actual_bhp` is `nan`, and BHP control (`bhp`) unavailable.
 
-    The well index, $ WI $, is the *sub-grid* well model: the constant of
-    proportionality relating a well's (signed) flow rate to the pressure
-    difference between the wellbore and the well's cell,
+    The well index is the *sub-grid* well model (ref the "Theory" section of
+    `TPFA_ResSim.wells`), relating a well's (signed) flow rate to its drawdown,
     $$ q = WI \\, λ_t \\, (p_\\mathrm{bh} - p_\\mathrm{cell}) \\,,$$
     with $ λ_t $ the total mobility (ref `TPFA_ResSim.ResSim.RelPerm`) of the
-    well's cell. The magnitude $ |p_\\mathrm{cell} - p_\\mathrm{bh}| $ is known
-    as the "drawdown" (of a producer; "overpressure" for an injector).
-    Re-arranging,
-    $$ p_\\mathrm{bh} = p_\\mathrm{cell} + q / (WI \\, λ_t) \\,. $$
-
-    NB: the drawdown cannot be replaced by plain cell pressure,
-    because that is a cell average, which is highly sensitive to the
-    chosen discretisation size around a point source/sink (an idealized,
-    theoretical singularity).
+    well's cell. Re-arranging,
+    $$ p_\\mathrm{bh} = p_\\mathrm{cell} + q / (WI \\, λ_t) \\,, $$
+    which is what `TPFA_ResSim.ResSim.bhp` computes.
 
     .. warning:: The drawdown is *not* a fixed offset.
 

@@ -18,9 +18,8 @@ Notes on the setup:
 - The reservoir is initialised **fully water-saturated**, so that the total mobility
   $λ = 1$ is uniform and constant, isolating the pressure physics
   (i.e. $η = 100$ everywhere, since `K = por = 1` and `ct = .01`).
-  It stays that way *exactly*: since the storage is charged to the phases in
-  proportion to their saturation (ref `ResSim.ct`), $s = 1$ is a fixed point of
-  the transport step, whatever the wells do. Asserted below.
+  It stays that way *exactly*: $s = 1$ is a fixed point of the transport step
+  (ref `ResSim.storage_rate`), whatever the wells do. Asserted below.
 - The rates are balanced (as they must be for the `ct = 0` comparison run),
   whence the storage terms cancel and the *mean* pressure stays at `P0` exactly.
   This conveniently fixes the (otherwise arbitrary) level of the elliptic solution:
