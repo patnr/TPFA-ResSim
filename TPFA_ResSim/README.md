@@ -253,7 +253,10 @@ states into its gradient with respect to `S0`, `P0` and $ \log K $, at the cost
 of about one more simulation. The step's tangent is a straight line of
 sparse-matrix and diagonal statements around one symmetric solve, and the
 adjoint is its reversal, statement by statement -- verified against finite
-differences of the objective in `tests/test_tlm.py`.
+differences of the objective in `tests/test_tlm.py`. See
+`examples/water_cut_gradient.py` for the gradient of one producer's water cut
+with respect to the $ \log K $ field, and `examples/history_match_gradient.py`
+for that of a production-history misfit, put to use in a few descent steps.
 
 ## Missing features
 

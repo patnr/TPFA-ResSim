@@ -29,7 +29,10 @@ should pin a tag (or commit hash) and advance it deliberately.
   fixed; explicit scheme only. Verified against finite differences of the
   objective (~1e-8 relative), `tests/test_tlm.py`. NB: `linearize` mutates
   the model as a step does (`_Q`, `_wells_now`, `_pLU`), but not the well
-  reports.
+  reports. Illustrated by `examples/water_cut_gradient.py` (the gradient of
+  one producer's water cut at one time, wrt. the `log K` field) and
+  `examples/history_match_gradient.py` (the gradient of a production-history
+  misfit, and a few steps of steepest descent on it).
 - **Cached preconditioning of the pressure solve**, on by default
   (`ResSim.cached_precond`): conjugate gradients, preconditioned by the
   factorization of an earlier step's system (refreshed only on non-convergence),
