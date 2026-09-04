@@ -244,13 +244,17 @@ the time steps (`ResSim.cached_precond`).
 
 ## Sensitivities
 
-`TPFA_ResSim.tlm` is the hand-derived tangent linear model of a time step
-with respect to the *state*, $ (s, p) $: `tlm.linearize` recomputes a step
-(from the trajectory that `ResSim.sim` returns) into a `tlm.Tape`, and
-`tlm.tlm_step` propagates a perturbation through it. It is written as a
-straight line of sparse-matrix and diagonal statements around one symmetric
-solve, so that the adjoint -- for gradients with respect to `S0` and `P0` --
-is its reversal, statement by statement.
+`TPFA_ResSim.tlm` is the hand-derived tangent linear model of a time step --
+and its adjoint -- with respect to the *state*, $ (s, p) $, and to
+$ \log K $: `tlm.linearize` recomputes a step (from the trajectory that
+`ResSim.sim` returns) into a `tlm.Tape`, `tlm.tlm_step` propagates a
+perturbation through it, and `tlm.adj_step` a sensitivity back through it.
+Along a trajectory, `tlm.adjoint` turns the partials of an objective with
+respect to the stored states into its gradient with respect to `S0`, `P0` and
+$ \log K $, at the cost of about one more simulation. The tangent is written as
+a straight line of sparse-matrix and diagonal statements around one symmetric
+solve, so that the adjoint is its reversal, statement by statement -- which the
+dot-product test of `tests/test_tlm.py` confirms to round-off.
 
 ## Missing features
 

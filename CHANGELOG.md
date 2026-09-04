@@ -12,6 +12,23 @@ should pin a tag (or commit hash) and advance it deliberately.
 
 ### Added
 
+- **A tangent linear model and its adjoint** (`TPFA_ResSim.tlm`), derived by
+  hand: the Jacobian of a `time_stepper` step with respect to the state
+  `(S, P)` and to `log K`, applied to a perturbation (`tlm_step`) or
+  transposed onto a sensitivity (`adj_step`). `linearize` recomputes a step
+  from the trajectory that `sim` returns (checkpointing; the forward model is
+  untouched and records nothing) into a `Tape`; `tlm` and `adjoint` chain the
+  steps, the latter returning the gradient of an objective -- seeded by its
+  partials with respect to the stored trajectory -- with respect to `S0`,
+  `P0` and `log K`, at the cost of about one `sim`. `tlm_step` is a straight
+  line of sparse-matrix, diagonal and (symmetric) solve statements, and
+  `adj_step` its reversal, statement by statement: the 5-diagonal assemblies
+  are recast on interior-face operators to make that so. Parameters other
+  than `K`, the controls' dependence on the state, and the discrete decisions
+  (sub-step count, upwind directions) are held fixed; explicit scheme only.
+  Verified against finite differences (~1e-8 relative) and by the dot-product
+  test (round-off), `tests/test_tlm.py`. NB: `linearize` mutates the model as
+  a step does (`_Q`, `_wells_now`, `_pLU`), but not the well reports.
 - **Cached preconditioning of the pressure solve**, on by default
   (`ResSim.cached_precond`): conjugate gradients, preconditioned by the
   factorization of an earlier step's system (refreshed only on non-convergence),
