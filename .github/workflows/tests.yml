@@ -10,8 +10,10 @@ jobs:
   linting:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+      # NB: pinned exactly; `setup-uv` stopped publishing floating major tags
+      # at v8, as a supply-chain measure.
+      - uses: astral-sh/setup-uv@v10.0.1
       - run: uvx ruff check
 
   test:
@@ -25,10 +27,10 @@ jobs:
     steps:
 
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v10.0.1
         with:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
