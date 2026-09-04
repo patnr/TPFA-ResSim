@@ -1,0 +1,50 @@
+/*
+Additional CSS for the pdoc-generated docs. Loaded on top of pdoc's own
+`theme.css`/`layout.css`/`content.css` via `pdoc -t pdoc_template`; the variables
+(`--accent`, `--muted`, `--code`, ...) are pdoc's, defined in its `theme.css`.
+*/
+
+/* Sidebar: same white ground as the content, set off by a hairline rather than
+   by a grey fill and an inset shadow. */
+nav.pdoc {
+    background-color: var(--pdoc-background);
+    border-right: 1px solid var(--accent);
+    box-shadow: none;
+}
+
+/* pdoc's hover tint is a translucent white, invisible on a white ground. Tint the
+   link rather than the `li` (as pdoc does): a class's `li` contains its members', so
+   hovering one member would otherwise tint the whole class block. */
+nav.pdoc li:hover {
+    background-color: transparent;
+}
+nav.pdoc li a:hover {
+    background-color: var(--code);
+    color: var(--link);
+}
+
+/* Section headings ("Contents", "Submodules", "API Documentation") as small
+   muted labels, so the entries themselves carry the visual weight. */
+nav.pdoc h2 {
+    font-size: .75rem;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 1.75rem 0 .5rem;
+}
+
+/* Classes stand out from their members ... */
+nav.pdoc a.class {
+    font-weight: 600;
+}
+
+/* ... which are bulleted. The bullet sits in the indent that pdoc already
+   gives nested entries. Nested *classes* keep pdoc's "class " prefix instead. */
+nav.pdoc .memberlist .memberlist > li > a:not(.class)::before {
+    content: "\2022";
+    color: var(--muted);
+    display: inline-block;
+    width: 1em;
+    margin-left: -1em;
+}
