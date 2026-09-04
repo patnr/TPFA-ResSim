@@ -48,3 +48,10 @@ nav.pdoc .memberlist .memberlist > li > a:not(.class)::before {
     width: 1em;
     margin-left: -1em;
 }
+
+/* The entry marked by the scroll-spy (`module.html.jinja2`): a bar at the sidebar's
+   edge, which the full-width link reaches. */
+nav.pdoc li a.active {
+    color: var(--link);
+    box-shadow: inset 3px 0 0 var(--link);
+}

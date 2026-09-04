@@ -1,0 +1,56 @@
+{#
+Extends pdoc's default page template. The look is in `custom.css`; this file adds what
+CSS cannot: a scroll-spy that marks, in the sidebar, the section currently in view.
+#}
+{% extends "default/module.html.jinja2" %}
+
+{% block body %}
+    {{ super() }}
+    <script>
+    (function () {
+        // Scroll-spy: mark the sidebar link whose target was scrolled past most recently
+        // (i.e. the section the reader is in), and keep that link visible in the sidebar.
+        const nav = document.querySelector("nav.pdoc");
+        const targets = [];  // [element, link], in document order
+        for (const a of nav.querySelectorAll('a[href^="#"]')) {
+            const el = document.getElementById(decodeURIComponent(a.hash.slice(1)));
+            if (el) targets.push([el, a]);
+        }
+        if (!targets.length) return;
+        targets.sort((p, q) => p[0].compareDocumentPosition(q[0]) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1);
+
+        let current = null;
+        function update() {
+            // A section counts as "in view" once its heading is in the top third of the
+            // viewport, so the mark moves on as the reader reaches the next one.
+            const line = window.innerHeight / 3;
+            let link = null;
+            for (const [el, a] of targets) {
+                if (el.getBoundingClientRect().top <= line) link = a; else break;
+            }
+            if (link === current) return;
+            if (current) current.classList.remove("active");
+            current = link;
+            if (!link) return;
+            link.classList.add("active");
+            // Keep the marked entry visible, scrolling the sidebar (not the page).
+            if (nav.scrollHeight > nav.clientHeight) {
+                const n = nav.getBoundingClientRect(), l = link.getBoundingClientRect();
+                if (l.top < n.top || l.bottom > n.bottom) {
+                    nav.scrollTop += l.top - n.top - n.height / 2 + l.height / 2;
+                }
+            }
+        }
+        let pending = false;
+        window.addEventListener("scroll", () => {
+            if (pending) return;
+            pending = true;
+            requestAnimationFrame(() => { pending = false; update(); });
+        }, { passive: true });
+        window.addEventListener("resize", update);
+        // The page also reflows without scrolling, e.g. as MathJax typesets.
+        if (window.ResizeObserver) new ResizeObserver(update).observe(document.body);
+        update();
+    })();
+    </script>
+{% endblock %}
