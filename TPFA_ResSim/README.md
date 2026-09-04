@@ -97,6 +97,10 @@ Finally, $u$ can be inserted in Darcy's law (5) to yield the (steady-state) velo
   by $s_{\text{phase}} \, \rho_{\text{phase}}$,
   and $\mathbf{v}$ by $\mathbf{v}_{\text{phase}} = f_{\text{phase}}(s)\, \mathbf{v}$.
   This immediately yields eqn. (2).
+  It is here that *immiscibility* enters: each phase occupies its own share of the
+  pore volume ($s_w + s_o = 1$) and conserves its own mass, so that eqn. (3) holds
+  per phase, with no exchange term between them
+  (and hence no dependence of $\rho$ or $\mu$ on composition).
 
 
 ### How to solve
