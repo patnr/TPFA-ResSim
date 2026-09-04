@@ -33,6 +33,13 @@ The class link sits in the <summary>: clicking the *link* navigates without togg
     </ul>
 {% endmacro %}
 
+{% block nav_footer %}
+    <footer>
+        <a href="https://github.com/patnr/TPFA-ResSim">patnr/TPFA-ResSim</a> on GitHub
+        &middot; MIT licence
+    </footer>
+{% endblock %}
+
 {% block body %}
     {{ super() }}
     <script>

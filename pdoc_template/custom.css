@@ -90,6 +90,16 @@ nav.pdoc summary:hover {
     background-color: var(--code);
 }
 
+/* The footer (`module.html.jinja2`): its link runs inline, in link colour, unlike the
+   entries above it. */
+nav.pdoc footer {
+    color: var(--muted);
+}
+nav.pdoc footer a {
+    display: inline;
+    color: var(--link);
+}
+
 /* The search box, and the button back to the parent module, stay put while the sidebar
    scrolls. What scrolls under them is hidden by a cover in the ground colour: a sticky
    pseudo-element at the top of the sidebar, taking no room (negative bottom margin),
