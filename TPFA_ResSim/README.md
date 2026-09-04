@@ -242,6 +242,16 @@ the time steps (`ResSim.cached_precond`).
     well-test and depletion examples, 15--40% on the waterfloods, where the
     explicit transport dominates -- and what was tried besides.
 
+## Sensitivities
+
+`TPFA_ResSim.tlm` is the hand-derived tangent linear model of a time step
+with respect to the *state*, $ (s, p) $: `tlm.linearize` recomputes a step
+(from the trajectory that `ResSim.sim` returns) into a `tlm.Tape`, and
+`tlm.tlm_step` propagates a perturbation through it. It is written as a
+straight line of sparse-matrix and diagonal statements around one symmetric
+solve, so that the adjoint -- for gradients with respect to `S0` and `P0` --
+is its reversal, statement by statement.
+
 ## Missing features
 
 - The model is 2D
