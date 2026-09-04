@@ -555,7 +555,15 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
         # fraction of the fluxes that are (under 20% even at `ct = 10`),
         # so the safety factor below covers it.
         sat = self.swc + self.sor
-        return 3 / (1 - sat) * flx  # NB: 3-->2 since no z-dim ?
+        cfl = 3 / (1 - sat) * flx  # NB: 3-->2 since no z-dim ?
+        # NB: the ceiling is nudged down by a relative epsilon, so that a `dt`
+        # sitting *on* an integer multiple of the CFL limit (as the examples'
+        # round numbers tend to) does not gain a whole extra sub-step from the
+        # last bits of the linear solve -- which differ across platforms and
+        # library versions, and would make the results irreproducible.
+        # The CFL estimate carries a safety factor of 3, so shaving 1e-9 off it
+        # cannot cost stability.
+        return cfl * (1 - 1e-9)
 
     # Upstream() -- listing 8
     def saturation_step_upwind(self, S: np.ndarray, V: Fluxes, dt: float) -> np.ndarray:
