@@ -4,6 +4,35 @@ CSS cannot: a scroll-spy that marks, in the sidebar, the section currently in vi
 #}
 {% extends "default/module.html.jinja2" %}
 
+{#
+As pdoc's, except that a class's members fold into a <details>, closed until the
+scroll-spy (below) opens it for the class in view, or the reader clicks its chevron.
+The class link sits in the <summary>: clicking the *link* navigates without toggling
+(the anchor is the activation target), clicking the rest of the row toggles.
+#}
+{% macro nav_members(members) %}
+    <ul class="memberlist">
+        {% for m in members if is_public(m) | trim %}
+            <li>
+                {% if m.kind == "class" and m.own_members %}
+                    <details>
+                        <summary><a class="class" href="#{{ m.qualname }}">{{ m.qualname }}</a></summary>
+                        {{ nav_members(m.own_members) | indent(12) }}
+                    </details>
+                {% elif m.kind == "class" %}
+                    <a class="class" href="#{{ m.qualname }}">{{ m.qualname }}</a>
+                {% elif m.kind == "module" %}
+                    <a class="module" href="#{{ m.name }}">{{ m.name }}</a>
+                {% elif m.name == "__init__" %}
+                    <a class="function" href="#{{ m.qualname }}">{{ m.qualname.split(".")[-2] }}</a>
+                {% else %}
+                    <a class="{{ m.kind }}" href="#{{ m.qualname }}">{{ m.name }}</a>
+                {% endif %}
+            </li>
+        {% endfor %}
+    </ul>
+{% endmacro %}
+
 {% block body %}
     {{ super() }}
     <script>
@@ -33,6 +62,10 @@ CSS cannot: a scroll-spy that marks, in the sidebar, the section currently in vi
             current = link;
             if (!link) return;
             link.classList.add("active");
+            // Unfold the class(es) the entry sits in.
+            for (let d = link.closest("details"); d; d = d.parentElement.closest("details")) {
+                d.open = true;
+            }
             // Keep the marked entry visible, scrolling the sidebar (not the page).
             if (nav.scrollHeight > nav.clientHeight) {
                 const n = nav.getBoundingClientRect(), l = link.getBoundingClientRect();

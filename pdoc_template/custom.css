@@ -55,3 +55,37 @@ nav.pdoc li a.active {
     color: var(--link);
     box-shadow: inset 3px 0 0 var(--link);
 }
+
+/* Class members fold into a <details> (`module.html.jinja2`). The <summary> row holds
+   the class link, and a chevron at its right end that turns when open. */
+nav.pdoc summary {
+    display: flex;
+    align-items: center;
+    list-style: none;
+    cursor: pointer;
+}
+nav.pdoc summary::-webkit-details-marker {
+    display: none;
+}
+nav.pdoc summary > a {
+    flex: 1;
+}
+nav.pdoc > div > ul > li > details > summary > a {
+    padding-left: var(--pad);  /* top-level, as pdoc gives a bare top-level link */
+}
+nav.pdoc summary::after {
+    content: "";
+    width: .4em;
+    height: .4em;
+    margin: 0 1rem 0 .5rem;
+    border: solid var(--muted);
+    border-width: 0 1.5px 1.5px 0;
+    transform: rotate(-45deg);
+    transition: transform 100ms;
+}
+nav.pdoc details[open] > summary::after {
+    transform: rotate(45deg);
+}
+nav.pdoc summary:hover {
+    background-color: var(--code);
+}
