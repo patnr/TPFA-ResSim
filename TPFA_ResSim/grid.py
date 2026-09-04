@@ -120,6 +120,8 @@ class Grid2D:
             I.e. they are not injective.
             The alternative would be to return some kind
             of interpolation weights distributing `(x, y)` over multiple nodes.
+            This was tried and rejected (not worth it), ref "Missing features"
+            section of docs.
         """
         x = np.asarray(x)
         y = np.asarray(y)
