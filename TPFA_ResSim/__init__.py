@@ -16,7 +16,7 @@ from TPFA_ResSim.wells import Wells, peaceman_WI, well_path  # noqa: F401
 
 
 class Fluxes(NamedTuple):
-    """The (discrete Darcy) fluxes through the cell faces, from `ResSim.TPFA`.
+    """Data container with dot (attr) access for cell face fluxes. Mimicks matlab code.
 
     Positive is in the direction of increasing index. The fluxes through the
     *boundary* faces are `0`: the reservoir is closed (no-flow) all around.
