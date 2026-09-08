@@ -1,4 +1,4 @@
-"""Build the docs: pdoc over the package *and* the examples, with the examples' figures.
+r"""Build the docs: pdoc over the package *and* the examples, with the examples' figures.
 
 Run it from the repo root: `uv run pdoc_template/build.py` (output in `docs/`). It is
 `pdoc --math -t pdoc_template -o docs/ ./TPFA_ResSim ./examples` plus what the CLI cannot do:

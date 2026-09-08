@@ -215,7 +215,7 @@ def features(figsize=(16, 12.6)):
         ax.plot(hm.tt, hm.obs[:, i], "*", c=f"C{i}")
         ax.plot(hm.tt, hm.fw_final[:, i], "-", c=f"C{i}")
     ax.plot(hm.tt, hm.fw_prior, "-", c="gray", lw=1, alpha=.7)
-    for fmt, label in [("k*", "Observed"), ("k-", "Matched"), ("-", "Prior")]:
+    for fmt, label in [("*", "Observed"), ("-", "Matched"), ("-", "Prior")]:
         ax.plot([], [], fmt, c="gray" if label == "Prior" else "k", label=label)
     ax.set(title=f"Adjoint history matching ({len(hm.JJ) - 1} descent steps)",
            xlabel="Time", ylabel="Water cut at the 4 producers", ylim=(-.02, 1))
