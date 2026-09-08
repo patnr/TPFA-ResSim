@@ -113,6 +113,20 @@ Its page is the docstring, the figures, and the source.
             for (const [el, a] of targets) {
                 if (el.getBoundingClientRect().top <= line) link = a; else break;
             }
+            // Except that the entry the reader navigated to (the URL's fragment, which
+            // pdoc's CSS also highlights) wins while its heading is still up there: a
+            // link's target is scrolled to the top, and several short entries following
+            // it may fit in the third, of which the last would otherwise be marked. At
+            // the bottom of the page, where the target cannot be scrolled that high, it
+            // wins wherever it is in view.
+            const target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+            const hit = target && targets.find(([el]) => el === target);
+            if (hit) {
+                const top = hit[0].getBoundingClientRect().top;
+                const html = document.documentElement;
+                const atBottom = html.scrollTop + window.innerHeight >= html.scrollHeight - 1;
+                if (-1 <= top && top < (atBottom ? window.innerHeight : line)) link = hit[1];
+            }
             if (link === current) return;
             if (current) current.classList.remove("active");
             current = link;
@@ -137,6 +151,7 @@ Its page is the docstring, the figures, and the source.
             requestAnimationFrame(() => { pending = false; update(); });
         }, { passive: true });
         window.addEventListener("resize", update);
+        window.addEventListener("hashchange", update);
         // The page also reflows without scrolling, e.g. as MathJax typesets.
         if (window.ResizeObserver) new ResizeObserver(update).observe(document.body);
         update();
