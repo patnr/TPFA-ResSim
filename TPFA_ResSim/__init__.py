@@ -8,4 +8,4 @@ from TPFA_ResSim.wells import Wells, peaceman_WI, well_path
 # README), and the listed submodules on their own pages. `core` is deliberately absent,
 # lest `ResSim` be documented twice; so are the other re-exports, which are documented
 # in their home modules.
-__all__ = ["ResSim", "grid", "wells", "plotting", "tlm", "_repr"]
+__all__ = ["ResSim", "grid", "wells", "plotting", "tlm"]
