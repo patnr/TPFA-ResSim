@@ -29,28 +29,20 @@ The quantities involved are all 2D-spatial fields, namely
 - $v$ is the (volumetric) flow velocity ($\mathbf{v} = \mathbf{v}_o + \mathbf{v}_w$).
 - $q$ is the sources/sinks
 - $\rho$ is the density
+- $\mathbf{K}$ is the (absolute) permeability tensor: the rock's conductivity to
+  flow, here diagonal, $\mathrm{diag}(K_x, K_y)$ per cell.
 - $\lambda(s)$ is the total mobility (sum of mobilities).
   Each (relative) mobility is the phase relative permeability
   divided by the phase viscosity, $\lambda_{\text{phase}} = k_{\text{phase}}/\mu_{\text{phase}}$.
-- $f(s) = \lambda_w / \lambda \in [0, 1]$ is the water fractional flow,
-  where both mobilities depend on $s$.
-  It gives $\mathbf{v}_w = f(s) \, \mathbf{v}$.
+  - The relative permeabilities $k_{\text{phase}}(s) \in [0, 1]$ are a *constitutive
+    relation*, not data: here, quadratic (Corey) curves of the saturation rescaled by
+    its residual values (`ResSim.RelPerm`). Need not sum to 1.
+  - $\mu_{\text{phase}}$ is the phase viscosity, here constant.
+- $f(s) = \lambda_w(s) / \lambda(s) \in [0, 1]$ is the water fractional flow,
+  giving $\mathbf{v}_w = f(s) \, \mathbf{v}$.
 
 The right hand side of (2) is further simplified (relabelled) as $q$,
 i.e. dropping the $w$ (for "water") subscripts.
-
-.. note:: Relative permeabilities are a constituent relation, not data.
-
-    $k_{\text{phase}} \in [0, 1]$ are set via a relation
-    that is a function of the (reducible) saturation.
-    They do not generally sum to 1.
-    Their approximation and uncertainty is significant,
-    but usually less important than those of the absolute permeability, $\mathbf{K}$.
-
-These are the equations of the *incompressible* model,
-which is the default here. Compressibility is treated further below,
-as an extension of the solution method.
-
 
 ### Derivation
 
