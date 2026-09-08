@@ -100,35 +100,71 @@ nav.pdoc footer a {
     color: var(--link);
 }
 
-/* The search box, and the button back to the parent module, stay put while the sidebar
-   scrolls. What scrolls under them is hidden by a cover in the ground colour: a sticky
-   pseudo-element at the top of the sidebar, taking no room (negative bottom margin),
-   stacked between the scrolling entries and the two. Its height, and the input's offset
-   below the button, are the button's height (.75rem type at line-height 1.5, padding,
-   border) plus its 1rem margin. Only where the sidebar scrolls on its own. */
+/* The head of the sidebar (`module.html.jinja2`): the title, the search box, and the
+   tabs between the two roots. Its left padding restores what the negative margin takes,
+   so that the tabs' row can run to the sidebar's edge and its hairline can be the head's
+   bottom edge. */
+nav.pdoc .nav-header {
+    margin-left: calc(-1 * var(--pad));
+    padding-left: var(--pad);
+}
+nav.pdoc .nav-title {
+    display: block;
+    margin: .125rem 0 .875rem;
+    font-size: 1.25rem;
+    font-weight: 700;
+    line-height: 1.3;
+}
+nav.pdoc .nav-title:hover {
+    color: var(--link);
+}
+nav.pdoc ul.nav-roots {
+    display: flex;
+    margin: .875rem 0 0 calc(-1 * var(--pad));
+    border-bottom: 1px solid var(--accent);
+}
+nav.pdoc ul.nav-roots li a {
+    padding: .3rem .875rem;
+    margin-bottom: -1px;  /* the current tab's bar overlays the row's hairline */
+    border-bottom: 2px solid transparent;
+    color: var(--muted);
+}
+nav.pdoc ul.nav-roots li:first-child a {
+    padding-left: var(--pad);
+}
+nav.pdoc ul.nav-roots li a:hover {
+    color: var(--text);
+    background-color: transparent;
+}
+nav.pdoc ul.nav-roots li a.current {
+    color: var(--text);
+    font-weight: 600;
+    border-bottom-color: var(--link);
+}
+
+/* Where the sidebar scrolls on its own, the head stays put, the entries scrolling under
+   it: it takes over the sidebar's top padding (negative margin, same padding) so as to
+   cover them right up to the top edge. */
 @media (min-width: 770px) {
-    nav.pdoc .module-list-button,
-    nav.pdoc input[type=search] {
-        position: sticky;
-        top: .5rem;
-        z-index: 2;
-    }
-    nav.pdoc .module-list-button + input[type=search] {
-        top: calc(.5rem + 1.875rem + 1rem);
-    }
-    nav.pdoc > div::before {
-        content: "";
-        display: block;
+    nav.pdoc .nav-header {
         position: sticky;
         top: 0;
-        z-index: 1;
-        --cover: calc(.5rem + 1.875rem + .5rem);
-        height: var(--cover);
-        margin: 0 0 calc(-1 * var(--cover)) calc(-1 * var(--pad));
+        z-index: 2;
+        margin-top: calc(-1 * var(--pad));
+        padding-top: var(--pad);
         background-color: var(--pdoc-background);
     }
-    nav.pdoc > div:has(> .module-list-button)::before {
-        --cover: calc(.5rem + 1.875rem + 1rem + 1.875rem + .5rem);
+}
+
+/* On narrow screens pdoc hides the rest of the menu while the search box has contents
+   (`input:valid ~ *`), which the head's wrapper would otherwise defeat. Its title, like
+   pdoc's search box, keeps clear of the menu button at the top right. */
+@media (max-width: 769px) {
+    nav.pdoc .nav-header:has(input[type=search]:valid) ~ * {
+        display: none !important;
+    }
+    nav.pdoc .nav-title {
+        max-width: 77%;
     }
 }
 

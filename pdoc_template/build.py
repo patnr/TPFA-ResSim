@@ -12,9 +12,14 @@ Run it from the repo root: `uv run pdoc_template/build.py` (output in `docs/`). 
 - The sidebar's "Contents" (the README's headings) goes one level deeper than pdoc's
   default of 2. That depth is set in a Python dict that neither the CLI nor the template
   can reach.
+- The math is kept out of markdown's way (`to_html` below): pdoc's markdown2 runs before
+  MathJax and reads the TeX as text, so a `$$` line starting with an operator becomes a
+  bullet, `\\` collapses to `\`, and `\{` loses its backslash.
 """
 
+import html
 import importlib
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -57,10 +62,34 @@ import collage  # noqa: E402  (a sibling of this script, which is `sys.path[0]`)
 for file in collage.make(root):
     shutil.copy(file, out / file.name)
 
+# Markdown must not touch the math. Each `$...$`/`$$...$$` span becomes a placeholder
+# while markdown2 runs, and is put back (escaped, as markdown2 would have) afterwards.
+# Otherwise a `$$` continuation line beginning `+ ...` or `- ...` becomes a bullet,
+# splitting the pair; `\\` becomes `\`; and `\{`, `\}`, `\!` lose their backslash.
+# Tracked as mitmproxy/pdoc#639 and #781; the maintainer's stated fix is this exemption.
+_math = re.compile(r"\$\$.+?\$\$|\$(?!\s*\$)(?:(?!\n\n)[^$])+?\$", re.S)
+
+
+def to_html(docstring: str) -> str:
+    """`pdoc.render_helpers.to_html`, with the math spans hidden from markdown2."""
+    spans: list[str] = []
+
+    def hide(m: re.Match) -> str:
+        spans.append(m.group(0))
+        return f"MATHSPAN{len(spans) - 1}END"
+
+    def restore(m: re.Match) -> str:
+        return html.escape(spans[int(m.group(1))], quote=False)
+
+    rendered = pdoc.render_helpers.to_html(_math.sub(hide, docstring))
+    return re.sub(r"MATHSPAN(\d+)END", restore, rendered)
+
+
 # Render. The template (`module.html.jinja2`) reads `example_figures`.
 toc = cast(dict, pdoc.render_helpers.markdown_extensions["toc"])
 toc["depth"] = 3
 pdoc.render.configure(math=True, template_directory=here)
+pdoc.render.env.filters["to_html"] = to_html
 template_globals: dict[str, Any] = pdoc.render.env.globals
 template_globals["example_figures"] = figures
 pdoc.pdoc(root / "TPFA_ResSim", root / "examples", output_directory=out)

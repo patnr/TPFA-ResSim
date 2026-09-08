@@ -17,10 +17,23 @@ By contrast, the plotting module depicts `x` from left to right, `y` from bottom
 """
 
 from dataclasses import dataclass
-from typing import overload
+from typing import NamedTuple, overload
 
 import numpy as np
 import numpy.typing as npt
+
+
+class Fluxes(NamedTuple):
+    """Data container with dot (attr) access for cell face fluxes. Mimicks matlab code.
+
+    Positive is in the direction of increasing index. The fluxes through the
+    *boundary* faces are `0`: the reservoir is closed (no-flow) all around.
+    """
+
+    x: np.ndarray
+    """Fluxes through the x-normal faces. Shape `(Nx+1, Ny)`."""
+    y: np.ndarray
+    """Fluxes through the y-normal faces. Shape `(Nx, Ny+1)`."""
 
 
 @dataclass
