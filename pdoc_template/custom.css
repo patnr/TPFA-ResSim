@@ -132,6 +132,15 @@ nav.pdoc footer a {
     }
 }
 
+/* Images in the prose (the collages of the package and examples pages, `collage.py`),
+   which pdoc does not otherwise size: never wider than the column. */
+.pdoc .docstring img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: 1.5rem auto;
+}
+
 /* An example's figures (`module.html.jinja2`, saved by `build.py`), between its
    prose and its source. Scaled to the column; captioned by the figure's label. */
 .pdoc figure.example-figure {
