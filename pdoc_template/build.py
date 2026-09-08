@@ -81,8 +81,17 @@ def to_html(docstring: str) -> str:
     def restore(m: re.Match) -> str:
         return html.escape(spans[int(m.group(1))], quote=False)
 
+    def unhide(rendered: str) -> str:
+        return re.sub(r"MATHSPAN(\d+)END", restore, rendered)
+
     rendered = pdoc.render_helpers.to_html(_math.sub(hide, docstring))
-    return re.sub(r"MATHSPAN(\d+)END", restore, rendered)
+    # markdown2 returns a `str` subclass (its `UnicodeWithAttrs`) carrying the table of
+    # contents as `toc_html`, which the sidebar's "Contents" reads. `re.sub` returns a
+    # bare `str`, so rebuild the subclass and carry the attribute over.
+    page: Any = type(rendered)(unhide(rendered))
+    contents = getattr(rendered, "toc_html", None)
+    page.toc_html = unhide(contents) if contents else contents
+    return page
 
 
 # Render. The template (`module.html.jinja2`) reads `example_figures`.
