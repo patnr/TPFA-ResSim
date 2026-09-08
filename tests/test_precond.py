@@ -61,16 +61,16 @@ def model(vw=1.0, ct=0.0, N=32, seed=4, **kwargs):
 
 def count_factorizations(m, monkeypatch):
     """Instrument `splu` (as imported by the module) to count its calls."""
-    import TPFA_ResSim
+    from TPFA_ResSim import core
 
     calls = []
-    orig = TPFA_ResSim.splu
+    orig = core.splu
 
     def counting(*args, **kwargs):
         calls.append(1)
         return orig(*args, **kwargs)
 
-    monkeypatch.setattr(TPFA_ResSim, "splu", counting)
+    monkeypatch.setattr(core, "splu", counting)
     return calls
 
 

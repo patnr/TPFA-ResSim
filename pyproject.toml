@@ -21,7 +21,7 @@ dependencies = [
 # particular `pdbpp`, which shadows the stdlib `pdb` that both pytest and
 # `doctest` import, so an interpreter it dislikes breaks *collection*.
 test = ["pytest>=7.1.3,<8"]
-docs = ["pdoc>=14.2,<15"]
+docs = ["pdoc>=16,<17"]
 # The default group, i.e. plain `uv sync`: the above, plus the tools for
 # working on the code by hand.
 dev = [

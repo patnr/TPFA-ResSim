@@ -16,9 +16,10 @@ of the production to it. The `examples` have pages of their own here.
 The simulator solves eqn. (1) and (2)
 (corresponding to (42) and (43) of the [reference paper][1]) :
 
-$$- \nabla \cdot \mathbf{K} \lambda(s) \, \nabla p = q \,, \tag{1}$$
-$$\; \phi \frac{\partial s}{\partial t}
-+ \nabla \cdot (f(s)\, \mathbf{v}) = \frac{q_w}{\rho_w} \,. \tag{2}$$
+$$\begin{align}
+    - \nabla \cdot \mathbf{K} \lambda(s) \, \nabla p &= q \,, \tag{1} \cr
+    \phi \frac{\partial s}{\partial t} + \nabla \cdot (f(s)\, \mathbf{v}) &= \frac{q_w}{\rho_w} \,. \tag{2}
+\end{align}$$
 
 The quantities involved are all 2D-spatial fields, namely
 
@@ -28,28 +29,20 @@ The quantities involved are all 2D-spatial fields, namely
 - $v$ is the (volumetric) flow velocity ($\mathbf{v} = \mathbf{v}_o + \mathbf{v}_w$).
 - $q$ is the sources/sinks
 - $\rho$ is the density
+- $\mathbf{K}$ is the (absolute) permeability tensor: the rock's conductivity to
+  flow, here diagonal, $\mathrm{diag}(K_x, K_y)$ per cell.
 - $\lambda(s)$ is the total mobility (sum of mobilities).
   Each (relative) mobility is the phase relative permeability
   divided by the phase viscosity, $\lambda_{\text{phase}} = k_{\text{phase}}/\mu_{\text{phase}}$.
-- $f(s) = \lambda_w / \lambda \in [0, 1]$ is the water fractional flow,
-  where both mobilities depend on $s$.
-  It gives $\mathbf{v}_w = f(s) \, \mathbf{v}$.
+  - The relative permeabilities $k_{\text{phase}}(s) \in [0, 1]$ are a *constitutive
+    relation*, not data: here, quadratic (Corey) curves of the saturation rescaled by
+    its residual values (`ResSim.RelPerm`). Need not sum to 1.
+  - $\mu_{\text{phase}}$ is the phase viscosity, here constant.
+- $f(s) = \lambda_w(s) / \lambda(s) \in [0, 1]$ is the water fractional flow,
+  giving $\mathbf{v}_w = f(s) \, \mathbf{v}$.
 
 The right hand side of (2) is further simplified (relabelled) as $q$,
 i.e. dropping the $w$ (for "water") subscripts.
-
-.. note:: Relative permeabilities are a constituent relation, not data.
-
-    $k_{\text{phase}} \in [0, 1]$ are set via a relation
-    that is a function of the (reducible) saturation.
-    They do not generally sum to 1.
-    Their approximation and uncertainty is significant,
-    but usually less important than those of the absolute permeability, $\mathbf{K}$.
-
-These are the equations of the *incompressible* model,
-which is the default here. Compressibility is treated further below,
-as an extension of the solution method.
-
 
 ### Derivation
 
@@ -95,17 +88,11 @@ Finally, $u$ can be inserted in Darcy's law (5) to yield the (steady-state) velo
 - Summing Darcy's law over the two phases yields
   $$\mathbf{v} = − \mathbf{K} \lambda (s) \nabla p \,. \tag{7}$$
 - Repeating the steps right above eqn. (6), one arrives at eqn. (1).
-- Meanwhile, conservation of mass (3)
-  for a *single*, incompressible phase is obtained by
-  replacing the density $\rho$ in eqn. (3)
+- Meanwhile, *immiscibility* means that conservation of mass (3) must hold for each phase separately,
+  i.e. the density $\rho$ gets replaced
   by $s_{\text{phase}} \, \rho_{\text{phase}}$,
-  and $\mathbf{v}$ by $\mathbf{v}_{\text{phase}} = f_{\text{phase}}(s)\, \mathbf{v}$.
-  This immediately yields eqn. (2).
-  It is here that *immiscibility* enters: each phase occupies its own share of the
-  pore volume ($s_w + s_o = 1$) and conserves its own mass, so that eqn. (3) holds
-  per phase, with no exchange term between them
-  (and hence no dependence of $\rho$ or $\mu$ on composition).
-
+  and $\mathbf{v}$ by $\mathbf{v}_{\text{phase}} = f_{\text{phase}}(s)\, \mathbf{v}$,
+  immediately yielding eqn. (2).
 
 ### How to solve
 
@@ -177,8 +164,8 @@ the time steps (`ResSim.cached_precond`).
 
 .. note:: The pressure system need not be factorized afresh each step.
 
-    Its matrix changes only through the mobility $λ(s)$ (and, with $c_t > 0$,
-    the accumulation term), so the factorization of an earlier step is an
+    Its matrix changes only through the mobility $λ(s)$,
+    so the factorization of an earlier step is an
     excellent **preconditioner** for the current one, at the cost of
     a back-substitution, and a refactorization only once the iteration stalls.
     `tests/test_precond.py` benchmarks.
@@ -193,47 +180,51 @@ switched on by setting `TPFA_ResSim.ResSim.ct` ($c_t$) $> 0$.
 ### Definition
 
 The **compressibility** of anything (rock or fluid) is the relative change of its
-volume per unit change of pressure, $c = -\frac{1}{V} \frac{\partial V}{\partial p}$,
-equivalently $+\frac{1}{\rho} \frac{\partial \rho}{\partial p}$ for a fluid.
-For the rock it is the *pore* volume that is meant,
-so that $c_r = \frac{1}{\phi} \frac{\partial \phi}{\partial p}$.
-Water is around $5 \cdot 10^{-10}\, \mathrm{Pa}^{-1}$, oil a few times more,
-the rock of the same order, but *gas* is around $1/p$,
-i.e. two orders of magnitude larger at reservoir pressures (and more as they drop)
--- which is why the presence of free gas dominates everything.
-The **slightly compressible** approximation takes $c$ to be *constant*,
-so that $\rho \propto e^{c (p - p_0)} \approx \rho_0 [1 + c (p - p_0)]$;
-this keeps the pressure equation linear,
-and is reasonable for liquids, but not for gas.
+volume by pressure, $c = -\frac{1}{V} \frac{\partial V}{\partial p}$.
+For rock (pores) it becomes $c_r = \frac{1}{\phi} \frac{\partial \phi}{\partial p}$,
+while for fluids it is $c_f = \frac{1}{\rho} \frac{\partial \rho}{\partial p}$.
+With two phases, the fluid in the pores is a mixture,
+so that the **total compressibility** is the saturation-weighted sum
+$c_t = c_r + s_w c_w + s_o c_o$.
+
+### Approximation
+
+The model, however, holds it as a single *constant*, `ct`,
+so it is accurate to $O(c_t)$ alone -- the *slightly* of slightly compressible,
+which is reasonable for liquids, but not for gas.
+Thus $\rho \propto e^{c (p - p_0)}$, which the approximation retains only to
+first order, $\rho \approx \rho_0 [1 + c (p - p_0)]$: a density affine in $p$.
+
+Note that $\rho(p)$ (and thus nonlinearity in $p$) also appears through the source term (wells):
+a rate fixed at the surface moves a reservoir volume $\propto 1/\rho(p)$.
+Here it is approximated as a constant (the formation volume factor $B = 1$),
+or, for a BHP well, as linear in $p$ (Peaceman).
 
 ### Derivation
 
 Return to the conservation of mass (3), now with $\rho = \rho(p)$ and $\phi = \phi(p)$.
-By the chain rule and the definitions above, the accumulation term becomes
+By the chain rule and the definitions (constant $c$) above, the accumulation term becomes
 $$\frac{\partial (\rho \phi)}{\partial t}
 = \rho \, \phi \, (c_r + c_f) \, \frac{\partial p}{\partial t} \,,$$
 where $c_f$ is the compressibility of the fluid filling the pores.
-In the flux term, $\nabla \cdot (\rho \mathbf{v})
-= \rho \, \nabla \cdot \mathbf{v} + \mathbf{v} \cdot \nabla \rho$,
-the latter is $O(c)$ relative to the former (since $\nabla \rho = \rho \, c \, \nabla p$),
-and is dropped -- as is the pressure dependence of $\rho$ in the wells,
-so that reservoir and surface volumes are not distinguished ($B = 1$, see below).
-Dividing by $\rho$ and inserting Darcy's law (7), eqn. (1) acquires a time derivative:
-$$\phi \, c_t \frac{\partial p}{\partial t}
-- \nabla \cdot \mathbf{K} \lambda(s) \, \nabla p = q \,. \tag{11}$$
-With two phases, the fluid in the pores is a mixture,
-so that the **total compressibility** is the saturation-weighted sum
-$c_t = c_r + s_w c_w + s_o c_o$.
-The model, however, holds it as a single *constant*, `ct`,
-so it is accurate to $O(c_t)$ alone -- the *slightly* of slightly compressible.
+Meanwhile, in the flux term,
+$\nabla \cdot (\rho \mathbf{v}) = \rho \, \nabla \cdot \mathbf{v} + \mathbf{v} \cdot \nabla \rho$,
+the latter term is $O(c)$ relative to the former
+(since $\nabla \rho = \rho \, c \, \nabla p$ thanks to constant $c$),
+and is therefore dropped, an approximation equivalent to the affine one above.
+Dividing by $\rho$ and inserting Darcy's law (7),
+we recover eqn. (1) except now with a time derivative:
+$$\phi \, c_t \frac{\partial p}{\partial t} - \nabla \cdot \mathbf{K} \lambda(s) \, \nabla p = q \,. \tag{11}$$
+Eqn. (11) is parabolic: a *diffusion* equation for pressure,
+whose coefficient $\eta = \mathbf{K} \lambda / (\phi \, c_t)$
+is the (pressure, or hydraulic) **diffusivity**.
 
 The transport equation (2) needs a corresponding term.
-The total velocity is no longer divergence-free: by eqn. (11),
+The total velocity is no longer divergence-free: by eqn. (11) and reverting Darcy's law (7),
 $\nabla \cdot \mathbf{v} = q - \phi \, c_t \, \partial p / \partial t$,
 so the storage must be charged to the phases.
 This model does so in proportion to their saturation,
-$$\phi \frac{\partial s}{\partial t} + s \, \phi \, c_t \frac{\partial p}{\partial t}
-+ \nabla \cdot (f(s)\, \mathbf{v}) = q_w \,, \tag{12}$$
+$$\phi \frac{\partial s}{\partial t} + s \, \phi \, c_t \frac{\partial p}{\partial t} + \nabla \cdot (f(s)\, \mathbf{v}) = q_w \,, \tag{12}$$
 which is what makes the water and oil equations sum to eqn. (11),
 so that e.g. depleting a fully water-saturated reservoir leaves $s = 1$,
 rather than conjuring oil out of the produced volume.
@@ -245,15 +236,23 @@ Both new terms vanish for $c_t = 0$, recovering eqns. (1) and (2) exactly.
 
 ### Consequences
 
-Eqn. (11) is parabolic: a *diffusion* equation for pressure,
-whose coefficient $\eta = \mathbf{K} \lambda / (\phi \, c_t)$
-is the (pressure, or hydraulic) **diffusivity**.
-It is discretized here by backward Euler over the same $\Delta t$ as the saturation step,
+The now parabolic pressure equation (11)
+is discretized here by backward Euler over the same $\Delta t$ as the saturation step,
 which adds $\phi \, c_t \, h^2 / \Delta t$ to the diagonal of the system (10),
-rendering it nonsingular without the pinning of the first element.
-Compared to the incompressible model:
+rendering it nonsingular without pinning.
+Thus **the solution method survives.**
+The sequential splitting remains applicable,
+and the pressure step is still *one* sparse linear solve,
+with no Newton iteration on $p$, and no PVT properties
+($\rho$, $\mu$, $B$, $\phi$) to update with the pressure.
 
 - The absolute pressure level is meaningful, so an initial pressure must be given.
+  However, the datum remains arbitrary. Eqn. (11) involves $p$ only through its derivatives,
+  so shifting `P0` (and any BHP targets) by a constant shifts the whole pressure
+  trajectory by it, leaving saturations and rates untouched. The level is thus
+  *consequential* (unlike for $c_t = 0$, it is propagated, not free) but only
+  relative to the initial one. An absolute pressure would enter only through
+  pressure-dependent properties -- precisely what the approximation drops.
 - Sources and sinks need not balance.
   The imbalance -- the **voidage**, production minus injection --
   is supplied by expansion, permitting *primary depletion* by a lone producer.
@@ -261,6 +260,9 @@ Compared to the incompressible model:
   $c_t \, \Delta \bar{p} = V_{\text{voidage}} / V_{\text{pore}}$,
   so the fidelity requirement, $c_t \, \Delta p \ll 1$,
   is a matter of the voidage asked of the fluids, not of choosing `ct` small.
+  Linearity again: the mean pressure declines in proportion to the *cumulative*
+  voidage, whatever its distribution in space or time -- the straight line of the
+  material-balance plot (ref "Vocabulary"), by which pore volume is estimated.
 - Pressure is *transient* rather than instantaneous:
   $\sqrt{\eta t}$ is the *radius of investigation*, how far a well has "felt" after time $t$.
   Flow is called **transient** while that radius is still growing,
@@ -269,36 +271,12 @@ Compared to the incompressible model:
   **Well testing** is the inverse problem of inferring $\mathbf{K}$ and the skin
   (ref `TPFA_ResSim.wells.peaceman_WI`) from a measured transient,
   typically during the *build-up* after shutting a well in -- as `examples.buildup` does.
-
-### Vocabulary
-
-Since compressibility relates volumes to pressure,
-a volume must be qualified by where it is measured.
-The **formation volume factor**, $B$, is the ratio of the volume at reservoir conditions
-to that of the same mass at the surface ("stock tank"),
-and is how field rates (measured at the surface) are converted
-to the reservoir rates that a simulator works in. This model has $B = 1$.
-Related **PVT** (pressure-volume-temperature) vocabulary:
-the **bubble point** is the pressure below which gas comes out of solution;
-an oil above it is **undersaturated**, and the amount of gas it holds is the
-*solution gas-oil ratio*, $R_s$.
-
-The **drive mechanism** is whatever supplies the energy that pushes the
-hydrocarbons to the well. *Fluid and rock expansion* (a.k.a. **depletion drive**),
-which is what $c_t > 0$ enables here in the absence of injection,
-is the weakest, recovering only a few percent, because $c_t$ is so small.
-Stronger ones are *solution gas drive*, *gas cap drive*, *water drive* (aquifers),
-*gravity drainage*, and *compaction drive* (which manifests as seabed subsidence).
-Recovery is staged: **primary** production runs on the native drive;
-**secondary** adds *pressure support* by injecting water or gas
-(**waterflooding** being the case simulated here);
-**tertiary**, or **EOR** (enhanced oil recovery), alters the flow physics itself,
-e.g. by polymer, surfactant, or CO₂ injection.
-The **voidage replacement ratio** is the injected reservoir volume divided by the
-produced one; $\mathrm{VRR} = 1$ is exactly the balance, $\sum q = 0$,
-that the incompressible model is obliged to impose.
-The zero-dimensional (single tank) accounting of all of the above,
-used to estimate reserves without a grid, is called **material balance**.
+  By the linear approximations, **superposition holds**, in space and in time: a shut-in is a flowing well plus an
+  equal and opposite one started at the shut-in, and the pressure anywhere is the
+  sum of the wells' individual transients. This is what makes **well testing** an
+  *analytical* inference method -- the line-source solution, the Horner plot, and the
+  semilog-derivative plateau that `examples.buildup` reads $\mathbf{K}$ off,
+  are all solutions of the *linear* diffusion equation.
 
 ## Sensitivities
 
@@ -498,6 +476,34 @@ the enormous uncertainty of the rock permeability.
 Everything depends on *thermodynamics*, but this is often complex and neglected,
 except perhaps for the bubble/boiling point pressures,
 which govern how much of the gas dissolves in oil.
+
+Since *compressibility* relates volumes to pressure,
+a volume must be qualified by where it is measured.
+The **formation volume factor**, $B$, is the ratio of the volume at reservoir conditions
+to that of the same mass at the surface ("stock tank"),
+and is how field rates (measured at the surface) are converted
+to the reservoir rates that a simulator works in. This model has $B = 1$.
+Related **PVT** (pressure-volume-temperature) vocabulary:
+the **bubble point** is the pressure below which gas comes out of solution;
+an oil above it is **undersaturated**, and the amount of gas it holds is the
+*solution gas-oil ratio*, $R_s$.
+
+The **drive mechanism** is whatever supplies the energy that pushes the
+hydrocarbons to the well. *Fluid and rock expansion* (a.k.a. **depletion drive**),
+which is what $c_t > 0$ enables here in the absence of injection,
+is the weakest, recovering only a few percent, because $c_t$ is so small.
+Stronger ones are *solution gas drive*, *gas cap drive*, *water drive* (aquifers),
+*gravity drainage*, and *compaction drive* (which manifests as seabed subsidence).
+Recovery is staged: **primary** production runs on the native drive;
+**secondary** adds *pressure support* by injecting water or gas
+(**waterflooding** being the case simulated here);
+**tertiary**, or **EOR** (enhanced oil recovery), alters the flow physics itself,
+e.g. by polymer, surfactant, or CO₂ injection.
+The **voidage replacement ratio** is the injected reservoir volume divided by the
+produced one; $\mathrm{VRR} = 1$ is exactly the balance, $\sum q = 0$,
+that the incompressible model is obliged to impose.
+The zero-dimensional (single tank) accounting of all of the above,
+used to estimate reserves without a grid, is called **material balance**.
 
 **Aquifers** are beneficial in reservoirs as they act as pressure compensators.
 Oil production ⇒ pressure decrease ⇒ aquifers expansion ⇒ pressure compensation.
