@@ -166,7 +166,7 @@ the time steps (`ResSim.cached_precond`).
     a back-substitution, and a refactorization only once the iteration stalls.
     `tests/test_precond.py` benchmarks.
 
-## Units
+### Units
 
 The units are by default SI (m, s, Pa).
 But you can switch to metric (m, day, bar, mD)

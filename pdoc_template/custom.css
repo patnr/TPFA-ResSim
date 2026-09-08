@@ -177,6 +177,32 @@ nav.pdoc ul.nav-roots li a.current {
     margin: 1.5rem auto;
 }
 
+/* The README's headings (the `.module-info` section, the only docstring with any):
+   pdoc leaves their sizes to the browser and thins them to weight 300, so its `##` and
+   `###` are hard to tell apart. A ladder instead: sections ruled off, subsections
+   compact and bold, and the level below them a small label like the sidebar's. */
+.pdoc .module-info .docstring h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 2.5rem 0 .75rem;
+    padding: 0 0 .25rem;
+    border-bottom: 1px solid var(--accent2);
+}
+.pdoc .module-info .docstring h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 1.75rem 0 .5rem;
+    padding: 0;
+}
+.pdoc .module-info .docstring h4 {
+    font-size: .8rem;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 1.5rem 0 .5rem;
+}
+
 /* An example's figures (`module.html.jinja2`, saved by `build.py`), between its
    prose and its source. Scaled to the column; captioned by the figure's label. */
 .pdoc figure.example-figure {
