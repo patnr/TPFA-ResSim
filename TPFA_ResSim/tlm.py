@@ -94,8 +94,8 @@ BHP-controlled wells (`Tape.bhp_diag`, and the matching right-hand side, both
 proportional to $λ_t$ in the well cells); then, for each of the `nT` sub-steps,
 
 $$ s ← s + \\frac{Δt}{n_T \\, |Ω|}
-   \\Big( -∇^T \\big( v ⊙ \\mathrm{Up}(v) \\, f(s) \\big)
-   + Q^- f(s) + Q^+ - s \\, \\mathrm{st} \\Big) \\,, $$
+   \\Big( -∇^T \\big( v ⊙ \\mathrm{Up}(v) \\, f(s) \\big) +
+   Q^- f(s) + Q^+ - s \\, \\mathrm{st} \\Big) \\,, $$
 
 with `Up` the $ (n_F × N) $ upwind *selector* (1 in the column of the face's
 upwind cell) and `st` the storage rate (0 if incompressible). This recasts the

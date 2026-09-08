@@ -16,9 +16,10 @@ of the production to it. The `examples` have pages of their own here.
 The simulator solves eqn. (1) and (2)
 (corresponding to (42) and (43) of the [reference paper][1]) :
 
-$$- \nabla \cdot \mathbf{K} \lambda(s) \, \nabla p = q \,, \tag{1}$$
-$$\; \phi \frac{\partial s}{\partial t}
-+ \nabla \cdot (f(s)\, \mathbf{v}) = \frac{q_w}{\rho_w} \,. \tag{2}$$
+$$\begin{align}
+    - \nabla \cdot \mathbf{K} \lambda(s) \, \nabla p &= q \,, \tag{1} \cr
+    \phi \frac{\partial s}{\partial t} + \nabla \cdot (f(s)\, \mathbf{v}) &= \frac{q_w}{\rho_w} \,. \tag{2}
+\end{align}$$
 
 The quantities involved are all 2D-spatial fields, namely
 
@@ -219,8 +220,7 @@ the latter is $O(c)$ relative to the former (since $\nabla \rho = \rho \, c \, \
 and is dropped -- as is the pressure dependence of $\rho$ in the wells,
 so that reservoir and surface volumes are not distinguished ($B = 1$, see below).
 Dividing by $\rho$ and inserting Darcy's law (7), eqn. (1) acquires a time derivative:
-$$\phi \, c_t \frac{\partial p}{\partial t}
-- \nabla \cdot \mathbf{K} \lambda(s) \, \nabla p = q \,. \tag{11}$$
+$$\phi \, c_t \frac{\partial p}{\partial t} - \nabla \cdot \mathbf{K} \lambda(s) \, \nabla p = q \,. \tag{11}$$
 With two phases, the fluid in the pores is a mixture,
 so that the **total compressibility** is the saturation-weighted sum
 $c_t = c_r + s_w c_w + s_o c_o$.
@@ -232,8 +232,7 @@ The total velocity is no longer divergence-free: by eqn. (11),
 $\nabla \cdot \mathbf{v} = q - \phi \, c_t \, \partial p / \partial t$,
 so the storage must be charged to the phases.
 This model does so in proportion to their saturation,
-$$\phi \frac{\partial s}{\partial t} + s \, \phi \, c_t \frac{\partial p}{\partial t}
-+ \nabla \cdot (f(s)\, \mathbf{v}) = q_w \,, \tag{12}$$
+$$\phi \frac{\partial s}{\partial t} + s \, \phi \, c_t \frac{\partial p}{\partial t} + \nabla \cdot (f(s)\, \mathbf{v}) = q_w \,, \tag{12}$$
 which is what makes the water and oil equations sum to eqn. (11),
 so that e.g. depleting a fully water-saturated reservoir leaves $s = 1$,
 rather than conjuring oil out of the produced volume.
