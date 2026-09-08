@@ -154,16 +154,14 @@ re-deriving.)
 """
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, NamedTuple
+from typing import Any, Callable, NamedTuple
 
 import numpy as np
 from scipy import sparse
 from scipy.sparse.linalg import splu
 
 from TPFA_ResSim._repr import AlignedRepr
-
-if TYPE_CHECKING:
-    from TPFA_ResSim import ResSim
+from TPFA_ResSim.core import ResSim
 
 
 class Gradient(NamedTuple):
@@ -177,7 +175,7 @@ class Gradient(NamedTuple):
     """W.r.t. $ \\log K $, shaped like `K`: `(2, Nx, Ny)`. Sum over axis `0` if isotropic."""
 
 
-def face_operators(model: "ResSim") -> tuple:
+def face_operators(model: ResSim) -> tuple:
     """The interior faces of the grid, and the sparse operators on them.
 
     Returns `(lo, hi, Grad, Sum, g)`:
@@ -219,7 +217,7 @@ def face_operators(model: "ResSim") -> tuple:
     return lo, hi, Grad, Sum, g
 
 
-def fractional_flow(model: "ResSim", S: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def fractional_flow(model: ResSim, S: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """The water fractional flow, $ f_w = λ_w / λ_t $, and its derivative wrt. `S`."""
     Mw, Mo = model.RelPerm(S)
     dMw, dMo = model.dRelPerm(S)
@@ -239,7 +237,7 @@ class Tape(AlignedRepr):
 
     __repr__ = AlignedRepr.__repr__
 
-    model: Any
+    model: ResSim
     """The model whose step this linearizes (for `RelPerm`, `ct`, ...)."""
     dt: float
     """The time step."""
@@ -307,7 +305,7 @@ class Tape(AlignedRepr):
 
 
 def linearize(
-    model: "ResSim",
+    model: ResSim,
     dt: float,
     S: np.ndarray,
     P: np.ndarray | None,
@@ -480,7 +478,7 @@ def adj_step(
 
 
 def adjoint(
-    model: "ResSim",
+    model: ResSim,
     dt: float,
     SS: np.ndarray,
     PP: np.ndarray,
