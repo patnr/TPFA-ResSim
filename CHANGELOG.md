@@ -48,8 +48,9 @@ should pin a tag (or commit hash) and advance it deliberately.
   recomputes a step of `time_stepper` (from the trajectory that `sim` returns)
   into a `Tape`, `adj_step` propagates a sensitivity back through it, and
   `adjoint` sweeps a whole trajectory, returning the gradient of an objective
-  with respect to `S0`, `P0` and `log K` at the cost of about one `sim`. The
-  other parameters, the controls' dependence on the state, and the discrete
+  with respect to `S0`, `P0`, `log K` and the BHP controls (`Gradient.bhp`,
+  per completion and time step) at the cost of about one `sim`. The other
+  parameters, the controls' dependence on the state, and the discrete
   decisions (sub-step count, upwind directions) are held fixed; explicit scheme
   only. Verified against finite differences (`tests/test_tlm.py`); derivation
   and caveats in the module docstring. Illustrated by

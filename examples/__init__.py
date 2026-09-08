@@ -53,10 +53,11 @@ The next ones illustrate what slight compressibility (`TPFA_ResSim.ResSim.ct` > 
   the oil is instead driven by expansion.
 
 The last two illustrate the adjoint (`TPFA_ResSim.tlm`), i.e. gradients of an
-objective wrt the initial state and the permeability field, checked against finite
-differences:
+objective wrt the initial state, the permeability field and the BHP controls, checked
+against finite differences:
 
-- `examples.water_cut_gradient`: the sensitivity of the producers' water cut.
+- `examples.water_cut_gradient`: the sensitivity of one producer's water cut, to the
+  permeability field and to the producers' BHP schedule.
 - `examples.history_match_gradient`: a few steepest-descent steps towards a
   synthetic truth.
 """

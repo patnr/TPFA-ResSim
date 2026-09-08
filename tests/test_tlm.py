@@ -2,15 +2,18 @@
 
 It is hand-derived, so the test that matters is the gradient it returns, of an
 objective of the whole trajectory, against a finite difference of that
-objective -- in a random direction of `(S0, P0, log K)`, on configurations
-that exercise each term: heterogeneous `K` (the harmonic averaging),
-irreducible saturations and a viscosity contrast (the mobilities),
+objective -- in a random direction of `(S0, P0, log K, bhp)`, on
+configurations that exercise each term: heterogeneous `K` (the harmonic
+averaging), irreducible saturations and a viscosity contrast (the mobilities),
 compressibility (the accumulation and storage terms, through which `P0`
-matters), BHP-controlled wells (the well model in the system and the realized
-rates), the pinned, incompressible pressure system, a 1D row (`Ny = 1`: no
-y-faces), and inactive cells (`active`: omitted faces, identity rows, and the
-pin moved off cell 0), and an aquifer (BHP completions on the boundary, ref
-`aquifer_WI`, supplying a lone producer). The tapes are of the *unperturbed* run, as they are in use.
+matters), BHP-controlled wells (the well model in the system, the realized
+rates, and the BHP *schedule* as a parameter -- made a full `(nComp, nSteps)`
+one, so that each step's entry of the gradient is checked), the pinned,
+incompressible pressure system, a 1D row (`Ny = 1`: no y-faces), inactive
+cells (`active`: omitted faces, identity rows, and the pin moved off cell 0),
+and an aquifer (BHP completions on the boundary, ref `aquifer_WI`, supplying a
+lone producer -- so its gradient is the sensitivity to the aquifer pressure).
+The tapes are of the *unperturbed* run, as they are in use.
 
 Central differences with `eps = 1e-5` on a smooth map should agree to
 ~`1e-8` (the truncation error grows as `eps²`, the round-off of the differenced
@@ -99,30 +102,40 @@ def make_case(name):
     P0 = 1 + rng.random(N)
     dS0, dP0 = rng.standard_normal((2, N))
     dlogK = rng.standard_normal(model.K.shape)
-    return model, S0, P0, dS0, dP0, dlogK
+    # The BHP schedule, as a full `(nComp, nSteps)` one (perturbed where finite)
+    if model.wells.bhp is not None:
+        model.wells.bhp = np.repeat(model.wells.bhp, nSteps, axis=1)
+        dbhp = rng.standard_normal((model.nComp, nSteps))
+        dbhp = np.where(np.isfinite(model.wells.bhp), dbhp, 0)
+    else:
+        dbhp = np.zeros((model.nComp, nSteps))
+    return model, S0, P0, dS0, dP0, dlogK, dbhp
 
 
-def perturbed_sim(model, S0, P0, dS0, dP0, dlogK, eps):
-    """`sim` from the perturbed initial state and permeability."""
-    K = model.K.copy()
+def perturbed_sim(model, S0, P0, dS0, dP0, dlogK, dbhp, eps):
+    """`sim` from the perturbed initial state, permeability and BHP schedule."""
+    K, bhp = model.K.copy(), model.wells.bhp
     model.K = K * np.exp(eps * dlogK)
+    if bhp is not None:
+        model.wells.bhp = bhp + eps * dbhp
     SS, PP = model.sim(dt, nSteps, S0 + eps*dS0, P0 + eps*dP0, pbar=False)
-    model.K = K
+    model.K, model.wells.bhp = K, bhp
     return SS, PP
 
 
 @pytest.mark.parametrize("name", configs)
 def test_gradient_against_finite_difference(name):
     """`adjoint`'s gradient of a (random, linear) objective of the whole
-    trajectory, in a random direction of `(S0, P0, log K)`."""
-    model, S0, P0, dS0, dP0, dlogK = make_case(name)
+    trajectory, in a random direction of `(S0, P0, log K, bhp)`."""
+    model, S0, P0, dS0, dP0, dlogK, dbhp = make_case(name)
     SS, PP = model.sim(dt, nSteps, S0, P0, pbar=False)
     wS, wP = rng.standard_normal((2, *SS.shape))
     def J(SS, PP): return (wS * SS).sum() + (wP * PP).sum()
     grad = adjoint(model, dt, SS, PP, wS, wP)
-    directional = grad.S0 @ dS0 + grad.P0 @ dP0 + (grad.logK * dlogK).sum()
-    Jp = J(*perturbed_sim(model, S0, P0, dS0, dP0, dlogK, +eps))
-    Jm = J(*perturbed_sim(model, S0, P0, dS0, dP0, dlogK, -eps))
+    directional = (grad.S0 @ dS0 + grad.P0 @ dP0
+                   + (grad.logK * dlogK).sum() + (grad.bhp * dbhp).sum())
+    Jp = J(*perturbed_sim(model, S0, P0, dS0, dP0, dlogK, dbhp, +eps))
+    Jm = J(*perturbed_sim(model, S0, P0, dS0, dP0, dlogK, dbhp, -eps))
     assert abs((Jp - Jm) / (2*eps) - directional) < 1e-6 * abs(directional)
     # Every parameter contributes (else the test above proves less)
     assert abs(grad.S0).max() > 0 and abs(grad.logK).max() > 0
@@ -133,6 +146,10 @@ def test_gradient_against_finite_difference(name):
     assert np.allclose(grad.P0[~act], wP[:, ~act].sum(0))
     assert not grad.logK[:, ~model.active].any()
     assert grad.logK.shape == model.K.shape
+    # ... the BHP one at every step of every BHP-controlled completion, and nowhere else
+    assert grad.bhp.shape == (model.nComp, nSteps)
+    is_bhp = dbhp.any(axis=1)
+    assert (grad.bhp[is_bhp] != 0).all() and not grad.bhp[~is_bhp].any()
 
 
 @pytest.mark.parametrize("name", configs)
@@ -166,7 +183,7 @@ def test_face_operators_recast_the_assemblies():
 
 
 def test_adj_step_is_linear_and_leaves_its_inputs():
-    model, S0, P0, aS1, aP1, _ = make_case("bhp_compressible")
+    model, S0, P0, aS1, aP1, *_ = make_case("bhp_compressible")
     tape = linearize(model, dt, S0, P0, 0)
     aS1_, aP1_ = aS1.copy(), aP1.copy()
     a, b = 2.5, -1.5
@@ -180,7 +197,7 @@ def test_adj_step_is_linear_and_leaves_its_inputs():
 
 def test_incompressible_pressure_ignores_P0():
     """With `ct == 0` and rate control only, `P1` is a function of `S` alone."""
-    model, S0, P0, aS1, aP1, _ = make_case("incompressible")
+    model, S0, P0, aS1, aP1, *_ = make_case("incompressible")
     tape = linearize(model, dt, S0, P0, 0)
     assert np.array_equal(adj_step(tape, aS1, aP1)[1], 0 * P0)
 
