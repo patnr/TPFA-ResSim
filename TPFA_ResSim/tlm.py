@@ -51,6 +51,12 @@ True
 iterative solver's tolerance, $10^{-10}$, which `eps` would amplify a
 million-fold; the adjoint itself does not care.)
 
+The same check, on several configurations (incompressible, compressible,
+BHP-controlled, 1D), is `tests/test_tlm.py`. See `examples.water_cut_gradient`
+for the gradient of one producer's water cut with respect to the $ \\log K $
+field, and `examples.history_match_gradient` for that of a production-history
+misfit, put to use in a few descent steps.
+
 ## Seeding with an objective
 
 `adjoint` sweeps backwards along the trajectory, from the partial derivatives

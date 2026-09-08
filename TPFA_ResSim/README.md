@@ -5,9 +5,7 @@ using TPFA (two-point flux approximation).
 
 ![One waterflood: permeability, pressure, water front, and the adjoint sensitivity](collage.png)
 
-The collage is one waterflood (`examples.water_cut_gradient`), left to right: the
-permeability, the pressure it gives, the water it moves, and the adjoint's sensitivity
-of the production to it. The `examples` have pages of their own here.
+See `examples` for more demonstrations.
 
 ## Governing equations
 
@@ -109,12 +107,10 @@ meaning that the two equations are solved independently,
 inserting the previous solution of (1) into (2), and vice-versa.
 Since it yields smaller systems (which can potentially be discretized explicitly)
 this is faster, but less accurate.
-The simulator contains both an implicit and explicit (upwind) time discretization
-for the nearly-hyperbolic saturation equation.
-The implicit scheme for the saturation equation scheme does not appear to earn its keep,
-however, ref `ResSim.saturation_step_implicit`.
-When using the explicit one, the strategy is called IMPES
-(implicit pressure, explicit saturation).
+When using an explicit (upwind) scheme for the nearly-hyperbolic saturation/transport equation,
+the strategy is called IMPES (implicit pressure, explicit saturation).
+The simulator also contains implicit saturation scheme,
+but it rarely outperforms the explicit one, ref `ResSim.saturation_step_implicit`.
 
 The spatial discretization is carried out by finite volumes (FV),
 which is similar to finite differences (FD),
@@ -170,11 +166,16 @@ the time steps (`ResSim.cached_precond`).
     a back-substitution, and a refactorization only once the iteration stalls.
     `tests/test_precond.py` benchmarks.
 
+## Units
+
+The units are by default SI (m, s, Pa).
+But you can switch to metric (m, day, bar, mD)
+or field-like (ft, day, psi) by changing `ResSim.cdarcy`.
+
 ## Compressibility
 
-The above is the incompressible model, which is what the reference paper treats,
-and the default here. Optionally, the simulator adds compressibility,
-in the so-called *slightly compressible* approximation,
+The above is the default incompressible model, which is what the reference paper treats.
+Below we derive the so-called *slightly compressible* approximation,
 switched on by setting `TPFA_ResSim.ResSim.ct` ($c_t$) $> 0$.
 
 ### Definition
@@ -277,22 +278,6 @@ with no Newton iteration on $p$, and no PVT properties
   *analytical* inference method -- the line-source solution, the Horner plot, and the
   semilog-derivative plateau that `examples.buildup` reads $\mathbf{K}$ off,
   are all solutions of the *linear* diffusion equation.
-
-## Sensitivities
-
-`TPFA_ResSim.tlm` is the hand-derived adjoint of a time step with respect to
-the *state*, $ (s, p) $, and to $ \log K $: `tlm.linearize` recomputes a step
-(from the trajectory that `ResSim.sim` returns) into a `tlm.Tape`, and
-`tlm.adj_step` propagates a sensitivity back through it. Along a trajectory,
-`tlm.adjoint` turns the partials of an objective with respect to the stored
-states into its gradient with respect to `S0`, `P0` and $ \log K $, at the cost
-of about one more simulation. The step's tangent is a straight line of
-sparse-matrix and diagonal statements around one symmetric solve, and the
-adjoint is its reversal, statement by statement -- verified against finite
-differences of the objective in `tests/test_tlm.py`. See
-`examples.water_cut_gradient` for the gradient of one producer's water cut
-with respect to the $ \log K $ field, and `examples.history_match_gradient`
-for that of a production-history misfit, put to use in a few descent steps.
 
 ## Missing features, and alternatives
 

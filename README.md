@@ -20,12 +20,8 @@ the water it moves, and the adjoint's sensitivity of the production to it.*
 
 ## Examples
 
-The [`examples/`](https://github.com/patnr/TPFA-ResSim/tree/main/examples)
-can be run via (e.g.) `python examples/depletion.py`,
-and double as regression tests.
+The examples double as regression tests.
 Each has a page in the [documentation](https://patnr.github.io/TPFA-ResSim/examples.html).
-Both collages are drawn from their results (`pdoc_template/collage.py`);
-this one has a panel per feature:
 
 ![One panel per feature, from the examples](collage_features.png)
 
