@@ -34,18 +34,28 @@ The class link sits in the <summary>: clicking the *link* navigates without togg
 {% endmacro %}
 
 {#
-pdoc's, except on a top-level page, where pdoc's "Module Index" button (there being two
-roots, `TPFA_ResSim` and `examples`) leads to the other root instead; the index itself
-(`index.html.jinja2`) merely redirects to `TPFA_ResSim`.
+The head of the sidebar, replacing pdoc's (a button to the parent module or the index,
+a logo, the search box): the title, the search box, and a pair of tabs switching between
+the two roots, `TPFA_ResSim` and `examples`, the current one marked. Nested pages
+(`TPFA_ResSim.grid`, `examples.depletion`) get the same head, so the marked tab is also
+the way up to the root; pdoc's button is dropped. On wide screens the whole head stays
+put while the sidebar scrolls (`custom.css`).
 #}
+{% set to_root = "../" * module.modulename.count(".") %}
+{% set my_root = module.modulename.split(".")[0] %}
 {% block module_list_link %}
-    {% if "." in module.modulename %}
+    <div class="nav-header">
+        <a class="nav-title" href="{{ to_root }}TPFA_ResSim.html">TPFA-ResSim</a>
+{% endblock %}
+{% block search_box %}
         {{ super() }}
-    {% else %}
-        {% for name in all_modules if "." not in name and name != module.modulename %}
-            <a class="pdoc-button module-list-button" href="{{ name }}.html">{{ name }} &rarr;</a>
-        {% endfor %}
-    {% endif %}
+        <ul class="nav-roots">
+            {% for name in all_modules if "." not in name %}
+                {% set current = ' class="current" aria-current="page"' if name == my_root %}
+                <li><a href="{{ to_root }}{{ name }}.html"{{ current | safe }}>{{ name }}</a></li>
+            {% endfor %}
+        </ul>
+    </div>
 {% endblock %}
 
 {#
