@@ -1,22 +1,19 @@
 [![GitHub CI](https://github.com/patnr/TPFA-ResSim/actions/workflows/tests.yml/badge.svg)](https://github.com/patnr/TPFA-ResSim/actions)
 
-A 2D, two-phase, black-oil, immiscible, ~~incompressible~~
-reservoir simulator
+A 2D, two-phase, immiscible reservoir simulator
 using TPFA (two-point flux approximation).
-Both explicit and implicit time steppers are available.
 [**Documentation**](https://patnr.github.io/TPFA-ResSim/TPFA_ResSim.html).
 
-Based on [Matlab codes (2007)](http://folk.ntnu.no/andreas/papers/ResSimMatlab.pdf)
-from NTNU/Sintef by Jørg E. Aarnes, Tore Gimse, and Knut–Andreas Lie.  
-The Python code produces the same output as the Matlab version
-(up to errors from the linear solvers and randomness), including the illustrations below.
-Still, some changes have been made -- 2D instead of 3D, C-major index ordering,
-OOP, convenient well configuration, plotting, optional compressibility ([CHANGELOG.md](CHANGELOG.md)).
+- **small**: all of its physics fit in `core.py`'s 300 lines of code
+- **capable**: two-phase, slight compressibility, BHP control –
+  but 2D uniform grid, immiscible, isothermal, and only simple well models.
+- **adjoint** model included; verified against finite differences
+- **python**: easy to demo in a web browser via Colab or WASM
+- **fast**: comparable to JutulDarcy (but no waiting on JIT startup!) at equal accuracy on 2D two-phase cases
+- **reliable**: reproduces the numbers of the [Matlab code (2007)](http://folk.ntnu.no/andreas/papers/ResSimMatlab.pdf) from NTNU/Sintef by Jørg E. Aarnes, Tore Gimse, and Knut–Andreas Lie
+- extensively **tested** and **documented**
 
 ![One waterflood: permeability, pressure, water front, and the adjoint sensitivity](collage.png)
-
-*One waterflood, left to right: the permeability, the pressure it gives,
-the water it moves, and the adjoint's sensitivity of the production to it.*
 
 ## Examples
 
