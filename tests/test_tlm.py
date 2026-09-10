@@ -7,11 +7,14 @@ that exercise each term: heterogeneous `K` (the harmonic averaging),
 irreducible saturations and a viscosity contrast (the mobilities),
 compressibility (the accumulation and storage terms, through which `P0`
 matters), BHP-controlled wells (the well model in the system and the realized
-rates), the pinned, incompressible pressure system, and a 1D row (`Ny = 1`: no
-y-faces). The tapes are of the *unperturbed* run, as they are in use.
+rates), the pinned, incompressible pressure system, a 1D row (`Ny = 1`: no
+y-faces), and inactive cells (`active`: omitted faces, identity rows, and the
+pin moved off cell 0). The tapes are of the *unperturbed* run, as they are in use.
 
-Central differences with `eps = 1e-6` on a smooth map should agree to
-~`1e-8`; the tolerance below is a hundred times that. The models solve their
+Central differences with `eps = 1e-5` on a smooth map should agree to
+~`1e-8` (the truncation error grows as `eps²`, the round-off of the differenced
+objectives as `1/eps`, and this is about where they balance); the tolerance
+below is a hundred times that. The models solve their
 pressure directly (`cached_precond=False`) so that the iterative solver's
 tolerance (`1e-10`, amplified a million-fold by `eps`) does not enter the
 comparison -- the adjoint itself is indifferent (it factorizes its own system).
@@ -29,12 +32,22 @@ from TPFA_ResSim.tlm import adj_step, adjoint, face_operators, fractional_flow, 
 n = 12
 dt = .0337  # not a round number, lest `dt * 1/CFL` land on an integer
 nSteps = 3
-eps = 1e-6
+eps = 1e-5
 rng = np.random.default_rng(1)
 
 
 def K_het(shape=(n, n)):
     return np.exp(rng.standard_normal(shape))
+
+
+def mask():
+    """A hole, a fault reaching from the top down to the row above cell 0, and
+    that cell itself inactive (so that the pin moves)."""
+    active = np.ones((n, n), bool)
+    active[4:8, 4:8] = False
+    active[9, 1:] = False
+    active[0, 0] = False
+    return active
 
 
 configs: dict = {
@@ -58,6 +71,16 @@ configs: dict = {
     "row_1d": dict(
         Nx=3*n, Ny=1, K=K_het((3*n, 1)), ct=.1,
         wells=[dict(xy=[0, 0], rate=1), dict(xy=[1, 1], bhp=0, rw=1e-3)],
+    ),
+    "inactive_incompressible": dict(
+        K=K_het(), active=mask(), swc=.1, sor=.1, vo=2,
+        wells=[dict(xy=[.1, 0], rate=1), dict(xy=[.6, 1], rate=-1),
+               dict(xy=[1, 0], rate=.5), dict(xy=[1, 1], rate=-.5)],
+    ),
+    "inactive_bhp_compressible": dict(
+        K=K_het(), active=mask(), ct=.1,
+        wells=[dict(xy=[.1, 0], bhp=3, rw=1e-3), dict(xy=[.6, 1], rate=-1),
+               dict(xy=[1, 0], rate=.5), dict(xy=[1, 1], bhp=0, rw=1e-3)],
     ),
 }
 
@@ -97,7 +120,12 @@ def test_gradient_against_finite_difference(name):
     assert abs((Jp - Jm) / (2*eps) - directional) < 1e-6 * abs(directional)
     # Every parameter contributes (else the test above proves less)
     assert abs(grad.S0).max() > 0 and abs(grad.logK).max() > 0
-    assert (abs(grad.P0 - wP[0]).max() > 0) == (model.ct > 0)  # beyond the direct seed
+    act = model.active.ravel()
+    assert (abs(grad.P0 - wP[0])[act].max() > 0) == (model.ct > 0)  # beyond the direct seed
+    # An inactive cell's state is its initial state throughout, and it has no faces
+    assert np.allclose(grad.S0[~act], wS[:, ~act].sum(0))
+    assert np.allclose(grad.P0[~act], wP[:, ~act].sum(0))
+    assert not grad.logK[:, ~model.active].any()
     assert grad.logK.shape == model.K.shape
 
 

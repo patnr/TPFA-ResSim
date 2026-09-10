@@ -17,6 +17,8 @@ One panel per feature, drawn from their results:
   saturation equation is exactly solvable (by the Welge tangent construction),
   so here the numerical profile is compared with the truth rather than with
   ourselves, and the error is shown to vanish under grid refinement.
+- `examples.inactive_cells`: an irregular reservoir on the rectangular grid --
+  an outline and a sealing fault, cut out by `TPFA_ResSim.ResSim.active`.
 
 These concern the *well model* (`TPFA_ResSim.wells.peaceman_WI`), i.e. the sub-grid
 relation between a well and the (much larger) cell that holds it:

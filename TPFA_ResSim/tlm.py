@@ -188,7 +188,8 @@ def face_operators(model: ResSim) -> tuple:
 
     - `lo`, `hi`: the flat indices of the two cells each face separates
       (`lo` has the smaller index), shape `(nF,)`. The x-faces come first
-      (`(Nx-1) * Ny` of them, in C-order), then the y-faces (`Nx * (Ny-1)`).
+      (`(Nx-1) * Ny` of them, in C-order), then the y-faces (`Nx * (Ny-1)`)
+      -- less those of inactive cells (`ResSim.active`), which are omitted.
     - `Grad`: `(nF, Nxy)`, `(Grad @ p)[f] = p[lo] - p[hi]`, as `TPFA` computes
       the fluxes; `Grad.T` is the divergence (high faces minus low faces).
     - `Sum`: `(nF, 2*Nxy)`, summing over the face's two cells the *directional*
@@ -207,10 +208,13 @@ def face_operators(model: ResSim) -> tuple:
     """
     N = model.Nxy
     idx = np.arange(N).reshape(model.shape)
-    lo = np.concatenate([idx[:-1, :].ravel(), idx[:, :-1].ravel()])
-    hi = np.concatenate([idx[1:, :].ravel(), idx[:, 1:].ravel()])
+    act = model.active
+    fx = (act[:-1, :] & act[1:, :]).ravel()  # faces between active cells
+    fy = (act[:, :-1] & act[:, 1:]).ravel()
+    lo = np.concatenate([idx[:-1, :].ravel()[fx], idx[:, :-1].ravel()[fy]])
+    hi = np.concatenate([idx[1:, :].ravel()[fx], idx[:, 1:].ravel()[fy]])
     nF = len(lo)
-    nFx = (model.Nx - 1) * model.Ny
+    nFx = int(fx.sum())
     ff = np.r_[np.arange(nF), np.arange(nF)]
     ones = np.ones(nF)
     Grad = sparse.csr_matrix((np.r_[ones, -ones], (ff, np.r_[lo, hi])), shape=(nF, N))
@@ -357,7 +361,7 @@ def linearize(
     Q = model._Q  # total well flux, the BHP wells' rates now realized
     # ... and `saturation_step_upwind`, recording the sub-steps
     A_up = model.upwind_diff(VV)
-    pv = model.h2 * model.por.ravel()
+    pv = model.pore_volume()
     fi = Q.clip(min=0)
     st = model.storage_rate(VV)
     nT = max(1, int(np.ceil(dt * model.estimate_1CFL(pv, VV, fi))))
@@ -395,12 +399,13 @@ def linearize(
     WI_b = WI[is_bhp] if WI is not None else np.zeros(0)
     p_bh_b = wls["p_bh"][is_bhp]
     bhp_diag = wls["bhp_diag"]
-    # -- the pressure system (as `TPFA` assembles it, incl. its pin)
+    # -- the pressure system (as `TPFA` assembles it, incl. its pin and the
+    #    identity rows of the inactive cells, whose `accum` is thereby `1`)
     accum = pv * model.ct / dt if model.ct > 0 else np.zeros(N)
+    accum = np.where(model.active.ravel(), accum, 1.0)
     diag = accum + bhp_diag
     if model.ct == 0 and not bhp_diag.any():
-        diag = diag.copy()
-        diag[0] += np.sum(model.K[:, 0, 0])
+        diag[model._pin] += np.sum(model.K.reshape(2, -1)[:, model._pin])
     A = Grad.T @ sparse.diags(T) @ Grad + sparse.diags(diag)
     solve = splu(A.tocsc(), permc_spec="MMD_AT_PLUS_A").solve
     # -- the upwind directions

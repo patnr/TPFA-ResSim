@@ -12,6 +12,23 @@ should pin a tag (or commit hash) and advance it deliberately.
 
 ### Added
 
+- **Inactive cells**, `ResSim.active`: a boolean `(Nx, Ny)` mask (default all
+  `True`) carving an irregular reservoir -- an outline, holes, a sealing fault --
+  out of the rectangular grid. Inactive cells are inert: zero transmissibility
+  across their faces, an identity row in the pressure system (so it stays well
+  conditioned, unlike a tiny permeability), infinite pore volume (so they never
+  bind the CFL, unlike a tiny porosity; ref the new `pore_volume`), their state
+  carried through `sim` unchanged. The incompressible pressure is pinned at
+  the first active cell; a disconnected region of active cells is thus a
+  reservoir of its own that must balance its own rates -- not checked as such,
+  but the singular system it otherwise makes is caught by a new residual
+  assertion on the pressure solve (which the solver itself would pass off as
+  pressures of 1e14). The adjoint follows (its face operators omit the closed
+  faces). Plots mask
+  them; `plt_field(cellwise=True)` paints cells flat (`pcolormesh`) instead of
+  contouring, on the same colour levels. `examples/inactive_cells.py`,
+  `tests/test_inactive.py`. No existing result changes (the mask multiplies
+  the transmissibilities by `1`, and the pin remains cell `0`).
 - **An adjoint model**, `TPFA_ResSim.tlm`, derived by hand: `linearize`
   recomputes a step of `time_stepper` (from the trajectory that `sim` returns)
   into a `Tape`, `adj_step` propagates a sensitivity back through it, and

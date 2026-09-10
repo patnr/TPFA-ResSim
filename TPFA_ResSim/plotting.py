@@ -5,7 +5,8 @@ from typing import TYPE_CHECKING, Any, Optional, cast
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.ticker import MultipleLocator
+from matplotlib.colors import BoundaryNorm
+from matplotlib.ticker import MaxNLocator, MultipleLocator
 from mpl_tools import is_inline, place, place_ax
 from mpl_tools.misc import axprops
 
@@ -71,11 +72,19 @@ class Plot2D:
         labels: bool = True,
         grid: bool = False,
         finalize: bool = True,
+        cellwise: bool = False,
         **kwargs,
     ) -> Any:
         """Contour-plot of the (flat) unravelled field `Z`.
 
         `kwargs` falls back to `styles[style]`, which falls back to `styles['defaults']`.
+
+        Inactive cells (`ResSim.active`) are masked out (left blank). Note that
+        `contourf` interpolates between cell *centres*, so it also leaves blank the
+        half-cell margins around them (as around the domain). `cellwise=True`
+        instead paints each cell flat (`pcolormesh`), which is exact about the
+        cells -- the shape of a mask, a fault, the resolution -- at the cost of the
+        smoothness; the colour levels (hence the colorbar) are the same either way.
         """
         # Populate kwargs with fallback style
         kwargs = {**styles["default"], **styles[style], **kwargs}
@@ -101,22 +110,43 @@ class Plot2D:
         # Need to transpose coz orientation is model.shape==(Nx, Ny),
         # while contour() displays the same orientation as array printing.
         Z = Z.reshape(self.shape).T
+        # Mask the inactive cells (both `contourf` and `pcolormesh` leave them blank)
+        Z = np.ma.masked_where(~self.active.T, Z)
 
         # Did we bother to specify set_over/set_under/set_bad ?
         has_out_of_range = getattr(kwargs["cmap"], "_rgba_over", None) is not None
+        extend = "both" if has_out_of_range else "neither"
 
-        # Unlike `ax.imshow(Z[::-1])`, `contourf` does not simply fill pixels/cells (but
-        # it does provide nice interpolation!) so there will be whitespace on the margins.
-        # No fix is needed, and anyway it would not be trivial/fast,
-        # ref https://github.com/matplotlib/basemap/issues/406 .
-        collections = ax.contourf(
-            Z,
-            **kwargs,
-            # origin=None,  # ⇒ NB: falsely stretches the field!!!
-            origin="lower",
-            extent=(0, Lx, 0, Ly),
-            extend="both" if has_out_of_range else "neither",
-        )
+        if cellwise:
+            # Discretize the colours by the same levels as `contourf` would
+            levels = kwargs.pop("levels")
+            locator = kwargs.pop("locator")
+            if np.ndim(levels) == 0:
+                locator = locator or MaxNLocator(levels + 1)
+                levels = locator.tick_values(Z.min(), Z.max())
+            cmap = plt.get_cmap(kwargs.pop("cmap"))
+            norm = BoundaryNorm(levels, cmap.N, extend=extend)
+            collections = ax.pcolormesh(
+                np.linspace(0, Lx, self.Nx + 1),
+                np.linspace(0, Ly, self.Ny + 1),
+                Z,
+                cmap=cmap,
+                norm=norm,
+                **kwargs,
+            )
+        else:
+            # Unlike `ax.imshow(Z[::-1])`, `contourf` does not simply fill pixels/cells
+            # (but it does provide nice interpolation!) so there will be whitespace on
+            # the margins. No fix is needed, and anyway it would not be trivial/fast,
+            # ref https://github.com/matplotlib/basemap/issues/406 .
+            collections = ax.contourf(
+                Z,
+                **kwargs,
+                # origin=None,  # ⇒ NB: falsely stretches the field!!!
+                origin="lower",
+                extent=(0, Lx, 0, Ly),
+                extend=extend,
+            )
 
         # Contourf does not plot (at all) the bad regions. "Fake it" by facecolor
         if has_out_of_range:

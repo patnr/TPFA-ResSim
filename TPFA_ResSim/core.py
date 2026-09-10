@@ -51,6 +51,8 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
                 val = np.ones((2, *self.shape))
             elif key == "por":
                 val = np.ones(self.shape)
+            elif key == "active":
+                val = np.ones(self.shape, bool)
         # Permeabilities
         if key == "K" and val is not None:
             if np.isscalar(val):
@@ -58,6 +60,11 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
             if val.size == self.size:
                 val = np.stack([val, val])  # both components
             val = val.reshape((2, *self.shape))
+        # Active cells: the first is where `TPFA` pins the incompressible pressure
+        if key == "active" and val is not None:
+            val = np.asarray(val, bool).reshape(self.shape)
+            assert val.any(), "No active cells."
+            self._pin = int(np.argmax(val))
         # Wells -- records (or `None`) get assembled into a `Wells`, which then
         # gets bound, whereupon it snaps its completions onto this grid.
         # NB: the wells' own normalization is `TPFA_ResSim.wells.Wells.__setattr__`.
@@ -164,6 +171,32 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
     """Permeabilities (in x and y directions). Array of shape `(2, Nx, Ny)`)."""
     por: Any = None
     """Porosity; Array of shape `(Nx, Ny)`)."""
+    active: Any = None
+    """Mask of the active cells, `(Nx, Ny)`, boolean. Default: all `True`.
+
+    Setting some cells inactive carves an irregular reservoir out of the
+    rectangular grid -- an outline, holes, or a (sealing) fault: a line of
+    inactive cells, which blocks flow so long as it is unbroken (a diagonal
+    staircase suffices, fluxes passing only through faces). Inactive cells
+    take no part in the physics:
+
+    - The faces to them carry zero transmissibility, hence zero flux, so the
+      reservoir is closed along their perimeter as it is along the boundary.
+    - They have no equations. The pressure system carries an identity row for
+      each (keeping it well conditioned, unlike a tiny permeability would), and
+      their pore volume is taken as infinite (ref `pore_volume`; so they never
+      bind the CFL, as a tiny porosity would). So their state is simply carried
+      through `sim` unchanged from `S0` and `P0`. Plots mask them out.
+    - A well may not be completed in one (`_validate` checks). Should the
+      active cells form several disconnected regions, each is a reservoir of
+      its own, and only the first is pinned (ref `TPFA`): if `ct == 0`, the
+      others must balance their own rates, or hold a BHP well -- which is not
+      checked as such, but the singular system it would otherwise make is
+      caught by the residual check of `_solve_pressure`.
+
+    The arrays (`K`, `por`, `S0`, ...) keep the full grid shape, and the flat
+    index (`xy2ind`) runs over all cells: the mask selects the active ones.
+    """
 
     wells: Any = None
     """The wells: a `Wells`, holding the flat, per-*completion* arrays --
@@ -178,6 +211,15 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
     The arrays remain writable throughout (`model.wells.rates = ...`), as an
     ensemble or optimisation loop requires.
     """
+
+    def pore_volume(self) -> np.ndarray:
+        """Pore volume (per unit thickness) of each cell, `h2 * por`. Flat.
+
+        `inf` for inactive cells (ref `active`): dividing by it, the transport
+        schemes leave their saturation alone, and the CFL estimate ignores them.
+        """
+        pv = self.h2 * self.por.ravel()
+        return np.where(self.active.ravel(), pv, np.inf)
 
     nComp = property(lambda self: self.wells.nComp)
     """Num. of well *completions*, i.e. the rows of every array the model
@@ -455,6 +497,10 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
         TY = np.zeros((self.Nx, self.Ny + 1))
         TX[1:-1, :] = C * 2 * self.hy / self.hx / (L[0, :-1, :] + L[0, 1:, :])
         TY[:, 1:-1] = C * 2 * self.hx / self.hy / (L[1, :, :-1] + L[1, :, 1:])
+        # No flow across the faces of inactive cells (ref `active`)
+        act = self.active
+        TX[1:-1, :] *= act[:-1, :] & act[1:, :]
+        TY[:, 1:-1] *= act[:, :-1] & act[:, 1:]
 
         # Assemble TPFA discretization matrix.
         x1 = TX[:-1, :].ravel()
@@ -469,18 +515,21 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
         if self.ct > 0:
             # Accumulation term (φ ct h²/dt) of backward Euler.
             # Renders the system nonsingular (unlike the pure-Neumann problem).
-            assert P is not None and dt is not None, (
-                "Compressible model (ct > 0) requires the previous P, and dt."
-            )
             accum = self.por.ravel() * self.ct * self.h2 / dt
             DiagVecs[2] = DiagVecs[2] + accum
             q = q + accum * P
         elif not self._wells_now["bhp_diag"].any():
-            # Pin the (o/w pure-Neumann & singular) problem.
-            DiagVecs[2][0] += np.sum(self.K[:, 0, 0])  # ref article p. 13
+            # Pin the (o/w pure-Neumann & singular) problem, at the 1st active cell
+            i = self._pin
+            DiagVecs[2][i] += np.sum(self.K.reshape(2, -1)[:, i])  # ref article p. 13
         # Well model of the BHP-controlled wells
         DiagVecs[2] = DiagVecs[2] + self._wells_now["bhp_diag"]
         q = q + self._wells_now["bhp_rhs"]
+        # Inactive cells have no equation. Identity rows (their faces being
+        # already closed) keep them at their previous pressure, and the system SPD.
+        act = act.ravel()
+        DiagVecs[2] = np.where(act, DiagVecs[2], 1.0)
+        q = np.where(act, q, 0.0 if P is None else P)
 
         # Solve; compute A\q to update P
         A = self._spdiags(DiagVecs, DiagIndx)
@@ -530,7 +579,18 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
         LU = splu(A.tocsc(), permc_spec="MMD_AT_PLUS_A")
         if self.cached_precond:
             self._pLU = LU
-        return LU.solve(q)
+        P = LU.solve(q)
+        # A singular system (an incompressible region of `active` cells whose
+        # rates do not balance) does not make `splu` raise, but leaves a
+        # residual of O(1) that no `P` can remove, whereas O(1e-14) is normal.
+        # NB: explicit connectivity checks of `active` (graph search; a cursory
+        # pressure step) were tried and found laborious, while also refusing
+        # the valid disconnected configs (each region balanced, or well-less).
+        assert np.linalg.norm(A @ P - q) <= 1e-8 * np.linalg.norm(q), (
+            "The pressure solve failed. Is a disconnected region of `active`"
+            " cells left without balanced rates (ref `active`)?"
+        )
+        return P
 
     # GenA() -- listing 7
     def upwind_diff(self, V: Fluxes) -> sparse.dia_matrix:
@@ -594,7 +654,7 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
         """Explicit upwind FV discretisation of conserv. of mass (water sat.)."""
         # fmt: off
         A  = self.upwind_diff(V)                 # FV discretized transport operator
-        pv = self.h2 * self.por.ravel()          # Pore volume (per thickness)
+        pv = self.pore_volume()                  # Pore volume (per thickness)
         fi = self._Q.clip(min=0)                 # Well inflow
         st = self.storage_rate(V)                # Storage (0 if incompressible)
 
@@ -649,7 +709,7 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
         """
         # fmt: off
         A  = self.upwind_diff(V)                 # FV discretized transport operator
-        pv = self.h2 * self.por.ravel()          # Pore volume (per thickness)
+        pv = self.pore_volume()                  # Pore volume (per thickness)
         fi = self._Q.clip(min=0)                 # Well inflow
         st = self.storage_rate(V)                # Storage (0 if incompressible)
 
@@ -695,6 +755,10 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
 
     def _validate(self):
         # Catch some common issues before they become mysterious/insidious
+        act = self.active.ravel()
+        assert act[self._wells_now["inds"]].all(), (
+            "A well is completed in an inactive cell (ref `active`)."
+        )
         if self.ct == 0 and not self._wells_now["bhp_diag"].any():
             # No storage, no anchor ⇒ src/sinks must balance (ref `Wells.rates`)
             SA = np.abs(self._Q).sum()
