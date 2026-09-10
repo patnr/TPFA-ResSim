@@ -3,8 +3,41 @@ name = "minires"
 version = "0.2.0"
 description = "Toy petroleum reservoir simulator using TPFA."
 authors = [{name = "patnr", email = "patrick.n.raanes@gmail.com"}]
-license = {text = "MIT"}
+license = "MIT"
+license-files = ["LICENSE"]
 readme = "README.md"
+keywords = [
+    "reservoir-simulation",
+    "reservoir-engineering",
+    "petroleum",
+    "porous-media",
+    "two-phase-flow",
+    "waterflooding",
+    "darcy",
+    "finite-volume",
+    "tpfa",
+    "adjoint",
+    "history-matching",
+    "data-assimilation",
+]
+# NB: no `License ::` classifier -- PEP 639 forbids it alongside the SPDX
+# `license` field above, and PyPI rejects the combination.
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Education",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Education",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Scientific/Engineering :: Visualization",
+]
 # Try to keep compatible with Colab's environment, w/o needed many re-installs
 # (its runtime of 2026.07 uses Python 3.12)
 requires-python = ">=3.12"
