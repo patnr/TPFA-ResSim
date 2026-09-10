@@ -2,7 +2,7 @@
 
 from TPFA_ResSim.core import ResSim
 from TPFA_ResSim.grid import Fluxes, Grid2D
-from TPFA_ResSim.wells import Wells, peaceman_WI, well_path
+from TPFA_ResSim.wells import Wells, aquifer_WI, peaceman_WI, well_path
 
 # Also pdoc's table of contents: `ResSim` is documented on the package page (beside the
 # README), and the listed submodules on their own pages. `core` is deliberately absent,

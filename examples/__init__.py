@@ -18,8 +18,17 @@ One panel per feature, drawn from their results:
   saturation equation is exactly solvable (by the Welge tangent construction),
   so here the numerical profile is compared with the truth rather than with
   ourselves, and the error is shown to vanish under grid refinement.
+- `examples.egg` is the one *validation* against an external simulator: the Egg
+  model (a channelized, 12-well benchmark reservoir), flattened from 7 layers to
+  one by vertical averaging, reproduces the water cuts and oil rates of its
+  published 3D solution (ECLIPSE 100) to within 0.01 and about 5%. Also the second
+  example in metric units, and the one with non-quadratic relative permeabilities
+  (Corey exponents 3/4 with end-points, ref `TPFA_ResSim.ResSim.RelPerm`).
 - `examples.inactive_cells`: an irregular reservoir on the rectangular grid --
   an outline and a sealing fault, cut out by `TPFA_ResSim.ResSim.active`.
+- `examples.aquifer`: water beyond part of the boundary, feeding a lone producer
+  -- a BHP-controlled "well" in the contact cells (`TPFA_ResSim.wells.aquifer_WI`),
+  at constant pressure, or depleting (Fetkovich: a `well_controls` override).
 
 These concern the *well model* (`TPFA_ResSim.wells.peaceman_WI`), i.e. the sub-grid
 relation between a well and the (much larger) cell that holds it:
@@ -52,10 +61,11 @@ The next ones illustrate what slight compressibility (`TPFA_ResSim.ResSim.ct` > 
   the oil is instead driven by expansion.
 
 The last two illustrate the adjoint (`TPFA_ResSim.tlm`), i.e. gradients of an
-objective wrt the initial state and the permeability field, checked against finite
-differences:
+objective wrt the initial state, the permeability field and the BHP controls, checked
+against finite differences:
 
-- `examples.water_cut_gradient`: the sensitivity of the producers' water cut.
+- `examples.water_cut_gradient`: the sensitivity of one producer's water cut, to the
+  permeability field and to the producers' BHP schedule.
 - `examples.history_match_gradient`: a few steepest-descent steps towards a
   synthetic truth.
 """

@@ -14,6 +14,9 @@ Provenance:
   (`quarter_five_spot`'s `scheduled` at an early commit; the rest when they were written).
 - `buildup` was re-generated when it was re-posed in metric units
   (ref `TPFA_ResSim.ResSim.cdarcy`), so its values are in bar, `perm_est` in mD.
+- `egg` is likewise in metric units (bar, m³/day). Its `rms_cut`, `rel_oil` and
+  `recovery` measure the agreement with the *external* 3D reference (ECLIPSE 100)
+  that the example asserts, so they record a validation, not just a regression.
 - `buckley_leverett` is the exception to all of the above: it does not rest on
   agreement with anything of ours -- the example itself asserts its agreement
   with the *analytic* solution. Its `welge` and `bt` values therefore double as
@@ -21,10 +24,17 @@ Provenance:
 """
 
 references = {
+    "aquifer": dict(
+        sat_inf = [0.950804, 0.983369, 0.972064, 0.925165, 0.885176, 0.909723, 0.886708, 0.805351],
+        sat_fin = [0.838905, 0.928367, 0.891291, 0.737061, 0.518079, 0.616044, 0.00675642, 5.03337e-210],
+        q_inf = [0.711907, 0.543175, 0.444476, 0.493911, 0.529819, 0.554625, 0.573323, 0.588085],
+        q_fin = [0.711907, 0.237509, 0.101681, 0.046046, 0.0217367, 0.0105481, 0.00519637, 0.00258064],
+        p_aq = [1, 0.406345, 0.184561, 0.0871893, 0.0422936, 0.0208338, 0.010347, 0.00516154],
+    ),
     "buckley_leverett": dict(
         explicit = [0.990913, 0.890405, 0.822983, 0.765383, 0.706094, 0, 0, 0],
         implicit = [0.990162, 0.883361, 0.811672, 0.747063, 0.65349, 0, 0, 0],
-        case_B = [0.777523, 0.629058, 0.568955, 0.527966, 0.497229, 0.4696, 0.433861, 0.2],
+        case_B = [0.777458, 0.628782, 0.568634, 0.527593, 0.496772, 0.468914, 0.430758, 0.2],
         welge = [0.707107, 1.20711, 0.444949, 2.87457],
         water_cut = [0.0856744, 0.869728, 0.892704, 0.908574, 0.919621, 0.929471, 0.937468, 0.944081],
         bt = [0.82, 0.828427],
@@ -36,6 +46,15 @@ references = {
         p_mean = [250, 249, 247.5, 247, 247, 247, 247, 247],
         p_final = [247.009, 247.008, 247.006, 247.002, 246.998, 246.994, 246.992, 246.991],
         perm_est = [96.2918],
+    ),
+    "egg": dict(
+        water_cut = [0, 0.400526, 0.904154, 0.916484, 0.94295, 0.953772, 0.9637, 0.976543],
+        oil_rate = [133.1, 55.268, 12.9557, 25.8101, 17.3721, 3.80883, 2.99119, 2.49621],
+        S_final = [0.1, 0.670822, 0.634604, 0.558449, 0.632944, 0.1, 0.578512, 0.1],
+        bhp_inj = [403.019, 400.144, 402.129, 401.249, 399.903, 402.745, 402.217, 402.967],
+        rms_cut = [0.00901207, 0.00995861, 0.0121032, 0.0108285],
+        rel_oil = [0.0416654, 0.0559736, 0.0423121, 0.0362626],
+        recovery = [0.571558, 0.590275],
     ),
     "history_match_gradient": dict(
         misfit = [0.0084632, 0.00585517, 0.00396326, 0.000770323, 0.000334115],
@@ -56,12 +75,16 @@ references = {
         p_inj = [1, 1.43087, 1.50322, 1.52776, 1.54501, 1.5518, 1.55667, 1.55904],
     ),
     "quarter_five_spot": dict(
-        # These 3 rows agree with the Matlab output (whose values are quoted here
-        # to their 5 decimals: .99965, .91968, .77584, .90268, .81068, .67467, .66065
-        # for the explicit scheme, and .99963, .91573, .75736, .89799, .79862,
-        # .62061, .62483 for the implicit one).
+        # The explicit row agrees with the Matlab output to its 5 decimals (.99965,
+        # .91968, .77584, .90268, .81068, .67467, .66065), and so did the implicit
+        # one (.99963, .91573, .75736, .89799, .79862, .62061, .62483) until the
+        # Corey curves were clipped to the unit interval (ref `ResSim.RelPerm`):
+        # the Newton iterates pass outside it, where Matlab's polynomial and the
+        # clipped curves differ, and the iteration stops at an update norm of 1e-3,
+        # so the implicit row now agrees with Matlab's to 3-4 decimals only --
+        # which is all its own tolerance ever guaranteed.
         explicit = [0.999653, 0.919677, 0.775843, 0.902681, 0.810679, 0.674671, 0.660654],
-        implicit = [0.999629, 0.915725, 0.757356, 0.897986, 0.798623, 0.620613, 0.62483],
+        implicit = [0.999628, 0.915592, 0.756757, 0.897823, 0.798072, 0.620755, 0.625079],
         # The scheduled variant was `rate_scheduling.py` (an example of its own until 2026-09).
         scheduled = [0.99949, 0.881942, 0.826531, 0.878561, 0.776629, 0.710515, 0.11659],
     ),
@@ -73,9 +96,10 @@ references = {
         p_half = [15, 13.6, 12.15, 10.75, 9.3, 7.9, 6.45, 5],
     ),
     "water_cut_gradient": dict(
-        water_cut = [0, 0, 0, 0.306441, 0.715347, 0.834666, 0.890154, 0.924739],
-        gradient = [-1.40098e-06, -9.8285e-05, 8.36374e-05, -0.000972477, -0.000511532, 0.00311066, -0.000427282, -2.22591e-05],
-        directional = [0.0940402, 0.0940402],
+        water_cut = [0, 0, 0, 0.595091, 0.765558, 0.25842, 0.693055, 0.738382],
+        gradient = [-0.00350433, -0.000162152, -0.000407414, -0.00104923, -0.000371134, 0.00330122, -0.000771756, 0.00711891],
+        gradient_bhp = [0, 0, 0, -0.000366568, 0, 0, 0.000963938, 0],
+        directional = [0.0455477, 0.0455477, -0.012168, -0.012168],
     ),
     "well_control": dict(
         rate_of_bhp_ctrl = [0.622077, 0.341664, 0.21485, 0.135109, 0.0831082, 0.0522631, 0.032866, 0.0202164],

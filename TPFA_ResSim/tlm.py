@@ -2,11 +2,13 @@
 
 I.e. the transpose of the Jacobian of one time step,
 $ (s^n, p^n) ↦ (s^{n+1}, p^{n+1}) $, with respect to the *state* -- and to the
-parameter $ \\log K $ -- applied to a sensitivity (`adj_step`), rather than
-formed (it is dense, through $A^{-1}$). Chained backwards along a trajectory
-(`adjoint`), it yields the gradient of an objective with respect to the
-initial state, `S0` and `P0` of `TPFA_ResSim.ResSim.sim`, and to $ \\log K $,
-at the cost of about one more simulation -- whatever the number of parameters.
+parameters: $ \\log K $, and the BHP controls of the step -- applied to a
+sensitivity (`adj_step`), rather than formed (it is dense, through $A^{-1}$).
+Chained backwards along a trajectory (`adjoint`), it yields the gradient of an
+objective with respect to the initial state, `S0` and `P0` of
+`TPFA_ResSim.ResSim.sim`, to $ \\log K $, and to the BHP *schedule*,
+`TPFA_ResSim.wells.Wells.bhp`, at the cost of about one more simulation --
+whatever the number of parameters.
 
 `linearize` recomputes one forward step -- from the state it is given, so the
 trajectory that `sim` returns is all the record it needs (checkpointing) -- and
@@ -52,17 +54,19 @@ iterative solver's tolerance, $10^{-10}$, which `eps` would amplify a
 million-fold; the adjoint itself does not care.)
 
 The same check, on several configurations (incompressible, compressible,
-BHP-controlled, 1D), is `tests/test_tlm.py`. See `examples.water_cut_gradient`
-for the gradient of one producer's water cut with respect to the $ \\log K $
-field, and `examples.history_match_gradient` for that of a production-history
-misfit, put to use in a few descent steps.
+BHP-controlled, 1D, inactive cells), is `tests/test_tlm.py`. See
+`examples.water_cut_gradient` for the gradient of one producer's water cut with
+respect to the $ \\log K $ field and to the producers' BHP schedule, and
+`examples.history_match_gradient` for that of a production-history misfit, put
+to use in a few descent steps.
 
 ## Seeding with an objective
 
 `adjoint` sweeps backwards along the trajectory, from the partial derivatives
 of a scalar objective, $ J(S, P) $, with respect to the *stored* states --
 `dJ_dSS[k]` $ = ∂J/∂S_k $ and `dJ_dPP[k]` $ = ∂J/∂P_k $, shaped like `SS` and
-`PP` -- and returns $ ∂J/∂S_0 $, $ ∂J/∂P_0 $ and $ ∂J/∂\\log K $ (a `Gradient`).
+`PP` -- and returns $ ∂J/∂S_0 $, $ ∂J/∂P_0 $, $ ∂J/∂\\log K $ and
+$ ∂J/∂p_\\mathrm{bh} $ (a `Gradient`).
 The seeds are simply what the objective says they are:
 
 - A quantity of the *final* state seeds index `-1` alone, as above.
@@ -79,6 +83,12 @@ The gradient with respect to $ \\log K $ has the shape of `K`, `(2, Nx, Ny)`:
 both permeability components. For an *isotropic* field (a scalar or
 `(Nx, Ny)`-shaped `K`, which `ResSim.__setattr__` broadcasts to both), the
 gradient with respect to the single $ \\log k $ field is `grad.logK.sum(0)`.
+
+Likewise, the gradient with respect to the BHP controls is per *step*,
+`(nComp, nSteps)`, since the control may be scheduled (`Wells.bhp` is
+`(nComp, nTime)`); for a constant-in-time control (a `(nComp, 1)` spec), it is
+`grad.bhp.sum(1)`. Rate-controlled completions have no BHP to differentiate
+with respect to, and get `0`.
 
 ## How it is derived
 
@@ -127,6 +137,15 @@ re-deriving.)
   the storage rate and the transport. If `ct == 0` and no well is on BHP
   control, $ p^{n+1} $ does not depend on $ p^n $ at all, so the gradient
   with respect to `P0` is then `0`.
+- The **BHP controls**, $ p_\\mathrm{bh} $ of the BHP-controlled completions
+  at each step (whatever `well_controls` returned, so, by default, the spec
+  `Wells.bhp` at that time), which enter the step at one point only: the
+  right-hand side of the pressure system, as $ WI λ_t \\, p_\\mathrm{bh} $.
+  The natural *optimization* (rather than history-matching) parameter, and
+  the more so as the physics makes the rates derived quantities under BHP
+  control. Note the control at step $k$ cannot affect the states before
+  $ k+1 $, so the gradient of an objective of the state at time $k$ vanishes
+  for the controls from $k$ on.
 - The **permeability**, as $ \\log K $ (positivity built in, and the natural
   history-matching parameter), through the transmissibilities alone. Its two
   other appearances are *not* differentiated, and rightly so: the pin of the
@@ -137,7 +156,10 @@ re-deriving.)
   moment, and does not track `K` thereafter), so it is held fixed, like the
   other well parameters.
 - **Not** the other parameters: `por`, `ct`, the viscosities, the well
-  positions and specifications. These stay fixed, as they are in `sim`.
+  positions, indices and *rate* specifications. These stay fixed, as they are
+  in `sim`. (The rates would be as easy as the BHPs: they enter `Q` directly,
+  so their adjoint is `adQ` gathered at the rate-controlled completions. But
+  with `ct == 0` they must sum to zero, which the gradient does not know.)
 - **Not** the controls' dependence on the state: `well_controls` is assumed
   *open-loop* (the default). An override that feeds the state back is not
   seen -- the controls enter as constants.
@@ -179,6 +201,10 @@ class Gradient(NamedTuple):
     """W.r.t. the initial pressure, `(Nxy,)`. Zero unless `ct > 0` or a well is on BHP."""
     logK: np.ndarray
     """W.r.t. $ \\log K $, shaped like `K`: `(2, Nx, Ny)`. Sum over axis `0` if isotropic."""
+    bhp: np.ndarray
+    """W.r.t. the BHP controls, `(nComp, nSteps)`: entry `[i, k]` is for
+    completion `i`'s control at step `k` (`0` where rate-controlled). Sum over
+    axis `1` if the control is constant in time."""
 
 
 def face_operators(model: ResSim) -> tuple:
@@ -291,6 +317,10 @@ class Tape(AlignedRepr):
     """`(nBHP, Nxy)` gathers cell values at the BHP-controlled completions; `Gb.T` scatters."""
     WI_b: np.ndarray
     """`(nBHP,)` their well indices."""
+    WI_lam_b: np.ndarray
+    """`(nBHP,)` their $ WI λ_t $, the coefficient of $ p_\\mathrm{bh} $ in the right-hand side."""
+    is_bhp: np.ndarray
+    """`(nComp,)` boolean mask of the BHP-controlled completions."""
     p_bh_b: np.ndarray
     """`(nBHP,)` their bottom-hole pressures."""
     bhp_diag: np.ndarray
@@ -397,6 +427,7 @@ def linearize(
     Gb = sparse.csr_matrix((np.ones(nB), (np.arange(nB), inds_b)), shape=(nB, N))
     WI = model.wells.WI
     WI_b = WI[is_bhp] if WI is not None else np.zeros(0)
+    WI_lam_b = wls["WI_lam"][is_bhp]
     p_bh_b = wls["p_bh"][is_bhp]
     bhp_diag = wls["bhp_diag"]
     # -- the pressure system (as `TPFA` assembles it, incl. its pin and the
@@ -417,21 +448,23 @@ def linearize(
         model=model, dt=dt, k=k, S=S, P=P, S1=S1, P1=P1,
         Grad=Grad, dMt_dS=dMw + dMo, dT_dMt=dT_dMt, dT_dlogK=dT_dlogK,
         T=T, gradP=gradP, V=V, accum=accum, solve=solve,
-        Gb=Gb, WI_b=WI_b, p_bh_b=p_bh_b, bhp_diag=bhp_diag,
+        Gb=Gb, WI_b=WI_b, WI_lam_b=WI_lam_b, is_bhp=is_bhp, p_bh_b=p_bh_b,
+        bhp_diag=bhp_diag,
         Q=Q, st=st, dtx=dtx, Up=Up, Ssub=Ssub,
     )  # fmt: skip
 
 
 def adj_step(
     tape: Tape, aS1: np.ndarray, aP1: np.ndarray
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Propagate the sensitivity `(aS1, aP1)` back through the step of `tape`.
 
     The transpose of the step's tangent: given $ ∂J/∂s^{n+1} $ and
-    $ ∂J/∂p^{n+1} $, returns `(aS, aP, alogK)`
-    $ = (∂J/∂s^n, ∂J/∂p^n, ∂J/∂\\log K) $, the last shaped like `K` and being
-    this step's *contribution* (to be summed over the steps, as `adjoint`
-    does). Each statement of the tangent appears here, in reverse order,
+    $ ∂J/∂p^{n+1} $, returns `(aS, aP, alogK, abhp)`
+    $ = (∂J/∂s^n, ∂J/∂p^n, ∂J/∂\\log K, ∂J/∂p_\\mathrm{bh}) $ -- the third
+    shaped like `K` and being this step's *contribution* (to be summed over
+    the steps, as `adjoint` does), the fourth `(nComp,)`, wrt. this step's
+    controls (`0` at the rate-controlled completions). Each statement of the tangent appears here, in reverse order,
     transposed: `y = M @ x` as `x̄ += M.T @ ȳ`, `y = a * x` as `x̄ += a * ȳ`,
     the (symmetric) solve as itself. The comments name the tangent statement
     being transposed (ref the module docstring).
@@ -478,14 +511,17 @@ def adj_step(
     adr  = adr + adq
     adT  = adT + t.gradP * (t.Grad @ adAP)                  # dAP = Grad.T@(gradP*dT) + dw*P1
     adw  = adw + t.P1 * adAP
-    adWI_lam = t.p_bh_b * (t.Gb @ adr)                      # dr = Gb.T @ (p_bh_b * dWI_lam)
+    adr_b = t.Gb @ adr                                      # dr = Gb.T @ (p_bh_b * dWI_lam ...
+    adWI_lam = t.p_bh_b * adr_b
+    abhp  = np.zeros(len(t.is_bhp))                         #   + WI_lam_b * dp_bh_b)
+    abhp[t.is_bhp] = t.WI_lam_b * adr_b
     adWI_lam = adWI_lam + t.Gb @ adw                        # dw = Gb.T @ dWI_lam
     adMt  = t.Gb.T @ (t.WI_b * adWI_lam)                    # dWI_lam = WI_b * (Gb @ dMt)
     adMt  = adMt + t.dT_dMt.T @ adT                         # dT = dT_dMt@dMt + dT_dlogK@dlogK
     alogK = t.dT_dlogK.T @ adT
     aS    = aS + t.dMt_dS * adMt                            # dMt = dMt_dS * dS
     # fmt: on
-    return aS, aP, alogK.reshape(t.model.K.shape)
+    return aS, aP, alogK.reshape(t.model.K.shape), abhp
 
 
 def adjoint(
@@ -496,7 +532,7 @@ def adjoint(
     dJ_dSS: np.ndarray,
     dJ_dPP: np.ndarray | None = None,
 ) -> Gradient:
-    """The gradient of $ J(S, P) $ wrt. `S0`, `P0` and $ \\log K $, by the adjoint sweep.
+    """The gradient of $ J(S, P) $ wrt. `S0`, `P0`, $ \\log K $ and the BHP controls, by the adjoint sweep.
 
     Seeded by the partials of the objective wrt. the *stored* trajectory,
     `dJ_dSS[k]` $ = ∂J/∂S_k $, `dJ_dPP[k]` $ = ∂J/∂P_k $ (shaped like `SS`,
@@ -512,11 +548,12 @@ def adjoint(
     aS = np.array(dJ_dSS[-1], float)
     aP = np.zeros(model.Nxy) if dJ_dPP is None else np.array(dJ_dPP[-1], float)
     alogK = np.zeros(model.K.shape)
+    abhp = np.zeros((model.nComp, nSteps))
     for k in reversed(range(nSteps)):
         tape = linearize(model, dt, SS[k], PP[k], k)
-        aS, aP, aK = adj_step(tape, aS, aP)
+        aS, aP, aK, abhp[:, k] = adj_step(tape, aS, aP)
         alogK += aK
         aS += dJ_dSS[k]
         if dJ_dPP is not None:
             aP += dJ_dPP[k]
-    return Gradient(aS, aP, alogK)
+    return Gradient(aS, aP, alogK, abhp)

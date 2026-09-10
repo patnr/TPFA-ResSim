@@ -255,6 +255,91 @@ def well_path(model: "ResSim", vertices: Any, rw: float, skin: float = 0.0) -> t
     return xy, WI, WI / WI.sum()
 
 
+def aquifer_WI(model: "ResSim", xy: Any, faces: str = "WESN") -> np.ndarray:
+    """The "well index" of an aquifer contact: the transmissibility of the
+    boundary face(s) of each cell at `xy` -- from its centre out to the face.
+
+    An aquifer -- water-bearing rock beyond the reservoir's boundary, at a
+    pressure $ p_\\mathrm{aq} $ of its own -- feeds each reservoir cell that
+    touches it at the rate $ T \\, (p_\\mathrm{aq} - p) $, which is the law of a
+    BHP-controlled well, $ WI \\, λ_t \\, (p_\\mathrm{bh} - p) $. So an aquifer *is*
+    a BHP-controlled well, completed in every cell it touches, with
+    `bhp = p_aq` and this for `WI` -- and needs nothing else of the model:
+    the influx enters `TPFA_ResSim.ResSim.assemble_wells` like any well's,
+    anchors the pressure (so that, if incompressible, a lone producer is fine:
+    the aquifer supplies it), is reported in `Wells.actual_rates`, and is
+    handled by the adjoint, `TPFA_ResSim.tlm`, as any BHP well is. `Wells.from_records` applies it to a
+    well given `aquifer=True` (or `aquifer=faces`):
+
+    >>> from TPFA_ResSim import ResSim
+    >>> model = ResSim(Lx=1, Ly=1, Nx=4, Ny=4, wells=[
+    ...     dict(name="Aq", xy=[[0, .3], [0, .5], [0, .7]], aquifer=True, bhp=2),
+    ...     dict(name="P1", xy=[1, 1], rate=-1),
+    ... ])
+    >>> model.wells.WI
+    array([ 2.,  2.,  2., nan])
+    >>> SS, PP = model.sim(.1, 3, np.zeros(model.Nxy), pbar=False)
+    >>> model.wells.rates_by_well.round(12)  # the aquifer supplies the producer
+    array([[ 1.,  1.,  1.],
+           [-1., -1., -1.]])
+
+    A cell's *boundary faces* are those across which the neighbour is inactive
+    (ref `TPFA_ResSim.ResSim.active`) or outside the grid; it must have at
+    least one, and be active itself. Each contributes the half-cell
+    transmissibility, $ C \\, k \\, h_⊥ / (h_∥ / 2) $ (compare the whole-cell
+    one of `TPFA_ResSim.ResSim.TPFA`), so that the aquifer pressure is
+    imposed *at the face* -- a Dirichlet condition, its flux discretized as
+    the interior ones are. A corner cell, with two boundary faces, gets both --
+    unless `faces` (a string of compass directions) leaves one out, as it must
+    when that edge is sealed, or on a 1D strip, whose every cell is a boundary
+    cell to the north and south. On a curved outline, keep them all.
+
+    .. note:: The mobility is the cell's total one, $ λ_t(S) $, as for any well.
+
+        Whereas a boundary face of the TPFA scheme would upwind it from the
+        aquifer side (water, $ S = 1 $). The difference is the injector's
+        well model, no more; the influx is water either way.
+        For an aquifer of a given *strength* -- a productivity index, $ J $,
+        as in the Fetkovich model -- give `WI` directly instead, or scale this.
+    """
+    xy = np.asarray(xy, float).reshape((-1, 2))
+    ix, iy = model.xy2sub(*xy.T)
+    # The number of boundary faces (among those selected) in each direction
+    n = boundary_faces(model, xy, faces).astype(int)  # NB: `bool + bool` is an `or`
+    nx, ny = n[:, :2].sum(1), n[:, 2:].sum(1)
+    assert (nx + ny > 0).all(), (
+        "An aquifer cell must lie on the boundary: have a face to an inactive"
+        " cell, or to outside the grid (ref `aquifer_WI`)."
+    )
+    kx, ky = model.K[0][ix, iy], model.K[1][ix, iy]
+    return model.cdarcy * 2 * (nx * kx * model.hy / model.hx + ny * ky * model.hx / model.hy)
+
+
+def boundary_faces(model: "ResSim", xy: Any, faces: str = "WESN") -> np.ndarray:
+    """Which faces of the cells at `xy` are *boundary* faces: to an inactive
+    cell (ref `TPFA_ResSim.ResSim.active`), or to outside the grid.
+
+    Boolean, `(nCells, 4)`, the columns being the directions W, E, S, N --
+    of which `faces` (a string of them) selects the ones considered at all.
+    Serves `aquifer_WI`, and `TPFA_ResSim.plotting.Plot2D.plt_faces`.
+
+    >>> from TPFA_ResSim import ResSim
+    >>> model = ResSim(Lx=1, Ly=1, Nx=4, Ny=4)
+    >>> boundary_faces(model, [[0, 0], [0, .5], [.5, .5]]).astype(int)
+    array([[1, 0, 1, 0],
+           [1, 0, 0, 0],
+           [0, 0, 0, 0]])
+    """
+    xy = np.asarray(xy, float).reshape((-1, 2))
+    ix, iy = model.xy2sub(*xy.T)
+    act = np.pad(model.active, 1, constant_values=False)  # off-grid ⇒ inactive
+    assert act[ix + 1, iy + 1].all(), "The cells must be active (ref `active`)."
+    ix, iy = ix + 1, iy + 1  # (in the padded mask)
+    nbrs = [act[ix - 1, iy], act[ix + 1, iy], act[ix, iy - 1], act[ix, iy + 1]]
+    selected = np.array([d in faces for d in "WESN"])
+    return ~np.stack(nbrs, -1) & selected
+
+
 @dataclass
 class Wells(AlignedRepr):
     """The wells of a `TPFA_ResSim.ResSim`: the flat, per-completion arrays.
@@ -517,6 +602,10 @@ class Wells(AlignedRepr):
         - `rw`, `skin`: the wellbore radius and skin, whence the well index, via
           `peaceman_WI`. Without them (or `WI`) the well has no well model.
         - `WI`: alternatively, the well index itself, given directly.
+        - `aquifer`: `True` makes the well an aquifer contact: its `WI` is then
+          `aquifer_WI` of its cells (which must lie on the boundary), and its
+          `bhp` the aquifer pressure. A string of compass directions instead
+          (`"W"`, `"NE"`, ...) selects the boundary faces that count. Ref `aquifer_WI`.
         - `name`: for the reporting. Defaults to the well's index.
 
         The concise cases stay concise -- a position and a rate is a well. A
@@ -569,7 +658,7 @@ class Wells(AlignedRepr):
             there is nothing to fall out of step with a subsequent edit of them
             (which is what the `repr` therefore reports).
         """
-        keys = ("name", "xy", "path", "rate", "bhp", "rw", "skin", "WI")
+        keys = ("name", "xy", "path", "rate", "bhp", "rw", "skin", "WI", "aquifer")
         if isinstance(wells, dict):
             wells = [dict(spec, name=name) for name, spec in wells.items()]
         names, xy, WI, group, rates, bhp = [], [], [], [], [], []
@@ -584,6 +673,7 @@ class Wells(AlignedRepr):
             specified |= set(spec)
             name = str(spec.pop("name", i))
             rw, skin = spec.pop("rw", None), spec.pop("skin", 0.0)
+            aquifer = spec.pop("aquifer", False)
 
             # Completions: their positions, and their well indices
             if (path := spec.pop("path", None)) is not None:
@@ -591,15 +681,18 @@ class Wells(AlignedRepr):
                     f"Well '{name}': give it `xy` or `path`, not both."
                 )
                 assert rw is not None, f"Well '{name}': a `path` requires `rw`."
+                assert not aquifer, f"Well '{name}': an aquifer is given by `xy`."
                 _xy, _WI, _ = well_path(model, path, rw, skin)
             else:
                 assert "xy" in spec, f"Well '{name}': give it an `xy` (or a `path`)."
                 _xy = np.array(spec.pop("xy"), float).reshape((-1, 2))
-                _WI = (
-                    np.full(len(_xy), np.nan)
-                    if rw is None
-                    else peaceman_WI(model, _xy, rw, skin)
-                )
+                if aquifer:
+                    assert rw is None, f"Well '{name}': an aquifer has no `rw`."
+                    _WI = aquifer_WI(model, _xy, "WESN" if aquifer is True else aquifer)
+                elif rw is not None:
+                    _WI = peaceman_WI(model, _xy, rw, skin)
+                else:
+                    _WI = np.full(len(_xy), np.nan)
             if (given := spec.pop("WI", None)) is not None:
                 _WI = np.broadcast_to(np.asarray(given, float).ravel(), len(_xy)).copy()
             nc = len(_xy)

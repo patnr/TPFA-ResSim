@@ -42,11 +42,13 @@ def test_on_the_cfl_boundary_takes_the_lower_count():
 def test_the_epsilon_does_not_swallow_a_real_sub_step():
     """A `dt` genuinely *over* the boundary must still get its 7th sub-step.
 
-    I.e. the epsilon ($10^{-9}$, relative) is far narrower than any `dt` one
-    would choose on purpose -- so it absorbs round-off, and nothing else.
+    I.e. the epsilon ($10^{-9}$, relative) -- and the $O(10^{-6})$ undershoot of
+    the chord that `estimate_1CFL` bounds the fractional-flow slope by -- is far
+    narrower than any `dt` one would choose on purpose, so it absorbs round-off,
+    and nothing else.
     """
     S_on, _ = ResSim(**kws).sim(dt, nSteps, S0, pbar=False)
-    S_above, _ = ResSim(**kws).sim(dt * (1 + 1e-6), nSteps, S0, pbar=False)
+    S_above, _ = ResSim(**kws).sim(dt * (1 + 1e-5), nSteps, S0, pbar=False)
     assert abs(S_on - S_above).max() > 1e-3
 
 

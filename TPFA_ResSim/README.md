@@ -33,8 +33,9 @@ The quantities involved are all 2D-spatial fields, namely
   Each (relative) mobility is the phase relative permeability
   divided by the phase viscosity, $\lambda_{\text{phase}} = k_{\text{phase}}/\mu_{\text{phase}}$.
   - The relative permeabilities $k_{\text{phase}}(s) \in [0, 1]$ are a *constitutive
-    relation*, not data: here, quadratic (Corey) curves of the saturation rescaled by
-    its residual values (`ResSim.RelPerm`). Need not sum to 1.
+    relation*, not data: here, Corey (power-law) curves of the saturation rescaled by
+    its residual values, with adjustable exponents and end-points, quadratic by
+    default (`ResSim.RelPerm`). Need not sum to 1.
   - $\mu_{\text{phase}}$ is the phase viscosity, here constant.
 - $f(s) = \lambda_w(s) / \lambda(s) \in [0, 1]$ is the water fractional flow,
   giving $\mathbf{v}_w = f(s) \, \mathbf{v}$.

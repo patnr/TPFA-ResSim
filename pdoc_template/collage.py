@@ -86,9 +86,9 @@ def hero(figsize=(16, 4.4)):
     return fig
 
 
-def features(figsize=(16, 12.6)):
+def features(figsize=(20, 12.6)):
     """One panel per feature."""
-    fig, axs = plt.subplots(nrows=3, ncols=4, figsize=figsize, layout="constrained")
+    fig, axs = plt.subplots(nrows=3, ncols=5, figsize=figsize, layout="constrained")
     axs = axs.ravel()
     leg: dict = dict(fontsize="x-small")
     lbl: dict = dict(fontsize="small")
@@ -115,9 +115,21 @@ def features(figsize=(16, 12.6)):
     ax.minorticks_off()
     ax.legend(**leg)
 
+    ## Egg model: the validation against an external simulator, in 3D
+    egg = example("egg")
+    ax = axs[2]
+    for j, name in enumerate(egg.names):
+        ax.plot(egg.tt, egg.cut[:, j], c=f"C{j}", label=name)
+        ax.plot(egg.ref_t, egg.ref_cut[:, j], "--", c=f"C{j}", lw=1)
+    ax.plot([], [], "k-", label="2D (this)")
+    ax.plot([], [], "k--", lw=1, label="3D (ECLIPSE 100)")
+    ax.set(title="Validated on the Egg model (vs. its 3D solution)",
+           xlabel="Time [day]", ylabel="Water cut, 4 producers")
+    ax.legend(ncols=2, **leg)
+
     ## Quarter five-spot: the two transport schemes, as fronts
     q5 = example("quarter_five_spot")
-    ax = axs[2]
+    ax = axs[3]
     model = q5.model
     kws: dict = dict(levels=[.2, .5, .8], origin="lower",
                      extent=(0, model.Lx, 0, model.Ly))
@@ -134,13 +146,8 @@ def features(figsize=(16, 12.6)):
               loc="lower right", **leg)
 
     ## Rate scheduling (the quarter five-spot's scheduled variant)
-    field(q5.model_sch, axs[3], q5.SS_sch[-1], "oil",
+    field(q5.model_sch, axs[4], q5.SS_sch[-1], "oil",
           title=f"Scheduled injection rates (t = {q5.dt*q5.nSteps:.1f})")
-
-    ## Inactive cells: an irregular outline and a sealing fault
-    ic = example("inactive_cells")
-    field(ic.model, axs[4], ic.SS[-1], "oil", wells=dict(size=.5, text=False),
-          title=f"Inactive cells: outline and fault (t = {ic.dt*ic.nSteps:.2f})")
 
     ## Well paths: the sweep, and the allocation along the path
     wp = example("well_path")
@@ -183,18 +190,31 @@ def features(figsize=(16, 12.6)):
            xlabel=f"Time{bu.unit_t}", ylabel=f"p{bu.unit_p}")
     ax.legend(**leg)
 
+    ## Inactive cells: an irregular outline and a sealing fault
+    ic = example("inactive_cells")
+    field(ic.model, axs[9], ic.SS[-1], "oil",
+          title=f"Inactive cells: outline and fault (t = {ic.dt*ic.nSteps:.2f})")
+
+    ## Aquifer: a boundary at constant pressure, feeding a producer
+    aq = example("aquifer")
+    ax = axs[10]
+    field(aq.infinite, ax, aq.SS_inf[aq.k], "oil", wells=dict(exclude=["Aq"], text=False, size=.5),
+          title=f"Aquifer influx across the boundary (t = {aq.k*aq.dt:.2f})")
+    aq.infinite.plt_faces(ax, aq.xy_aq, label="Aquifer")
+    ax.legend(loc="lower right", **leg)
+
     ## Compressibility: finite-speed pressure propagation
     pd = example("pressure_diffusion")
     k = 3
     dP = pd.PP[k] - pd.P0
     vmax = abs(dP).max()
-    field(pd.model, axs[9], dP, cmap="RdBu_r",
+    field(pd.model, axs[11], dP, cmap="RdBu_r",
           levels=np.linspace(-vmax, vmax, 21), wells=dict(size=.4, text=False),
           title=f"Compressible: pressure diffusion (t = {k*pd.dt:.4f})")
 
     ## Compressibility: under-injection
     vr = example("voidage_replacement")
-    ax = axs[10]
+    ax = axs[12]
     for SS, vrr, t_bt in zip([vr.SS_full, vr.SS_half], ["1", "½"], vr.breakthrough):
         h, = ax.plot(vr.tt, 1 - SS[:, vr.iprd], label=f"VRR = {vrr}")
         ax.axvline(t_bt, c=h.get_color(), ls=":", lw=1)
@@ -204,7 +224,7 @@ def features(figsize=(16, 12.6)):
 
     ## Adjoint: history matching
     hm = example("history_match_gradient")
-    ax = axs[11]
+    ax = axs[13]
     for i in range(len(hm.producers)):
         ax.plot(hm.tt, hm.obs[:, i], "*", c=f"C{i}")
         ax.plot(hm.tt, hm.fw_final[:, i], "-", c=f"C{i}")
@@ -214,6 +234,17 @@ def features(figsize=(16, 12.6)):
     ax.set(title=f"Adjoint history matching ({len(hm.JJ) - 1} descent steps)",
            xlabel="Time", ylabel="Water cut at the 4 producers", ylim=(-.02, 1))
     ax.legend(loc="upper left", **leg)
+
+    ## Adjoint: the sensitivity to the BHP schedule
+    wcg = example("water_cut_gradient")
+    ax = axs[14]
+    for i, name in enumerate(wcg.producers):
+        ax.step(wcg.tt[:-1], wcg.G_bhp[1 + i], where="post", label=name, c=f"C{i}")
+    ax.axvline(wcg.tt[wcg.k], c="k", ls=":", lw=1, label="objective's time")
+    ax.axhline(0, c="k", lw=.5)
+    ax.set(title="Adjoint: sensitivity to the BHP schedule",
+           xlabel="Time (of the control)", ylabel="∂(water cut) / ∂ $p_\\mathrm{bh}$")
+    ax.legend(**leg)
 
     for ax in axs:
         ax.set_box_aspect(1)
