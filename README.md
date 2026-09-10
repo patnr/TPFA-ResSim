@@ -31,10 +31,30 @@ and I will add it to this list.
 
 ## Installation
 
-TODO
+The package is not on PyPI (yet -- a release is planned), so install it from git.
+Since `0.x` minor bumps may break the API (ref `CHANGELOG.md`),
+pin a tag (or a commit hash) and advance it deliberately.
 
+Requires Python `>=3.12`.
+
+
+```sh
+pip install "TPFA-ResSim @ git+https://github.com/patnr/TPFA-ResSim.git@v0.2.0"
+```
+
+or, with [uv](https://docs.astral.sh/uv/),
+
+```sh
+uv add "TPFA-ResSim @ git+https://github.com/patnr/TPFA-ResSim.git@v0.2.0"
+```
 ## Contributions
 
-Get [uv](https://docs.astral.sh/uv/) and do `uv sync`,
-after which you can run the tests with `uv run pytest` (no further args),
-and linting with `uv run ruff check`.
+To also get the examples and tests, clone instead, and install in editable mode:
+
+```sh
+git clone https://github.com/patnr/TPFA-ResSim.git
+cd TPFA-ResSim
+uv sync  # or: pip install -e .
+uv run pytest
+uv run ruff check
+```
