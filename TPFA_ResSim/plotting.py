@@ -85,6 +85,11 @@ class Plot2D:
         instead paints each cell flat (`pcolormesh`), which is exact about the
         cells -- the shape of a mask, a fault, the resolution -- at the cost of the
         smoothness; the colour levels (hence the colorbar) are the same either way.
+
+        `wells` marks the completions (ref `well_scatter`): `True`, `"color"`
+        (the producers coloured as in `plt_production`), or a `dict` of options
+        for `well_scatter` -- where `exclude=[names]` hides the wells so named
+        (an aquifer's ring of contacts, say; ref `TPFA_ResSim.wells.aquifer_WI`).
         """
         # Populate kwargs with fallback style
         kwargs = {**styles["default"], **styles[style], **kwargs}
@@ -199,12 +204,20 @@ class Plot2D:
                 )
             elif wells in [True, 1]:
                 wells = {}
+            else:
+                wells = dict(wells)  # NB: copy -- popped from below
+            # Hide the wells named by `exclude` (an aquifer's ring of contacts, say)
+            shown = np.ones(self.wells.nComp, bool)
+            if (exclude := wells.pop("exclude", None)) is not None:
+                assert names is not None, "`wells['exclude']` needs the wells named."
+                shown = ~np.isin(names, np.ravel(exclude))
             for s in [-1, +1, 0]:
-                if np.any(sgn == s):  # NB: skip, lest empty artists upset the layout
+                sel = (sgn == s) & shown
+                if np.any(sel):  # NB: skip, lest empty artists upset the layout
                     kws = dict(wells)  # NB: copy -- the labels are per sign
                     if names is not None:
-                        kws.setdefault("text", names[sgn == s])
-                    self.well_scatter(ax, self.wells.xy[sgn == s], s, **kws)
+                        kws.setdefault("text", names[sel])
+                    self.well_scatter(ax, self.wells.xy[sel], s, **kws)
                 wells.pop("color", None)  # producers only
 
         # Add argmax marker
@@ -224,6 +237,38 @@ class Plot2D:
 
         tight_show(ax.figure, finalize)
         return collections
+
+    def plt_faces(
+        self: "ResSim", ax: Any, xy: Any, faces: str = "WESN", **kws: Any
+    ) -> Any:
+        """Stroke the boundary faces of the cells at `xy`, onto a `plt_field`.
+
+        I.e. the faces `TPFA_ResSim.wells.boundary_faces` finds -- the contact
+        of an aquifer, say (ref `TPFA_ResSim.wells.aquifer_WI`), whose ring of
+        well markers this replaces (hide those with `wells=dict(exclude=...)`).
+        `kws` go to the `LineCollection` (`color`, `lw`, ...).
+        """
+        from matplotlib.collections import LineCollection
+
+        from TPFA_ResSim.wells import boundary_faces
+
+        xy = np.asarray(xy, float).reshape((-1, 2))
+        xy = self.sub2xy(*self.xy2sub(*xy.T)).T  # snap to the cell centres
+        hx, hy = self.hx / 2, self.hy / 2
+        # Each face as a segment from the centre: W, E, S, N
+        ends = np.array([[[-hx, -hy], [-hx, +hy]], [[+hx, -hy], [+hx, +hy]],
+                         [[-hx, -hy], [+hx, -hy]], [[-hx, +hy], [+hx, +hy]]])  # fmt: skip
+        segments = (xy[:, None, None, :] + ends)[boundary_faces(self, xy, faces)]
+        # fmt: off
+        if   "rel" in coord_type: s = 1/self.Lx, 1/self.Ly                     # noqa
+        elif "abs" in coord_type: s = 1, 1                                     # noqa
+        elif "ind" in coord_type: s = self.Nx/self.Lx, self.Ny/self.Ly         # noqa
+        else: raise ValueError("Unsupported coordinate type: %s" % coord_type) # noqa
+        # fmt: on
+        opts: dict = dict(color="C0", lw=4, capstyle="projecting", zorder=1.4) | kws
+        lc = LineCollection(segments * s, **opts)
+        ax.add_collection(lc)
+        return lc
 
     def well_scatter(
         self: "ResSim",

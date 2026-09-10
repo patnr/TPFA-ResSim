@@ -19,6 +19,9 @@ One panel per feature, drawn from their results:
   ourselves, and the error is shown to vanish under grid refinement.
 - `examples.inactive_cells`: an irregular reservoir on the rectangular grid --
   an outline and a sealing fault, cut out by `TPFA_ResSim.ResSim.active`.
+- `examples.aquifer`: water beyond part of the boundary, feeding a lone producer
+  -- a BHP-controlled "well" in the contact cells (`TPFA_ResSim.wells.aquifer_WI`),
+  at constant pressure, or depleting (Fetkovich: a `well_controls` override).
 
 These concern the *well model* (`TPFA_ResSim.wells.peaceman_WI`), i.e. the sub-grid
 relation between a well and the (much larger) cell that holds it:

@@ -5,7 +5,7 @@ using TPFA (two-point flux approximation).
 [**Documentation**](https://patnr.github.io/TPFA-ResSim/TPFA_ResSim.html).
 
 - **small**: all of its physics fit in `core.py`'s 300 lines of code
-- **capable**: two-phase, slight compressibility, BHP control, irregular outlines and faults (inactive cells) –
+- **capable**: two-phase, slight compressibility, BHP control, irregular outlines and faults (inactive cells), aquifers –
   but 2D uniform grid, immiscible, isothermal, and only simple well models.
 - **adjoint** model included; verified against finite differences
 - **python**: easy to demo in a web browser via Colab or WASM

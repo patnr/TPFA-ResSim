@@ -9,7 +9,8 @@ compressibility (the accumulation and storage terms, through which `P0`
 matters), BHP-controlled wells (the well model in the system and the realized
 rates), the pinned, incompressible pressure system, a 1D row (`Ny = 1`: no
 y-faces), and inactive cells (`active`: omitted faces, identity rows, and the
-pin moved off cell 0). The tapes are of the *unperturbed* run, as they are in use.
+pin moved off cell 0), and an aquifer (BHP completions on the boundary, ref
+`aquifer_WI`, supplying a lone producer). The tapes are of the *unperturbed* run, as they are in use.
 
 Central differences with `eps = 1e-5` on a smooth map should agree to
 ~`1e-8` (the truncation error grows as `eps²`, the round-off of the differenced
@@ -81,6 +82,11 @@ configs: dict = {
         K=K_het(), active=mask(), ct=.1,
         wells=[dict(xy=[.1, 0], bhp=3, rw=1e-3), dict(xy=[.6, 1], rate=-1),
                dict(xy=[1, 0], rate=.5), dict(xy=[1, 1], bhp=0, rw=1e-3)],
+    ),
+    "aquifer_incompressible": dict(
+        K=K_het(), active=mask(), vo=2,
+        wells=[dict(xy=[[0, .4], [0, .5], [0, .6]], aquifer=True, bhp=2),
+               dict(xy=[1, 1], rate=-1)],
     ),
 }
 

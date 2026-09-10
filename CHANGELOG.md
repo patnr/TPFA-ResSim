@@ -12,6 +12,21 @@ should pin a tag (or commit hash) and advance it deliberately.
 
 ### Added
 
+- **Aquifers**, `TPFA_ResSim.wells.aquifer_WI` and the record key `aquifer`: an
+  aquifer is a BHP-controlled "well" completed in the cells that touch it, its
+  `WI` the transmissibility of their boundary face(s) -- from the cell centre to
+  the face, so that the aquifer pressure is imposed *at* the face (a Dirichlet
+  condition). A face to an inactive cell counts as one to the outside, and a
+  string of compass directions (`aquifer="W"`) leaves sealed edges out. Nothing
+  else of the model is involved: the influx enters as any well's, anchors the
+  pressure (a lone producer is fine even if incompressible), is reported in
+  `actual_rates`, and the adjoint handles it (the BHP terms being differentiated
+  already). A finite (Fetkovich) aquifer is a
+  `well_controls` override, ref `examples/aquifer.py`.
+  `plt_field(wells=dict(exclude=[names]))` hides the ring of markers, and
+  `plt_faces` strokes the contact along the boundary faces instead (which
+  `wells.boundary_faces` finds, for both).
+  `tests/test_aquifer.py`; an aquifer config in `tests/test_tlm.py`.
 - **Inactive cells**, `ResSim.active`: a boolean `(Nx, Ny)` mask (default all
   `True`) carving an irregular reservoir -- an outline, holes, a sealing fault --
   out of the rectangular grid. Inactive cells are inert: zero transmissibility
