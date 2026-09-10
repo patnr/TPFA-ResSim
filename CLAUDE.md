@@ -80,6 +80,8 @@ and reads its permeability back off the semilog derivative, as a well test does.
 difference *in the script* (an `assert`, like `buckley_leverett.py` asserts its analytics),
 and put both numbers in their `__digest__`; the latter also takes a few steepest-descent
 steps, so it is the slowest example (~4 s).
+`examples/logo.py` is the odd one out: a smiley and a yin-yang cut out by `active`, for the picture alone (a logo); its
+`aquifer` flag toggles the aquifer along the bottom (and rebalances the rates).
 `tests/test_compressible.py` and `tests/test_units.py` are different: structural/physics properties, no figures.
 
 Don't read `todo.md`.

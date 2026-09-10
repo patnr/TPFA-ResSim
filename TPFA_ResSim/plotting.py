@@ -308,9 +308,9 @@ class Plot2D:
 
         # Style
         if sgn > 0:
-            c = "w"
+            c = "darkblue"
             ec = "gray"
-            d = "k"
+            d = "w"
             m = "v"
         elif sgn < 0:
             c = "k"

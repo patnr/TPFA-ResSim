@@ -29,6 +29,8 @@ One panel per feature, drawn from their results:
 - `examples.aquifer`: water beyond part of the boundary, feeding a lone producer
   -- a BHP-controlled "well" in the contact cells (`TPFA_ResSim.wells.aquifer_WI`),
   at constant pressure, or depleting (Fetkovich: a `well_controls` override).
+- `examples.logo`: a smiley and a yin-yang -- outlines, a hole and a barrier cut
+  out by `active`, an aquifer along the bottom -- for the picture alone.
 
 These concern the *well model* (`TPFA_ResSim.wells.peaceman_WI`), i.e. the sub-grid
 relation between a well and the (much larger) cell that holds it:
