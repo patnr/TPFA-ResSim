@@ -13,7 +13,7 @@ using TPFA (two-point flux approximation).
 - **reliable**: reproduces the numbers of the [Matlab code (2007)](http://folk.ntnu.no/andreas/papers/ResSimMatlab.pdf) from NTNU/Sintef by Jørg E. Aarnes, Tore Gimse, and Knut–Andreas Lie
 - extensively **tested** and **documented**
 
-![One waterflood: permeability, pressure, water front, and the adjoint sensitivity](collage.png)
+![The Egg model: permeability, pressure, oil saturation, and the adjoint sensitivity of a producer's water cut](collage.png)
 
 ## Examples
 

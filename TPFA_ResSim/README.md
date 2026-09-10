@@ -3,7 +3,7 @@ TPFA-ResSim is a
 reservoir simulator
 using TPFA (two-point flux approximation).
 
-![One waterflood: permeability, pressure, water front, and the adjoint sensitivity](collage.png)
+![The Egg model: permeability, pressure, oil saturation, and the adjoint sensitivity of a producer's water cut](collage.png)
 
 See `examples` for more demonstrations.
 

@@ -9,9 +9,10 @@ Both re-plot *results* of the example modules (imported here, so they get run if
 have not been already), rather than pasting their saved figures, so that the panels
 share one look: square, uniform fonts, no colorbars.
 
-- `collage.png` (the README's banner): one simulation, `examples.water_cut_gradient`,
-  read left to right -- the permeability, the pressure it gives, the water it moves,
-  and the adjoint's sensitivity of the production to it.
+- `collage.png` (the README's banner): one simulation, `examples.egg`, read left to
+  right -- the permeability, the pressure it gives, the water it moves, and the
+  adjoint's sensitivity of the production to it (`TPFA_ResSim.tlm.adjoint`, run here
+  on the example's trajectory, since the example itself does not).
 - `collage_features.png`: one panel per feature, mostly a single axes of some
   example's figure, redrawn.
 """
@@ -25,6 +26,8 @@ from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.layout_engine import ConstrainedLayoutEngine
+
+from TPFA_ResSim.tlm import adjoint, fractional_flow
 
 root = Path(__file__).parent.parent
 sys.path.insert(0, str(root))  # makes `examples` importable
@@ -51,35 +54,46 @@ def field(model, ax, Z, style="default", **kws) -> Any:
 
 
 def hero(figsize=(16, 4.4)):
-    """One waterflood, from its permeability to the sensitivity of its production."""
-    wcg = example("water_cut_gradient")
-    model, k, t = wcg.model, wcg.k, wcg.k * wcg.dt
+    """The Egg model, from its permeability to the sensitivity of its production."""
+    egg = example("egg")
+    model, active = egg.model, egg.footprint.ravel()
     fig, axs = plt.subplots(ncols=4, figsize=figsize,
                             layout=ConstrainedLayoutEngine(wspace=.06))
 
-    field(model, axs[0], wcg.logK, cmap="viridis", levels=17,
-          title="Permeability, $\\log K$")
+    # The objective of the adjoint: the water cut of PROD3 just after its
+    # breakthrough (the first report where it exceeds one half), at time index
+    # `k` -- which the pressure and saturation panels are also shown at. The
+    # sweep needs only run up to `k` (later steps cannot affect the objective).
+    well = egg.names.index("PROD3")
+    k = 1 + int(np.argmax(egg.cut[:, well] > .5))
+    cell = egg.cells[well]
+    dJ_dSS = np.zeros_like(egg.SS[:k + 1])
+    dJ_dSS[k, cell] = fractional_flow(model, egg.SS[k])[1][cell]  # f_w'(s)
+    G = adjoint(model, egg.dt, egg.SS[:k + 1], egg.PP[:k + 1], dJ_dSS).logK.sum(0)
+
+    field(model, axs[0], np.log10(egg.K).ravel(), cmap="viridis",
+          levels=np.linspace(2, 3.7, 18), title="Permeability, $\\log_{10} K$ [mD]")
 
     # The colour scale is clipped at the wells (the cmap's `over`/`under` make
     # `plt_field` extend rather than blank), whose spikes would otherwise take
     # all the levels, leaving the field between them a single colour.
-    P = wcg.PP[k]
-    lo, hi = np.percentile(P, [2, 98])
+    P = egg.PP[k]
+    lo, hi = np.percentile(P[active], [2, 98])
     levels = np.linspace(lo, hi, 17)
     cmap = plt.get_cmap("magma")
     cmap = cmap.with_extremes(over=cmap(1.0), under=cmap(0.0))
-    field(model, axs[1], P, cmap=cmap, levels=levels, title="Pressure")
-    axs[1].contour(P.reshape(model.shape).T, levels=levels, colors="w",
-                   linewidths=.6, alpha=.6, origin="lower",
+    field(model, axs[1], P, cmap=cmap, levels=levels, title="Pressure [bar]")
+    axs[1].contour(np.where(active, P, np.nan).reshape(model.shape).T, levels=levels,
+                   colors="w", linewidths=.6, alpha=.6, origin="lower",
                    extent=(0, model.Lx, 0, model.Ly))
 
-    field(model, axs[2], wcg.SS[k], "oil", title=f"Oil saturation, t = {t:.2f}")
+    field(model, axs[2], egg.SS[k], "oil", title=f"Oil saturation, t = {k*egg.dt} days")
 
-    m = np.percentile(abs(wcg.G), 98)
+    m = np.percentile(abs(G.ravel()[active]), 98)
     cmap = plt.get_cmap("RdBu_r")
     cmap = cmap.with_extremes(over=cmap(1.0), under=cmap(0.0))
-    field(model, axs[3], wcg.G, cmap=cmap, levels=np.linspace(-m, m, 21),
-          title="Adjoint: ∂(water cut) / ∂ $\\log K$")
+    field(model, axs[3], G, cmap=cmap, levels=np.linspace(-m, m, 21),
+          title=f"Adjoint: ∂(water cut of {egg.names[well]}) / ∂ $\\log K$")
 
     for ax in axs:
         ax.title.set_fontsize(13)
