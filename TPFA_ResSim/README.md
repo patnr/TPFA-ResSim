@@ -61,7 +61,7 @@ $$\nabla \cdot \mathbf{\mathbf{v}} = \frac{q}{\rho} \,. \tag{4}$$
 
 We now have 1 equation and 2 unknowns (in 2D).
 Closing the system,
-*Darcy's law* provides 2 additional equations and 1 additional unknown, pressure $p$:
+**Darcy's law** provides 2 additional equations and 1 additional unknown, pressure $p$:
 $$\mathbf{v} = − \frac{\mathbf{K}}{\mu} \nabla u \,, \tag{5}$$
 where
 $u = p - \rho g z \,.$
@@ -73,7 +73,7 @@ linearly transformed by the permeability tensor (matrix).
 Inserting the formula (5) into eqn. (4) yields
 $$− \nabla \cdot \frac{\mathbf{K}}{\mu} \nabla u = \frac{q}{\rho} \,. \tag{6}$$
 which can be solved for $u$.
-In reservoir engineering, *no-flow* boundary conditions are most often used,
+In reservoir engineering, **no-flow** boundary conditions are most often used,
 and $u$ is only determined up to a constant (as behoves a *potential*).
 Finally, $u$ can be inserted in Darcy's law (5) to yield the (steady-state) velocity.
 
