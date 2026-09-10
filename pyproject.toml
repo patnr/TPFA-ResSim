@@ -48,6 +48,15 @@ dependencies = [
     "mpl-tools>=0.4.0,<0.5",
 ]
 
+# The PyPI sidebar. `Homepage` is the docs (whose index redirects to the
+# package page), not the repo, which `Repository` covers.
+[project.urls]
+Homepage = "https://patnr.github.io/minires/"
+Documentation = "https://patnr.github.io/minires/minires.html"
+Repository = "https://github.com/patnr/minires"
+Changelog = "https://github.com/patnr/minires/blob/main/CHANGELOG.md"
+Issues = "https://github.com/patnr/minires/issues"
+
 [dependency-groups]
 # What CI installs (`uv sync --no-default-groups --group test`, resp. `docs`).
 # Keeping these apart from `dev` spares CI the interactive tools -- in
