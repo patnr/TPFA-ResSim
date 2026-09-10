@@ -13,8 +13,8 @@ should pin a tag (or commit hash) and advance it deliberately.
 ### Added
 
 - **Corey relative permeabilities**, `ResSim.RelPerm`: the curves gained
-  exponents (`nw`, `no`) and end-points (`krw0`, `kro0`); the defaults are the
-  quadratic curves as before. The normalized saturation is now clipped to
+  exponents (`nw`, `no`) and end-points (`krw0`, `kro0`) -- fields of `ResSim.fluid`,
+  ref "Changed" below; the defaults are the quadratic curves as before. The normalized saturation is now clipped to
   $[0, 1]$, so a phase below its residual is immobile (an odd power would
   otherwise make it mobile with the wrong sign; the initial water of the Egg
   model sits below its residual). The CFL estimate of the explicit scheme
@@ -156,6 +156,22 @@ should pin a tag (or commit hash) and advance it deliberately.
   metric and read as a well test.
 
 ### Changed
+
+- **BREAKING**: the fluid properties are **grouped into `ResSim.fluid`**, a
+  `TPFA_ResSim.fluids.Fluid` (a small dataclass: the viscosities `vw`, `vo` and
+  the Corey parameters `swc`, `sor`, `nw`, `no`, `krw0`, `kro0`), so `model.vo`
+  -> `model.fluid.vo`, `model.swc` -> `model.fluid.swc`, and `ResSim(vo=5,
+  swc=.2)` -> `ResSim(fluid=dict(vo=5, swc=.2))` -- a `dict`, a `Fluid`, or
+  `None` (the defaults) may be assigned, as records may be to `wells`. The
+  methods went with the parameters: `RelPerm`, `dRelPerm` and `rescale_sat` are
+  now `Fluid`'s (`model.fluid.RelPerm(s)`), and so is `fractional_flow`, formerly a
+  free function of `tlm` taking the model and returning `(fw, dfw)`: now
+  `fractional_flow(s)` gives $f_w$ and `dfractional_flow(s)` its derivative
+  (the adjoint examples' seeds call `model.fluid.dfractional_flow`). They are
+  the one implementation of $f_w$, which the transport schemes, the CFL
+  estimate and the examples' water cuts all reuse. Curves of another shape (e.g. tabulated)
+  are a `Fluid` subclass overriding `RelPerm`/`dRelPerm`, assigned to `fluid`.
+  Numerically nothing changed. `tests/test_fluids.py`.
 
 - **BREAKING**: injectors and producers are **unified into a single set of
   wells**, removing every per-kind code path:

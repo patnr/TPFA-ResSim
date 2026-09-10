@@ -89,7 +89,7 @@ def yinyang(X, Y):
     lower = (abs(np.hypot(X - .5, Y - .5 + R/2) - R/2) <= w) & (X <= .5) & (Y <= .5)
     return disc & ~((upper | lower) & (Y > .5 - R + gap))
 
-yy_model = make(yinyang, vw=10, wells=[  # viscous water ⇒ a piston-like front
+yy_model = make(yinyang, fluid=dict(vw=10), wells=[  # viscous water ⇒ a piston-like front
     dict(name="Inj", xy=[.5, .75], rate=+1),
     dict(name="Prd", xy=[.5, .25], rate=-1),
 ])

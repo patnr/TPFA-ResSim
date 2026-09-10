@@ -12,6 +12,7 @@ from tqdm.auto import tqdm
 from TPFA_ResSim._repr import AlignedRepr
 from TPFA_ResSim.grid import Fluxes, Grid2D
 from TPFA_ResSim.plotting import Plot2D
+from TPFA_ResSim.fluids import Fluid
 from TPFA_ResSim.wells import Wells
 
 
@@ -65,6 +66,12 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
             val = np.asarray(val, bool).reshape(self.shape)
             assert val.any(), "No active cells."
             self._pin = int(np.argmax(val))
+        # Fluid: a dict (or `None`) builds the `Fluid` it parameterizes
+        if key == "fluid":
+            if val is None:
+                val = Fluid()
+            elif isinstance(val, dict):
+                val = Fluid(**val)
         # Wells -- records (or `None`) get assembled into a `Wells`, which then
         # gets bound, whereupon it snaps its completions onto this grid.
         # NB: the wells' own normalization is `TPFA_ResSim.wells.Wells.__setattr__`.
@@ -118,22 +125,16 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
         already consistent.
     """
 
-    vw: float = 1.0
-    """Viscosity for water."""
-    vo: float = 1.0
-    """Viscosity for oil."""
-    swc: float = 0.0
-    """Irreducible saturation, water: $ k_{rw} = 0 $ below it (ref `RelPerm`)."""
-    sor: float = 0.0
-    """Irreducible saturation, oil: $ k_{ro} = 0 $ above $ s = 1 - S_{or} $ (ref `RelPerm`)."""
-    nw: float = 2.0
-    """Corey exponent of the water relative permeability (ref `RelPerm`)."""
-    no: float = 2.0
-    """Corey exponent of the oil relative permeability (ref `RelPerm`)."""
-    krw0: float = 1.0
-    """End-point (maximal) water relative permeability, at $ s = 1 - S_{or} $ (ref `RelPerm`)."""
-    kro0: float = 1.0
-    """End-point (maximal) oil relative permeability, at $ s = S_{wc} $ (ref `RelPerm`)."""
+    fluid: Any = None
+    """The two-phase fluid: a `TPFA_ResSim.fluids.Fluid`, holding the viscosities
+    and the Corey relative permeability parameters, and computing the mobilities
+    and fractional flow from them.
+
+    Assigning a `dict` builds one (`ResSim(fluid=dict(vo=5, swc=.2))`), and `None`
+    the default (unit viscosities, the reference paper's quadratic curves). Its
+    fields stay writable (`model.fluid.vo = 5`). A `Fluid` subclass (e.g. with
+    tabulated curves) may be assigned instead.
+    """
     ct: float = 0.0
     """Total (rock + fluids) compressibility, $c_t$, as a single constant.
 
@@ -266,7 +267,7 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
                 "BHP control requires (finite) `Wells.WI`."
             )
             assert S is not None, "BHP control requires `S` (for λ_t)."
-            Mw, Mo = self.RelPerm(S)
+            Mw, Mo = self.fluid.RelPerm(S)
             WI_lam[is_bhp] = WI[is_bhp] * (Mw + Mo)[inds[is_bhp]]
 
         # Translate well conditions for cells.
@@ -339,7 +340,7 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
         ...         return ctrl
         >>> model = Shutter(Lx=1, Ly=1, Nx=16, Ny=16,
         ...                 wells=Wells(xy=[[0, 0], [1, 1]], rates=[[1], [-1]]))
-        >>> SS, PP = model.sim(.05, 20, model.swc*np.ones(model.Nxy), pbar=False)
+        >>> SS, PP = model.sim(.05, 20, model.fluid.swc*np.ones(model.Nxy), pbar=False)
         >>> int((model.wells.actual_rates[1] == 0).argmax())  # step of breakthrough
         16
 
@@ -421,7 +422,7 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
         """
         if self.wells.WI is None:
             return np.full(self.nComp, np.nan)
-        Mw, Mo = self.RelPerm(S)
+        Mw, Mo = self.fluid.RelPerm(S)
         ii = self.xy2ind(*self.wells.xy.T)
         return P[ii] + rates / (self.wells.WI * (Mw + Mo)[ii])
 
@@ -438,7 +439,7 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
         required) only if `ct > 0`, along with `dt`. The new one replaces it.
         """
         # Compute K*λ(S)
-        Mw, Mo = self.RelPerm(S)
+        Mw, Mo = self.fluid.RelPerm(S)
         Mt = Mw + Mo
         Mt = Mt.reshape(self.shape)
         KM = Mt * self.K
@@ -461,46 +462,6 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
             np.add.at(summed, inv, np.atleast_2d(data))
             data, diags = summed, uniq
         return sparse.spdiags(data, diags, self.Nxy, self.Nxy)
-
-    def rescale_sat(self, s: np.ndarray) -> np.ndarray:
-        """Account for irreducible saturations. Ref paper, p. 32."""
-        return (s - self.swc) / (1 - self.swc - self.sor)
-
-    # RelPerm() -- listing 6
-    def RelPerm(self, s: np.ndarray) -> tuple:
-        """Rel. permeabilities of water and oil. Return as mobilities (perm/viscosity).
-
-        Corey (power-law) curves of the normalized saturation $ S $ of `rescale_sat`,
-
-        $$ k_{rw} = k_{rw}^0 \\, S^{n_w} \\,, \\qquad k_{ro} = k_{ro}^0 \\, (1 - S)^{n_o} \\,,
-           \\qquad S = \\frac{s - S_{wc}}{1 - S_{wc} - S_{or}} \\,, $$
-
-        with $ S $ clipped to $[0, 1]$, so that a phase below its residual
-        saturation is immobile (rather than mobile with the wrong sign, as an odd
-        power would make it). The parameters are the fields `swc`, `sor`, `nw`,
-        `no`, `krw0`, `kro0`; the defaults give the quadratic curves of the
-        reference paper (Listing 6), $ S^2 $ and $ (1 - S)^2 $. Override this
-        method (and `dRelPerm`) for curves of another shape, e.g. tabulated.
-
-        >>> model = ResSim(Lx=1, Ly=1, Nx=1, Ny=1, swc=.2, sor=.2)
-        >>> Mw, Mo = model.RelPerm(np.array([.1, .2, .5, .8, .9]))
-        >>> Mw.round(4), Mo.round(4)
-        (array([0.  , 0.  , 0.25, 1.  , 1.  ]), array([1.  , 1.  , 0.25, 0.  , 0.  ]))
-        """
-        S = np.clip(self.rescale_sat(s), 0, 1)
-        Mw = self.krw0 * S**self.nw / self.vw  # Water mobility
-        Mo = self.kro0 * (1 - S) ** self.no / self.vo  # Oil mobility
-        return Mw, Mo
-
-    def dRelPerm(self, s: np.ndarray) -> tuple:
-        """Derivatives of `RelPerm` wrt `s` (zero where the curves are clipped)."""
-        S = self.rescale_sat(s)
-        inside = (0 <= S) & (S <= 1)  # one-sided at the ends, as the reference code
-        S = np.clip(S, 0, 1)
-        w = 1 - self.swc - self.sor
-        dMw = np.where(inside, self.krw0 * self.nw * S ** (self.nw - 1) / w, 0) / self.vw
-        dMo = -np.where(inside, self.kro0 * self.no * (1 - S) ** (self.no - 1) / w, 0) / self.vo
-        return dMw, dMo
 
     # TPFA() -- Listing 1
     def TPFA(
@@ -668,22 +629,21 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
         # fraction of the fluxes that are (under 20% even at `ct = 10`),
         # so the safety factor below covers it.
         # The characteristic speed is f_w'(s) times the velocity: bound it by the
-        # maximal slope of f_w -- its steepest chord over 1000 intervals of the
-        # mobile range, which undershoots the true maximum by O(1e-6), nothing
-        # against the safety factor of 1.5. For the default curves at equal
-        # viscosities this is the paper's 3 / (1 - swc - sor) (Listing 8), which
-        # steeper curves (unequal viscosities, higher Corey exponents) would exceed.
-        ss = np.linspace(self.swc, 1 - self.sor, 1001)
-        Mw, Mo = self.RelPerm(ss)
-        dfw_max = np.abs(np.diff(Mw / (Mw + Mo))).max() / (ss[1] - ss[0])
+        # maximal slope of f_w, sampled at 1001 points of the mobile range (which
+        # undershoots the true maximum by O(1e-6), nothing against the safety
+        # factor of 1.5). For the default curves at equal viscosities this is the
+        # paper's 3 / (1 - swc - sor) (Listing 8), which steeper curves (unequal
+        # viscosities, higher Corey exponents) exceed.
+        ss = np.linspace(self.fluid.swc, 1 - self.fluid.sor, 1001)
+        dfw_max = self.fluid.dfractional_flow(ss).max()
         cfl = 1.5 * dfw_max * flx
         # NB: the ceiling is nudged down by a relative epsilon, so that a `dt`
         # sitting *on* an integer multiple of the CFL limit (as the examples'
         # round numbers tend to) does not gain a whole extra sub-step from the
         # last bits of the linear solve -- which differ across platforms and
         # library versions, and would make the results irreproducible.
-        # The safety factor covers the shaving, the chord's undershoot, and the
-        # storage rate.
+        # The safety factor covers the shaving, the sampling's undershoot, and
+        # the storage rate.
         return cfl * (1 - 1e-9)
 
     # Upstream() -- listing 8
@@ -705,8 +665,7 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
         B   = self._spdiags(dtx, 0) @ A          # A * dt/|Omega i|
 
         for _ in range(nT):
-            Mw, Mo = self.RelPerm(S)             # compute mobilities
-            fw = Mw / (Mw + Mo)                  # compute fractional flow
+            fw = self.fluid.fractional_flow(S)      # fractional flow
             S = S + (B@fw + (fi - S*st)*dtx)     # update saturation
         # fmt: on
         return S
@@ -726,8 +685,9 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
 
             Far outside the $ c_t \\, Δp \\ll 1 $ regime (ref `ct`), it may
             converge -- silently -- to a root of the residual outside $[0, 1]$:
-            the polynomial `RelPerm` extends smoothly beyond the unit interval,
-            and the sub-`dt` halving only triggers on *non*-convergence.
+            the polynomial `TPFA_ResSim.fluids.Fluid.RelPerm` extends smoothly
+            beyond the unit interval, and the sub-`dt` halving only triggers on
+            *non*-convergence.
             The explicit scheme
             (`saturation_step_upwind`), being monotone, stays within $[0, 1]$
             even for extreme `ct`.
@@ -763,13 +723,10 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
             for _ in range(nT):
                 Sp = Sn
                 for _ in range(nNewtonMax):
-                    Mw, Mo   = self.RelPerm(Sn)    # mobilities
-                    dMw, dMo = self.dRelPerm(Sn)   # their derivatives
-                    df = dMw/(Mw+Mo) - Mw/(Mw+Mo)**2 * (dMw + dMo)        # df w/ds
+                    fw = self.fluid.fractional_flow(Sn)     # fract. flow
+                    df = self.fluid.dfractional_flow(Sn)    # its derivative
                     dG = (sparse.eye(self.Nxy) + C                        # deriv of G
                           - B @ self._spdiags(df, 0))
-
-                    fw = Mw / (Mw+Mo)               # fract. flow
                     G  = Sn - Sp - (B@fw + (fi - Sn*st)*dtx)  # G(s)
                     dS = spsolve(dG, G)             # compute dS
                     Sn = Sn - dS                    # update S

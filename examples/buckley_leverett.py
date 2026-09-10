@@ -21,16 +21,17 @@ Everything else follows: the shock travels at that chord's slope, breakthrough
 occurs when it reaches the outlet, and thereafter the outlet saturation is read
 off $ f'(s) = 1/t_D $ (which is Welge's production forecast).
 
-**Closed form for this model.** `ResSim.RelPerm` being quadratic, the tangent
-condition can be solved by hand. In terms of the normalized saturation
-(ref `ResSim.rescale_sat`) and the endpoint mobility ratio $ M = v_o/v_w $,
+**Closed form for this model.** The relative permeabilities
+(`TPFA_ResSim.fluids.Fluid.RelPerm`) being quadratic, the tangent condition can
+be solved by hand. In terms of the normalized saturation (ref
+`TPFA_ResSim.fluids.Fluid.rescale_sat`) and the endpoint mobility ratio $ M = v_o/v_w $,
 $$ S_f^* = \\frac{1}{\\sqrt{1 + M}} \\,, \\qquad
    t_D^\\mathrm{bt} = (1 - s_\\mathrm{wc} - s_\\mathrm{or})
        \\, \\frac{2 \\, (1 + M - \\sqrt{1+M})}{M \\, \\sqrt{1+M}} \\,, $$
 so for the default unit-viscosity fluids $ S_f = 1/\\sqrt{2} ≈ 0.7071 $ and
 breakthrough comes at $ 2(\\sqrt{2}-1) ≈ 0.8284 $ pore volumes injected. Below,
-the tangent is located *numerically* (from the model's own `RelPerm` and
-`dRelPerm`) and asserted to agree with these -- so the check cuts both ways:
+the tangent is located *numerically* (from the model's own
+`TPFA_ResSim.fluids.Fluid.fractional_flow`) and asserted to agree with these -- so the check cuts both ways:
 it validates the analytic solution we then compare the simulation against.
 
 Notes on the setup:
@@ -92,27 +93,14 @@ def make_model(N: int, fluid: dict) -> ResSim:
     Unit length, unit pore volume, unit rate -- so that time *is* $t_D$
     (pore volumes injected), and position *is* $x_D$.
     """
-    return ResSim(Lx=1, Ly=1, Nx=1, Ny=N, **fluid,
+    return ResSim(Lx=1, Ly=1, Nx=1, Ny=N, fluid=fluid,
                   wells=[dict(xy=[0, 0], rate=+1),
                          dict(xy=[0, 1], rate=-1)])
 
 
 ## The analytic solution
-# NB: built from the model's *own* `RelPerm`/`dRelPerm`, so that it cannot
+# NB: built from the model's *own* `fluid.fractional_flow`, so that it cannot
 # drift from the simulator's notion of the fluids -- only from its numerics.
-
-
-def frac_flow(model, s):
-    """Fractional flow of water, $ f = λ_w / (λ_w + λ_o) $."""
-    Mw, Mo = model.RelPerm(s)
-    return Mw / (Mw + Mo)
-
-
-def d_frac_flow(model, s):
-    """Derivative $ f'(s) $, i.e. the speed of the characteristic carrying `s`."""
-    Mw, Mo = model.RelPerm(s)
-    dMw, dMo = model.dRelPerm(s)
-    return (dMw*Mo - Mw*dMo) / (Mw + Mo)**2
 
 
 def welge_tangent(model) -> tuple:
@@ -122,8 +110,8 @@ def welge_tangent(model) -> tuple:
     the chord slope -- the same point, but needing no derivative, and with no
     root-bracketing to get wrong.
     """
-    lo, hi = model.swc, 1 - model.sor
-    chord = lambda S: frac_flow(model, S) / (S - lo)  # noqa: E731
+    lo, hi = model.fluid.swc, 1 - model.fluid.sor
+    chord = lambda S: model.fluid.fractional_flow(S) / (S - lo)  # noqa: E731
     opt = minimize_scalar(lambda S: -chord(S), method="bounded",
                           bounds=(lo + 1e-9, hi), options=dict(xatol=1e-12))
     return opt.x, chord(opt.x)
@@ -138,9 +126,9 @@ def analytic(model, tD, xD, S_f):
     special treatment: the tangent condition puts its position at exactly the
     end of that range, so anything ahead of it is simply `right=swc`.
     """
-    ss = np.linspace(S_f, 1 - model.sor, 10001)
-    xx = tD * d_frac_flow(model, ss)
-    return np.interp(xD, xx[::-1], ss[::-1], right=model.swc)
+    ss = np.linspace(S_f, 1 - model.fluid.sor, 10001)
+    xx = tD * model.fluid.dfractional_flow(ss)  # speed of each s
+    return np.interp(xD, xx[::-1], ss[::-1], right=model.fluid.swc)
 
 
 ## Verify the analytic solution against the closed form
@@ -154,9 +142,9 @@ models = {case: make_model(200, fluid) for case, fluid in cases.items()}
 for case, model in models.items():
     S_f, speed = welge_tangent(model)
     # The closed form (ref the docstring), in terms of `M` and the endpoints
-    M = model.vo / model.vw
-    span = 1 - model.swc - model.sor
-    S_f_exact = model.swc + span / np.sqrt(1 + M)
+    M = model.fluid.vo / model.fluid.vw
+    span = 1 - model.fluid.swc - model.fluid.sor
+    S_f_exact = model.fluid.swc + span / np.sqrt(1 + M)
     tD_bt_exact = span * 2*(1 + M - np.sqrt(1 + M)) / (M * np.sqrt(1 + M))
     assert np.isclose(S_f, S_f_exact, rtol=1e-8), "Welge tangent misplaced."
     assert np.isclose(1/speed, tD_bt_exact, rtol=1e-8), "Closed form disagrees."
@@ -169,7 +157,7 @@ profiles: dict = {}
 for case, model in models.items():
     S_f, speed = welge_tangent(model)
     xD = model.mesh[1].ravel()
-    S0 = np.full(model.Nxy, model.swc)
+    S0 = np.full(model.Nxy, model.fluid.swc)
 
     nSteps = 50
     dt = tD_snap[case] / nSteps
@@ -183,7 +171,7 @@ for case, model in models.items():
     # Neither scheme may overshoot the physical range: the analytic solution is
     # bounded by its data, and a monotone scheme must be too.
     for scheme, S in [("explicit", S_exp), ("implicit", S_imp)]:
-        assert model.swc - 1e-12 <= S.min() and S.max() <= 1 - model.sor + 1e-12, (
+        assert model.fluid.swc - 1e-12 <= S.min() and S.max() <= 1 - model.fluid.sor + 1e-12, (
             f"Case {case}, {scheme} scheme: saturation out of bounds.")
 
 ## Simulate: the production history (case A, past breakthrough)
@@ -194,22 +182,22 @@ tD_bt = 1 / speed
 nSteps = 150
 dt = 1.5 / nSteps
 tt = dt * np.arange(nSteps + 1)
-SS, _ = model.sim(dt, nSteps, np.full(model.Nxy, model.swc), pbar=False)
+SS, _ = model.sim(dt, nSteps, np.full(model.Nxy, model.fluid.swc), pbar=False)
 
 # The water cut is the fractional flow of the producer's cell -- ref
 # `ResSim.assemble_wells`, which is what draws the produced fluid at that ratio.
 i_prd = model.xy2ind(*model.wells.xy[1])
-water_cut = frac_flow(model, SS[:, i_prd])
+water_cut = model.fluid.fractional_flow(SS[:, i_prd])
 # Welge's forecast: the outlet saturation is the one whose characteristic has
 # just arrived. `analytic` returns `swc` (whence a zero water cut) before that.
-water_cut_exact = np.array([frac_flow(model, analytic(model, t, 1., S_f))
+water_cut_exact = np.array([model.fluid.fractional_flow(analytic(model, t, 1., S_f))
                             for t in tt])
 water_cut_exact[0] = 0  # `tD = 0` puts the whole profile at the inlet
 
 # Mass balance: what was injected is either still in place, or was produced.
 # (The tolerance is set by the trapezoidal integration of the jump at
 # breakthrough, not by the scheme, which conserves mass exactly.)
-in_place = (SS[-1] - model.swc).mean()
+in_place = (SS[-1] - model.fluid.swc).mean()
 produced = np.trapezoid(water_cut, tt)
 assert np.isclose(in_place + produced, tt[-1], rtol=2e-3), "Water unaccounted for."
 
@@ -221,7 +209,7 @@ assert np.isclose(in_place + produced, tt[-1], rtol=2e-3), "Water unaccounted fo
 DRY = 1e-4  # water cut counting as "no water", i.e. $ s ⪅ 0.01 $
 k_pre = round(.7 / dt)
 assert water_cut[k_pre] < DRY, "Breakthrough far too early."
-assert np.isclose((SS[k_pre] - model.swc).mean(), tt[k_pre]), "Injected water lost."
+assert np.isclose((SS[k_pre] - model.fluid.swc).mean(), tt[k_pre]), "Injected water lost."
 
 # Breakthrough should be *slightly* early, the producer sitting half a cell
 # short of the outlet -- i.e. by `(hy/2) / speed`, which is under one `dt` here.
@@ -232,7 +220,7 @@ assert 0 <= tD_bt - tD_bt_sim < 2*dt, "Breakthrough mistimed."
 # "fractional flow" figure): the mean saturation is then the average behind the
 # front, $ s_wc + t_D^bt $ -- to within the smearing.
 k_bt = round(tD_bt / dt)
-assert np.isclose(SS[k_bt].mean(), model.swc + tD_bt, rtol=1e-2), (
+assert np.isclose(SS[k_bt].mean(), model.fluid.swc + tD_bt, rtol=1e-2), (
     "Welge average is off.")
 
 ## Simulate: convergence under refinement (case A, explicit scheme)
@@ -241,7 +229,7 @@ L1 = np.zeros(len(NN))
 
 for i, N in enumerate(NN):
     m = make_model(N, cases["A"])
-    S, _ = m.sim(tD_snap["A"]/50, 50, np.full(m.Nxy, m.swc), pbar=False)
+    S, _ = m.sim(tD_snap["A"]/50, 50, np.full(m.Nxy, m.fluid.swc), pbar=False)
     # NB: the analytic solution is grid-independent -- only sampled anew
     exact = analytic(m, tD_snap["A"], m.mesh[1].ravel(), profiles["A"]["S_f"])
     L1[i] = abs(S[-1] - exact).mean()
@@ -257,18 +245,18 @@ fig, ax = freshfig("Buckley-Leverett -- fractional flow", figsize=(6, 5))
 for case, p in profiles.items():
     m = models[case]
     S_f, tD_bt_ = p["S_f"], 1 / p["speed"]
-    ss = np.linspace(m.swc, 1 - m.sor, 201)
-    (h,) = ax.plot(ss, frac_flow(m, ss), lw=2,
-                   label=f"$M$ = {m.vo/m.vw:g}, "
-                         f"$s_\\mathrm{{wc}}$ = {m.swc:g}, "
-                         f"$s_\\mathrm{{or}}$ = {m.sor:g}")
+    ss = np.linspace(m.fluid.swc, 1 - m.fluid.sor, 201)
+    (h,) = ax.plot(ss, m.fluid.fractional_flow(ss), lw=2,
+                   label=f"$M$ = {m.fluid.vo/m.fluid.vw:g}, "
+                         f"$s_\\mathrm{{wc}}$ = {m.fluid.swc:g}, "
+                         f"$s_\\mathrm{{or}}$ = {m.fluid.sor:g}")
     # The tangent, from the initial state up to `f = 1`, which it reaches at
     # the *average* saturation behind the front (Welge's other reading of it).
-    ax.plot([m.swc, m.swc + tD_bt_], [0, 1], ":", c=h.get_color(), lw=1)
-    ax.plot(S_f, frac_flow(m, S_f), "o", c=h.get_color(), ms=8,
+    ax.plot([m.fluid.swc, m.fluid.swc + tD_bt_], [0, 1], ":", c=h.get_color(), lw=1)
+    ax.plot(S_f, m.fluid.fractional_flow(S_f), "o", c=h.get_color(), ms=8,
             label=f"$S_f$ = {S_f:.3f},  $t_D^\\mathrm{{bt}}$ = {tD_bt_:.3f}")
-    ax.plot(m.swc + tD_bt_, 1, "s", c=h.get_color(), ms=6, mfc="none",
-            label=f"$\\bar{{s}}$ = {m.swc + tD_bt_:.3f} (at breakthrough)")
+    ax.plot(m.fluid.swc + tD_bt_, 1, "s", c=h.get_color(), ms=6, mfc="none",
+            label=f"$\\bar{{s}}$ = {m.fluid.swc + tD_bt_:.3f} (at breakthrough)")
 
 ax.set(title="The Welge tangent construction", xlabel="Water saturation, $s$",
        ylabel="Fractional flow, $f(s)$", xlim=(0, 1), ylim=(0, 1.08))
@@ -286,7 +274,7 @@ for ax, (case, p) in zip(axs, profiles.items()):
     ax.axvline(tD_snap[case] * p["speed"], c="k", ls=":", lw=1,
                label="Shock position, $t_D \\, f'(S_f)$")
     m = models[case]
-    ax.set(title=f"Case {case}:  $M$ = {m.vo/m.vw:g},"
+    ax.set(title=f"Case {case}:  $M$ = {m.fluid.vo/m.fluid.vw:g},"
                  f"  $t_D$ = {tD_snap[case]}", xlabel="$x_D$")
 axs[0].set_ylabel("Water saturation, $s$")
 axs[0].legend(fontsize="small")

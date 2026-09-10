@@ -253,14 +253,6 @@ def face_operators(model: ResSim) -> tuple:
     return lo, hi, Grad, Sum, g
 
 
-def fractional_flow(model: ResSim, S: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """The water fractional flow, $ f_w = λ_w / λ_t $, and its derivative wrt. `S`."""
-    Mw, Mo = model.RelPerm(S)
-    dMw, dMo = model.dRelPerm(S)
-    Mt = Mw + Mo
-    return Mw / Mt, (dMw * Mo - Mw * dMo) / Mt**2
-
-
 @dataclass
 class Tape(AlignedRepr):
     """The linearization of one step of `TPFA_ResSim.ResSim.time_stepper`.
@@ -274,7 +266,7 @@ class Tape(AlignedRepr):
     __repr__ = AlignedRepr.__repr__
 
     model: ResSim
-    """The model whose step this linearizes (for `RelPerm`, `ct`, ...)."""
+    """The model whose step this linearizes (for `fluid`, `ct`, ...)."""
     dt: float
     """The time step."""
     k: int
@@ -401,14 +393,14 @@ def linearize(
     Sj = S
     for j in range(nT):
         Ssub[j] = Sj
-        Mw, Mo = model.RelPerm(Sj)
-        Sj = Sj + (B @ (Mw / (Mw + Mo)) + (fi - Sj * st) * dtx)
+        fw = model.fluid.fractional_flow(Sj)
+        Sj = Sj + (B @ fw + (fi - Sj * st) * dtx)
     S1 = Sj
 
     # Coefficients of the linearization, at that state
     # -- mobilities and transmissibilities
-    Mw, Mo = model.RelPerm(S)
-    dMw, dMo = model.dRelPerm(S)
+    Mw, Mo = model.fluid.RelPerm(S)
+    dMw, dMo = model.fluid.dRelPerm(S)
     Mt = Mw + Mo
     Kflat = model.K.reshape(-1)
     KM = model.K.reshape(2, N) * Mt  # K λ_t, both components, flattened
@@ -480,7 +472,8 @@ def adj_step(
     # fmt: off
     # Transport equation, sub-steps in reverse
     for Sj in t.Ssub[::-1]:
-        fw, dfw_dS = fractional_flow(t.model, Sj)
+        fw = t.model.fluid.fractional_flow(Sj)
+        dfw_dS = t.model.fluid.dfractional_flow(Sj)
         adrhs = t.dtx * aS                                  # dS = dS + dtx*drhs
         adF   = -(t.Grad @ adrhs)                           # drhs = -Grad.T @ dF ...
         adfp  = adfp + fw * adrhs                           #   + dfp*fw

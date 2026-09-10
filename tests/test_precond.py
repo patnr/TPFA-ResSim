@@ -54,7 +54,7 @@ WELLS = [dict(xy=[0, 0], rate=+1), dict(xy=[1, 1], rate=-1)]
 
 def model(vw=1.0, ct=0.0, N=32, seed=4, **kwargs):
     rnd.seed(seed)
-    m = ResSim(Lx=1, Ly=1, Nx=N, Ny=N, vw=vw, ct=ct, wells=WELLS, **kwargs)
+    m = ResSim(Lx=1, Ly=1, Nx=N, Ny=N, fluid=dict(vw=vw), ct=ct, wells=WELLS, **kwargs)
     m.K = np.exp(3 * smooth(smooth(rnd.randn(2, *m.shape))))
     return m
 

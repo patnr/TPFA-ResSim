@@ -15,7 +15,7 @@ the "What is differentiated" section of `TPFA_ResSim.tlm`).
 The water cut at a producer, $ f_w(s) $ in its cell (the fraction of water in
 what it produces), is a function of the saturation there alone, so the adjoint
 is seeded by the single entry $ ∂J/∂s_k[i_\\mathrm{prd}] = f_w'(s) $ -- which
-`tlm.fractional_flow` supplies.
+`TPFA_ResSim.fluids.Fluid.fractional_flow` supplies.
 
 In the figure:
 
@@ -62,7 +62,7 @@ from scipy.ndimage import uniform_filter as smooth
 
 from TPFA_ResSim import ResSim
 from TPFA_ResSim.plotting import show
-from TPFA_ResSim.tlm import adjoint, fractional_flow
+from TPFA_ResSim.tlm import adjoint
 
 rng = np.random.default_rng(1)  # Reproducibility (the values are regression tested)
 
@@ -88,7 +88,7 @@ prd = model.xy2ind(*model.wells.xy[1:].T)  # their cells
 
 def water_cut(model, SS):
     """`(nSteps+1, nPrd)` water cut at each producer, for each stored time."""
-    return np.array([fractional_flow(model, S)[0][prd] for S in SS])
+    return np.array([model.fluid.fractional_flow(S)[prd] for S in SS])
 
 
 fw = water_cut(model, SS)
@@ -97,7 +97,7 @@ J = fw[k, well]
 
 ## Its gradient, by the adjoint
 dJ_dSS = np.zeros_like(SS)
-dJ_dSS[k, prd[well]] = fractional_flow(model, SS[k])[1][prd[well]]  # f_w'(s)
+dJ_dSS[k, prd[well]] = model.fluid.dfractional_flow(SS[k])[prd[well]]  # f_w'(s)
 grad = adjoint(model, dt, SS, PP, dJ_dSS)
 G = grad.logK.sum(0)  # isotropic ⇒ sum the components
 G_bhp = grad.bhp      # (nComp, nSteps); zero for the (rate-controlled) injector

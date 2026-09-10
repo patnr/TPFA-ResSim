@@ -47,7 +47,7 @@ def test_wells_assembles_the_arrays():
 def test_wells_is_equivalent_to_a_hand_set_config():
     """The helper is sugar: it must produce the very same run, bit for bit."""
     def run(model):
-        return model.sim(.05, 10, model.swc*np.ones(model.Nxy), pbar=False)
+        return model.sim(.05, 10, model.fluid.swc*np.ones(model.Nxy), pbar=False)
 
     by_hand = a_model(wells=Wells(xy=[[0, 0], [1, 1]], rates=[[1], [-1]]))
     by_hand.wells.WI = [np.nan, peaceman_WI(by_hand, [[1, 1]], rw)[0]]
@@ -234,7 +234,7 @@ def test_rates_by_well_sums_the_completions():
     model = a_model(wells=Wells(xy=[[0, 0], [0, 1], [1, 1]],
                                 rates=[[.5], [.5], [-1]],
                                 group=[0, 0, 1], names=["I1", "P1"]))
-    model.sim(.02, 5, model.swc*np.ones(model.Nxy), pbar=False)
+    model.sim(.02, 5, model.fluid.swc*np.ones(model.Nxy), pbar=False)
 
     assert model.wells.actual_rates.shape == (model.nComp, 5)
     assert model.wells.rates_by_well.shape == (model.wells.nWell, 5)
@@ -242,7 +242,7 @@ def test_rates_by_well_sums_the_completions():
 
     # Without any grouping it is a no-op
     plain = a_model(wells=Wells(xy=[[0, 0], [1, 1]], rates=[[1], [-1]]))
-    plain.sim(.02, 3, plain.swc*np.ones(plain.Nxy), pbar=False)
+    plain.sim(.02, 3, plain.fluid.swc*np.ones(plain.Nxy), pbar=False)
     assert np.array_equal(plain.wells.rates_by_well, plain.wells.actual_rates)
 
 

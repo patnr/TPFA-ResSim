@@ -43,7 +43,7 @@ def test_the_epsilon_does_not_swallow_a_real_sub_step():
     """A `dt` genuinely *over* the boundary must still get its 7th sub-step.
 
     I.e. the epsilon ($10^{-9}$, relative) -- and the $O(10^{-6})$ undershoot of
-    the chord that `estimate_1CFL` bounds the fractional-flow slope by -- is far
+    the sampling that `estimate_1CFL` bounds the fractional-flow slope by -- is far
     narrower than any `dt` one would choose on purpose, so it absorbs round-off,
     and nothing else.
     """
@@ -76,10 +76,10 @@ def test_row_equals_column():
     """
     N = 40
     K = np.linspace(1, 3, N)
-    fluid: dict = dict(swc=.2, sor=.2, vw=1., vo=2., ct=.1)
-    col = ResSim(Lx=1, Ly=1, Nx=1, Ny=N, K=K.reshape(1, N), **fluid,
+    props: dict = dict(fluid=dict(swc=.2, sor=.2, vw=1., vo=2.), ct=.1)
+    col = ResSim(Lx=1, Ly=1, Nx=1, Ny=N, K=K.reshape(1, N), **props,
                  wells=[dict(xy=[0, 0], rate=+1), dict(xy=[0, 1], bhp=0., rw=.01)])
-    row = ResSim(Lx=1, Ly=1, Nx=N, Ny=1, K=K.reshape(N, 1), **fluid,
+    row = ResSim(Lx=1, Ly=1, Nx=N, Ny=1, K=K.reshape(N, 1), **props,
                  wells=[dict(xy=[0, 0], rate=+1), dict(xy=[1, 0], bhp=0., rw=.01)])
     S_col, P_col = col.sim(.05, 10, np.zeros(N), np.zeros(N), pbar=False)
     S_row, P_row = row.sim(.05, 10, np.zeros(N), np.zeros(N), pbar=False)

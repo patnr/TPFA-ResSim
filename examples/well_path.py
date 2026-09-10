@@ -63,7 +63,7 @@ def waterflood(injector):
     """
     model = ResSim(Lx=1, Ly=1, Nx=64, Ny=64,
                    wells=[injector, dict(name="Prd", xy=[1, 1], rate=-1)])
-    SS, PP = model.sim(dt, nSteps, model.swc*np.ones(model.Nxy), pbar=False)
+    SS, PP = model.sim(dt, nSteps, model.fluid.swc*np.ones(model.Nxy), pbar=False)
     return model, SS
 
 # The path, and its discretization into completions

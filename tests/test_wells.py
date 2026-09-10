@@ -110,7 +110,7 @@ def test_bhp_signs():
 def test_bhp_inverts_the_well_model():
     """`bhp` and the well model of `Wells.WI` are inverses: recover the rates."""
     model, PP, _ = depleted(32)
-    Mw, Mo = model.RelPerm(np.zeros(model.Nxy))
+    Mw, Mo = model.fluid.RelPerm(np.zeros(model.Nxy))
     i = model.xy2ind(*model.wells.xy[0])
     dp = PP[-1][i] - model.wells.actual_bhp[0, -1]
     assert np.isclose(model.wells.WI[0] * (Mw + Mo)[i] * dp, q)
@@ -442,7 +442,7 @@ def waterflood(cls=ResSim, **kwargs):
     """A quarter-five-spot, run past breakthrough. Cf. `examples/quarter_five_spot.py`."""
     model = cls(Lx=1, Ly=1, Nx=16, Ny=16,
                 wells=Wells(xy=[[0, 0], [1, 1]], rates=[[1.], [-1.]]), **kwargs)
-    SS, _ = model.sim(.05, 20, model.swc*np.ones(model.Nxy), pbar=False)
+    SS, _ = model.sim(.05, 20, model.fluid.swc*np.ones(model.Nxy), pbar=False)
     return model, SS
 
 

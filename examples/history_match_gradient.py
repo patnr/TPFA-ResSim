@@ -15,7 +15,7 @@ the misfit falls, and the update goes the way of the truth.
 The seeds are those of a data misfit
 (ref the "Seeding" section of `TPFA_ResSim.tlm`): for each observed time and
 producer, the residual, weighted by the derivative of the observation operator
--- here $ f_w'(s) $ in the producer's cell, via `tlm.fractional_flow`.
+-- here $ f_w'(s) $ in the producer's cell, via `TPFA_ResSim.fluids.Fluid.fractional_flow`.
 
 In the figure:
 
@@ -47,7 +47,7 @@ from scipy.ndimage import uniform_filter as smooth
 
 from TPFA_ResSim import ResSim
 from TPFA_ResSim.plotting import show
-from TPFA_ResSim.tlm import adjoint, fractional_flow
+from TPFA_ResSim.tlm import adjoint
 
 rng = np.random.default_rng(1)  # Reproducibility (the values are regression tested)
 
@@ -77,7 +77,7 @@ prd = model.xy2ind(*model.wells.xy[1:].T)  # their cells
 
 def water_cut(model, SS):
     """`(nSteps, nPrd)` water cut at each producer, at times `1..nSteps`."""
-    return np.array([fractional_flow(model, S)[0][prd] for S in SS[1:]])
+    return np.array([model.fluid.fractional_flow(S)[prd] for S in SS[1:]])
 
 
 ## The truth, and the observations it produces
@@ -99,7 +99,7 @@ def misfit(logK, gradient=False):
     # Seed: ∂J/∂s_k[i] = 2/nObs * residual * f_w'(s), at the producers, each time
     dJ_dSS = np.zeros_like(SS)
     for k in range(1, nSteps + 1):
-        dJ_dSS[k, prd] = 2 / obs.size * residual[k - 1] * fractional_flow(model, SS[k])[1][prd]
+        dJ_dSS[k, prd] = 2 / obs.size * residual[k - 1] * model.fluid.dfractional_flow(SS[k])[prd]
     G = adjoint(model, dt, SS, PP, dJ_dSS).logK.sum(0)  # isotropic ⇒ sum the components
     return J, G, fw
 

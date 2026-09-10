@@ -54,7 +54,7 @@ grid: dict = dict(Lx=1, Ly=1, Nx=64, Ny=64)
 model = ResSim(**grid, wells=[dict(name="SW", xy=[0, 0], rate=+1),
                               dict(name="NE", xy=[1, 1], rate=-1)])
 
-water_sat0 = model.swc * np.ones(model.Nxy)
+water_sat0 = model.fluid.swc * np.ones(model.Nxy)
 nSteps = 28
 dt = 0.7/nSteps
 

@@ -31,7 +31,7 @@ import numpy as np
 import pytest
 
 from TPFA_ResSim import ResSim
-from TPFA_ResSim.tlm import adj_step, adjoint, face_operators, fractional_flow, linearize
+from TPFA_ResSim.tlm import adj_step, adjoint, face_operators, linearize
 
 n = 12
 dt = .0337  # not a round number, lest `dt * 1/CFL` land on an integer
@@ -56,11 +56,11 @@ def mask():
 
 configs: dict = {
     "incompressible": dict(
-        K=K_het(), swc=.1, sor=.2, vo=3,
+        K=K_het(), fluid=dict(swc=.1, sor=.2, vo=3),
         wells=[dict(xy=[0, 0], rate=1), dict(xy=[1, 1], rate=-1)],
     ),
     "compressible": dict(
-        K=K_het(), ct=.1, vw=2,
+        K=K_het(), ct=.1, fluid=dict(vw=2),
         wells=[dict(xy=[0, 0], rate=1), dict(xy=[1, 1], rate=-.4), dict(xy=[.5, .9], rate=-.3)],
     ),
     "bhp_compressible": dict(
@@ -77,7 +77,7 @@ configs: dict = {
         wells=[dict(xy=[0, 0], rate=1), dict(xy=[1, 1], bhp=0, rw=1e-3)],
     ),
     "inactive_incompressible": dict(
-        K=K_het(), active=mask(), swc=.1, sor=.1, vo=2,
+        K=K_het(), active=mask(), fluid=dict(swc=.1, sor=.1, vo=2),
         wells=[dict(xy=[.1, 0], rate=1), dict(xy=[.6, 1], rate=-1),
                dict(xy=[1, 0], rate=.5), dict(xy=[1, 1], rate=-.5)],
     ),
@@ -87,7 +87,7 @@ configs: dict = {
                dict(xy=[1, 0], rate=.5), dict(xy=[1, 1], bhp=0, rw=1e-3)],
     ),
     "aquifer_incompressible": dict(
-        K=K_het(), active=mask(), vo=2,
+        K=K_het(), active=mask(), fluid=dict(vo=2),
         wells=[dict(xy=[[0, .4], [0, .5], [0, .6]], aquifer=True, bhp=2),
                dict(xy=[1, 1], rate=-1)],
     ),
@@ -176,7 +176,7 @@ def test_face_operators_recast_the_assemblies():
     assert np.allclose(tape.V, V, rtol=0, atol=1e-14)
     assert np.allclose(Grad.T @ V, model._Q - model.storage_rate(VV))
     # The transport operator: `A_up @ fw == -div(V * fw_upwind) + Q⁻ * fw`
-    fw, _ = fractional_flow(model, S0)
+    fw = model.fluid.fractional_flow(S0)
     A_up = model.upwind_diff(VV)
     rhs = -Grad.T @ (tape.V * (tape.Up @ fw)) + tape.Q.clip(max=0) * fw
     assert np.allclose(A_up @ fw, rhs, rtol=0, atol=1e-14)

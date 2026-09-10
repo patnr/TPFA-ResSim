@@ -27,7 +27,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.layout_engine import ConstrainedLayoutEngine
 
-from TPFA_ResSim.tlm import adjoint, fractional_flow
+from TPFA_ResSim.tlm import adjoint
 
 root = Path(__file__).parent.parent
 sys.path.insert(0, str(root))  # makes `examples` importable
@@ -68,7 +68,7 @@ def hero(figsize=(16, 4.4)):
     k = 1 + int(np.argmax(egg.cut[:, well] > .5))
     cell = egg.cells[well]
     dJ_dSS = np.zeros_like(egg.SS[:k + 1])
-    dJ_dSS[k, cell] = fractional_flow(model, egg.SS[k])[1][cell]  # f_w'(s)
+    dJ_dSS[k, cell] = model.fluid.dfractional_flow(egg.SS[k])[cell]  # f_w'(s)
     G = adjoint(model, egg.dt, egg.SS[:k + 1], egg.PP[:k + 1], dJ_dSS).logK.sum(0)
 
     field(model, axs[0], np.log10(egg.K).ravel(), cmap="viridis",

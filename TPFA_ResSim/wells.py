@@ -3,7 +3,7 @@
 Everything here depends on the wells alone, on the *geometry* they sit in
 (`TPFA_ResSim.grid.Grid2D`), and -- for the well index -- on the permeability
 `K`. What couples the wells to the *fluids* (the mobilities of
-`TPFA_ResSim.ResSim.RelPerm`) or to the linear system (the source field, the
+`TPFA_ResSim.fluids.Fluid.RelPerm`) or to the linear system (the source field, the
 BHP contributions) stays with the simulator, which reads the arrays assembled
 here.
 
@@ -449,7 +449,7 @@ class Wells(AlignedRepr):
     The well index is the *sub-grid* well model (ref the "Theory" section of
     `TPFA_ResSim.wells`), relating a well's (signed) flow rate to its drawdown,
     $$ q = WI \\, λ_t \\, (p_\\mathrm{bh} - p_\\mathrm{cell}) \\,,$$
-    with $ λ_t $ the total mobility (ref `TPFA_ResSim.ResSim.RelPerm`) of the
+    with $ λ_t $ the total mobility (ref `TPFA_ResSim.fluids.Fluid.RelPerm`) of the
     well's cell. Re-arranging,
     $$ p_\\mathrm{bh} = p_\\mathrm{cell} + q / (WI \\, λ_t) \\,, $$
     which is what `TPFA_ResSim.ResSim.bhp` computes.

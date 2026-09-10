@@ -108,7 +108,7 @@ schedule = np.where(np.arange(nSteps) < kShut, q, 0)
 C = 86400 * 9.869233e-16 * 1e5 / 1e-3
 
 grid: dict = dict(Lx=L, Ly=L, Nx=N, Ny=N, cdarcy=C,
-                  K=perm, por=por*np.ones((N, N)), vw=mu, vo=mu)  # fmt: skip
+                  K=perm, por=por*np.ones((N, N)), fluid=dict(vw=mu, vo=mu))  # fmt: skip
 
 model = ResSim(**grid, ct=ct,
                wells=[dict(name="P1", xy=[L/2, L/2], rate=-schedule)])  # fmt: skip

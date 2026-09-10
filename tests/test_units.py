@@ -72,12 +72,12 @@ def in_units(u_k, u_p, u_t, u_mu, u_L, *, u_q=None, cdarcy=None):
         Nx=N, Ny=N,
         cdarcy=cdarcy_of(u_k, u_p, u_t, u_mu, u_L) if cdarcy is None else cdarcy,
         Lx=SI["L"]/u_L, Ly=SI["L"]/u_L, ct=SI["ct"]*u_p,
-        vw=SI["mu"]/u_mu, vo=2*SI["mu"]/u_mu,
-        K=SI["k"]/u_k * _rand, por=0.2*np.ones((N, N)), swc=0.1, sor=0.1,
+        fluid=dict(vw=SI["mu"]/u_mu, vo=2*SI["mu"]/u_mu, swc=0.1, sor=0.1),
+        K=SI["k"]/u_k * _rand, por=0.2*np.ones((N, N)),
         wells=[dict(xy=[0, 0], rate=+SI["q"]/u_q, rw=SI["rw"]/u_L),
                dict(xy=[SI["L"]/u_L]*2, bhp=0.9*SI["p"]/u_p, rw=SI["rw"]/u_L)],
     )  # fmt: skip
-    S, P = model.sim(SI["dt"]/u_t, 8, np.full(model.Nxy, model.swc),
+    S, P = model.sim(SI["dt"]/u_t, 8, np.full(model.Nxy, model.fluid.swc),
                      np.full(model.Nxy, SI["p"]/u_p), pbar=False)  # fmt: skip
     return S, P * u_p, model.wells.actual_rates * u_q
 

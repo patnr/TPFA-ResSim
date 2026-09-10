@@ -82,7 +82,7 @@ references = {
         # The explicit row agrees with the Matlab output to its 5 decimals (.99965,
         # .91968, .77584, .90268, .81068, .67467, .66065), and so did the implicit
         # one (.99963, .91573, .75736, .89799, .79862, .62061, .62483) until the
-        # Corey curves were clipped to the unit interval (ref `ResSim.RelPerm`):
+        # Corey curves were clipped to the unit interval (ref `Fluid.RelPerm`):
         # the Newton iterates pass outside it, where Matlab's polynomial and the
         # clipped curves differ, and the iteration stops at an update norm of 1e-3,
         # so the implicit row now agrees with Matlab's to 3-4 decimals only --

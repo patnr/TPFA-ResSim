@@ -27,7 +27,7 @@ layers, are just one completion each here; the rate, per unit thickness (ref
 The deck's own quirks are kept: the water starts at $S_w = 0.1$, *below* the 0.2 at
 which it becomes mobile (so the first tenth of a pore volume injected only fills up
 the immobile saturation), and the injectors' 420 bar limit, which never binds. The
-relative permeabilities are the deck's Corey curves (`ResSim.RelPerm`): exponents 3
+relative permeabilities are the deck's Corey curves (`TPFA_ResSim.fluids.Fluid`): exponents 3
 and 4 with end-points 0.6 and 0.8 at the residuals $ S_{wc} = 0.2 $, $ S_{or} = 0.15 $
 (the table runs on to $ S_w = 0.9 $, but nothing but water moves there). Their
 fractional flow is steeper than the quadratic default's (its maximal slope 5.65,
@@ -147,12 +147,12 @@ Sw0 = 0.1                                           # initial water saturation
 p0 = 400                                            # initial pressure [bar]
 
 
-# The deck's `SWOF` table is Corey (ref `ResSim.RelPerm`): exponents 3 (water) and 4
+# The deck's `SWOF` table is Corey (ref `TPFA_ResSim.fluids.Fluid`): exponents 3 (water) and 4
 # (oil), end-points 0.6 and 0.8, water immobile below Sw = 0.2 and oil below So = 0.15.
-corey: dict = dict(swc=0.2, sor=0.15, nw=3, no=4, krw0=0.6, kro0=0.8)
+fluid = dict(vw=1, vo=5, swc=0.2, sor=0.15, nw=3, no=4, krw0=0.6, kro0=0.8)
 
 model = ResSim(Lx=Nx*h, Ly=Ny*h, Nx=Nx, Ny=Ny, cdarcy=C, K=K, por=por, active=footprint,
-               vw=1, vo=5, ct=1e-5, **corey, wells=wells)
+               ct=1e-5, fluid=fluid, wells=wells)
 
 ## Simulate 3600 days in 30-day steps
 dt, nSteps = 30, 120
@@ -165,12 +165,8 @@ bhp_inj = model.wells.actual_bhp[:8]
 assert bhp_inj.max() < p_max, "the injectors' BHP limit binds"
 
 ## Production, per well: water cut and oil rate
-def frac_flow(s):
-    Mw, Mo = model.RelPerm(s)
-    return Mw / (Mw + Mo)
-
 cells = model.xy2ind(*model.wells.xy[producers].T)
-cut = frac_flow(SS[1:][:, cells])                        # (nSteps, 4)
+cut = model.fluid.fractional_flow(SS[1:][:, cells])   # (nSteps, 4)
 rate = -model.wells.actual_rates[producers].T * H        # m³/day, total, positive
 oil = rate * (1 - cut)
 

@@ -53,8 +53,7 @@ inactive = ~model.active.ravel()
 assert (SS[:, inactive] == 0).all() and (PP[:, inactive] == 0).all()
 # The active ones conserve the water: what is injected and not yet produced is in place.
 iprd = model.xy2ind(*model.wells.xy[1])
-Mw, Mo = model.RelPerm(SS[:, iprd])
-water_cut = Mw / (Mw + Mo)
+water_cut = model.fluid.fractional_flow(SS[:, iprd])
 kBT = int(np.argmax(water_cut > 0))  # breakthrough: during step kBT-1 → kBT
 assert 0 < kBT < nSteps
 pv = model.pore_volume()[~inactive]
