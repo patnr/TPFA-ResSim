@@ -35,8 +35,10 @@ The class link sits in the <summary>: clicking the *link* navigates without togg
 
 {#
 The head of the sidebar, replacing pdoc's (a button to the parent module or the index,
-a logo, the search box): the title, the search box, and a pair of tabs switching between
-the two roots, `minires` and `examples`, the current one marked. Nested pages
+a logo, the search box): the logo and the title, the search box, and a pair of tabs
+switching between the two roots, `minires` and `examples`, the current one marked.
+(pdoc's own logo slot, its `nav_title` block, takes a URL configured in Python, which
+cannot be the relative one that a nested page needs, so the logo goes here instead.) Nested pages
 (`minires.grid`, `examples.depletion`) get the same head, so the marked tab is also
 the way up to the root; pdoc's button is dropped. On wide screens the whole head stays
 put while the sidebar scrolls (`custom.css`).
@@ -45,7 +47,11 @@ put while the sidebar scrolls (`custom.css`).
 {% set my_root = module.modulename.split(".")[0] %}
 {% block module_list_link %}
     <div class="nav-header">
-        <a class="nav-title" href="{{ to_root }}minires.html">MiniRes</a>
+        <a class="nav-title" href="{{ to_root }}minires.html">
+            {# `collage.py` makes the logo; `build.py` copies it into `docs/`. It is
+               decorative beside the name, hence the empty `alt`. #}
+            <img class="nav-logo" src="{{ to_root }}logo.png" alt="">MiniRes
+        </a>
 {% endblock %}
 {% block search_box %}
         {{ super() }}

@@ -1,13 +1,13 @@
-"""The two collages of the README and the docs, composed from the examples' results.
+"""The pictures of the README and the docs, composed from the examples' results.
 
-Run from the repo root: `uv run pdoc_template/collage.py` writes `collage.png` and
-`collage_features.png` there (they are committed, for the README). `build.py` calls
-`make` too, and copies the files into `docs/`, where the package and examples pages
-show them.
+Run from the repo root: `uv run pdoc_template/collage.py` writes `collage.png`,
+`collage_features.png` and `logo.png` there (they are committed, for the README).
+`build.py` calls `make` too, and copies the files into `docs/`, where the package and
+examples pages show the collages, and the sidebar the logo.
 
-Both re-plot *results* of the example modules (imported here, so they get run if they
-have not been already), rather than pasting their saved figures, so that the panels
-share one look: square, uniform fonts, no colorbars.
+They all re-plot *results* of the example modules (imported here, so they get run if
+they have not been already), rather than pasting their saved figures, so that the
+panels share one look: square, uniform fonts, no colorbars.
 
 - `collage.png` (the README's banner): one simulation, `examples.egg`, read left to
   right -- the permeability, the pressure it gives, the water it moves, and the
@@ -15,10 +15,15 @@ share one look: square, uniform fonts, no colorbars.
   on the example's trajectory, since the example itself does not).
 - `collage_features.png`: one panel per feature, mostly a single axes of some
   example's figure, redrawn.
+- `logo.png` and `logo_yinyang.png`: the two pictures of `examples.logo`, on a
+  transparent ground (so that they suit either theme, the cut-out smile and barrier
+  included) and cropped to the disc. The smiley is the logo (the README's and the
+  docs sidebar's); the yin-yang is the README's alternative.
 """
 
 import importlib
 import sys
+from functools import partial
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -269,13 +274,33 @@ def features(figsize=(20, 12.6)):
     return fig
 
 
+def logo(figsize=(2, 2), which="smiley"):
+    """The smiley (or the yin-yang) of `examples.logo`: the picture alone, cropped by `make`."""
+    lg = example("logo")
+    model, SS = (lg.model, lg.SS) if which == "smiley" else (lg.yy_model, lg.SS_yy)
+    fig, ax = plt.subplots(figsize=figsize)
+    field(model, ax, SS[-1], "oil", title="",
+          wells=dict(exclude=["Aq"], size=.9, text=False))
+    if "Aq" in model.wells.names:  # the smiley's, if the example has it switched on
+        # The aquifer contact (the example's last well), as thick as its lw=8 at 5 in.
+        contact = model.wells.xy[model.wells.group == model.wells.nWell - 1]
+        model.plt_faces(ax, contact, color="darkblue", lw=8 * figsize[1] / 5)
+    ax.axis("off")
+    return fig
+
+
 def make(out: Path = root, dpi: int = 100) -> list[Path]:
-    """Write both collages into `out`; return their paths."""
+    """Write the collages and the logos into `out`; return their paths."""
+    # The logos are cropped to their ink (no frame, no ground), and drawn at 1.5 times
+    # the dpi, being shown smaller than they are (~230 px) in the README and the sidebar.
+    crop: dict = dict(dpi=1.5 * dpi, transparent=True, bbox_inches="tight", pad_inches=0)
     files = []
-    for name, maker in [("collage", hero), ("collage_features", features)]:
+    for name, maker, kws in [("collage", hero, {}), ("collage_features", features, {}),
+                             ("logo", logo, crop),
+                             ("logo_yinyang", partial(logo, which="yinyang"), crop)]:
         fig = maker()
         files.append(out / f"{name}.png")
-        fig.savefig(files[-1], dpi=dpi)
+        fig.savefig(files[-1], **(dict(dpi=dpi) | kws))
         plt.close(fig)
     return files
 

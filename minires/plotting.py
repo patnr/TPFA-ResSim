@@ -21,6 +21,7 @@ coord_type = "absolute"
 """
 
 # Colormap for saturation
+# cm_ow = "managua"
 lin_cm = mpl.colors.LinearSegmentedColormap.from_list
 cm_ow = lin_cm("", [(0, "#1d9e97"), (0.3, "#b2e0dc"), (1, "#f48974")])
 # cOil, cWater = "red", "blue"        # Plain
@@ -29,7 +30,6 @@ cm_ow = lin_cm("", [(0, "#1d9e97"), (0.3, "#b2e0dc"), (1, "#f48974")])
 # ccnvrt = lambda c: np.array(mpl.colors.colorConverter.to_rgb(c))
 # cMiddle = .3*ccnvrt(cWater) + .7*ccnvrt(cOil)
 # cm_ow = lin_cm("", [cWater, cMiddle, cOil])
-
 
 styles: dict = dict(
     default=dict(
@@ -89,7 +89,10 @@ class Plot2D:
         `wells` marks the completions (ref `well_scatter`): `True`, `"color"`
         (the producers coloured as in `plt_production`), or a `dict` of options
         for `well_scatter` -- where `exclude=[names]` hides the wells so named
-        (an aquifer's ring of contacts, say; ref `minires.wells.aquifer_WI`).
+        (an aquifer's ring of contacts, say; ref `minires.wells.aquifer_WI`),
+        and `color` may also be given *per well*, as `{name: color}` (a list of
+        colors, one per completion, for a multi-completion well; the wells left
+        out keep the default of their sign).
         """
         # Populate kwargs with fallback style
         kwargs = {**styles["default"], **styles[style], **kwargs}
@@ -197,7 +200,8 @@ class Plot2D:
             names = None
             if self.wells.names is not None and self.wells.group is not None:
                 names = np.asarray(self.wells.names)[self.wells.group]
-            if wells == "color":
+            producer_colors = wells == "color"
+            if producer_colors:
                 # Colors matching `plt_production` of the producers
                 wells = cast(
                     dict, {"color": [f"C{i}" for i in range(int(np.sum(sgn < 0)))]}
@@ -206,6 +210,18 @@ class Plot2D:
                 wells = {}
             else:
                 wells = dict(wells)  # NB: copy -- popped from below
+            # Colors given per well (`{name: color}`) become one per completion
+            if isinstance(by_name := wells.get("color"), dict):
+                assert names is not None, "`wells['color']` by name needs them named."
+                cols = np.full(self.wells.nComp, None, object)
+                for nm, c in by_name.items():
+                    which = np.nonzero(names == nm)[0]
+                    assert len(which), f"No well named {nm}."
+                    cs = len(which) * [c] if isinstance(c, str) else list(c)
+                    assert len(cs) == len(which), f"{nm} has {len(which)} completions."
+                    for i, ci in zip(which, cs):
+                        cols[i] = ci
+                wells["color"] = cols
             # Hide the wells named by `exclude` (an aquifer's ring of contacts, say)
             shown = np.ones(self.wells.nComp, bool)
             if (exclude := wells.pop("exclude", None)) is not None:
@@ -217,8 +233,11 @@ class Plot2D:
                     kws = dict(wells)  # NB: copy -- the labels are per sign
                     if names is not None:
                         kws.setdefault("text", names[sel])
+                    if isinstance(kws.get("color"), np.ndarray):
+                        kws["color"] = list(kws["color"][sel])
                     self.well_scatter(ax, self.wells.xy[sel], s, **kws)
-                wells.pop("color", None)  # producers only
+                if producer_colors:
+                    wells.pop("color", None)  # producers only
 
         # Add argmax marker
         if argmax:
@@ -276,8 +295,9 @@ class Plot2D:
         ww: np.ndarray,
         sgn: int = 1,
         text: Any = None,
-        color: Any = None,  # e.g. "k", or a list of colors (one per well)
+        color: Any = None,  # e.g. "k", or a list of colors (one per completion)
         size: float = 1,
+        dot: Any = True,
     ) -> Any:
         """Scatter-plot the wells of `ww` onto a `Plot2D.plt_field`.
 
@@ -286,6 +306,10 @@ class Plot2D:
 
         The label, `text`, is either one string for all of them, one *per* well
         of `ww` (a list), or `False` for none.
+
+        `color` is one colour for all of them, or a list of one per row of `ww`
+        (wherein `None` means the default for `sgn`). `dot` is the little dot at
+        the marker's centre: `False` for none, or a colour (`True` means red).
 
         .. note:: The default labels are indices *within* `ww`, not global ones.
 
@@ -323,11 +347,15 @@ class Plot2D:
             d = "k"
             m = "o"
 
-        if color:
+        if isinstance(color, str):
             c = color
+        elif color is not None:
+            # NB: a list may leave wells to the default, `c`, by `None`
+            c = [c if x is None else x for x in color]
 
         # Markers
-        sh = ax.plot(*ww.T, "r.", ms=3, clip_on=False)
+        if dot is not False:
+            ax.plot(*ww.T, ".", c="r" if dot is True else dot, ms=3, clip_on=False)
         sh = ax.scatter(
             *ww.T,
             s=(size * 26) ** 2,

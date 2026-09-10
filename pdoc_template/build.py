@@ -7,8 +7,9 @@ Run it from the repo root: `uv run pdoc_template/build.py` (output in `docs/`). 
   here first lets us save the figures each one makes, so that its page can show them
   (pdoc itself cannot ship static files). The imported modules stay in `sys.modules`, so
   pdoc picks them up without running them again.
-- The two collages (`collage.py`) are regenerated from those same runs, and copied
-  into `docs/`, where the package page and the examples page show them.
+- The two collages and the two logos (`collage.py`) are regenerated from those same
+  runs, and copied into `docs/`, where the package page and the examples page show the
+  collages, and every page's sidebar the smiley (the yin-yang is the README's own).
 - The sidebar's "Contents" (the README's headings) goes one level deeper than pdoc's
   default of 2. That depth is set in a Python dict that neither the CLI nor the template
   can reach.
@@ -56,7 +57,8 @@ for path in sorted((root / "examples").glob("[!_]*.py")):
         figures[module].append((file, caption))
 plt.close("all")
 
-# The collages: regenerated at the repo root (where the README wants them), then copied.
+# The collages and the logos: regenerated at the repo root (where the README wants
+# them), then copied (the sidebar's logo is relative to the page, hence per-page).
 import collage  # noqa: E402  (a sibling of this script, which is `sys.path[0]`)
 
 for file in collage.make(root):

@@ -28,7 +28,9 @@ and the wells and the aquifer are records like any other's.
 
 The figures are the plain `plt_field` (oil saturation: water in teal, oil in
 coral), stripped of axes, colorbar, and labels; the well markers remain (the
-eyes and nose, the dots, are the markers). The stroke of the aquifer contact runs
+eyes and nose, the dots, are the markers) -- each coloured individually, by name
+(and by completion, for the two eyes), with the little centre dot turned off
+(`wells=dict(color=..., dot=False)`, ref `minires.plotting.Plot2D.well_scatter`). The stroke of the aquifer contact runs
 along the boundary *faces* of the contact cells, so it has no width but its `lw`,
 and the contours stop half a cell short of it; `cellwise=True` would instead paint
 the cells flat, up to those faces, with a pixelated outline.
@@ -36,7 +38,7 @@ the cells flat, up to those faces, with a pixelated outline.
 
 from mpl_tools.place import freshfig
 import numpy as np
-
+import minires.plotting as p
 from minires import ResSim
 from minires.plotting import show
 from minires.wells import boundary_faces
@@ -45,8 +47,8 @@ aquifer = True  # toggle: water beyond the bottom boundary, at pressure 1
 p_aq = 1.
 
 def make(outline, wells, y_aq=None, **kws):
-    """A 64² unit square cut to `outline(X, Y)`, with `wells`, and the aquifer below `y_aq`."""
-    model = ResSim(Lx=1, Ly=1, Nx=64, Ny=64, **kws)
+    """A 32² unit square cut to `outline(X, Y)`, with `wells`, and the aquifer below `y_aq`."""
+    model = ResSim(Lx=1, Ly=1, Nx=32, Ny=32, **kws)
     X, Y = model.mesh
     model.active = outline(X, Y)
     if aquifer and y_aq is not None:
@@ -81,7 +83,7 @@ if aquifer:
 assert (SS[:, ~model.active.ravel()] == 0).all()
 
 ## The yin-yang
-R, w, gap = .46, .012, .07  # radius; the barrier's half-width; the opening at the bottom
+R, w, gap = .46, .03, .07  # radius; the barrier's half-width; the opening at the bottom
 
 def yinyang(X, Y):
     disc = np.hypot(X - .5, Y - .5) <= R
@@ -102,12 +104,18 @@ far = yy_model.active & (X > .5) & (Y > .5) & (np.hypot(X - .5, Y - .5 - R/2) > 
 assert SS_yy[-1].reshape(yy_model.shape)[far].max() < 1e-6
 
 ## Plot
+# A colour per marker: keyed by well name, and, the eyes being one well of two
+# completions, a colour per *completion* for them (left eye first, ref
+# `minires.wells.Wells.xy`). The yin-yang keeps the default colours of the signs.
+colors = dict(smiley=dict(Nose="gray", Eyes=["green", "darkblue"]))
+
 for name, m, S in [("smiley", model, SS[-1]), ("yin-yang", yy_model, SS_yy[-1])]:
     fig, ax = freshfig(f"Logo ({name})", figsize=(5, 5))
-    m.plt_field(ax, S, "oil", colorbar=False, labels=False, finalize=False,
-                title="", wells=dict(exclude=["Aq"], size=1.8, text=False))
+    m.plt_field(ax, S, "oil", colorbar=False, labels=False, finalize=False, cellwise=False,
+                title="", wells=dict(exclude=["Aq"], size=1.5, text=False, dot=False,
+                                     color=colors.get(name)))
     if "Aq" in m.wells.names:
-        m.plt_faces(ax, m.wells.xy[m.wells.group == m.wells.nWell - 1], color="darkblue", lw=8)
+        m.plt_faces(ax, m.wells.xy[m.wells.group == m.wells.nWell - 1], color="darkblue", lw=12)
     ax.axis("off")
     fig.tight_layout()
 

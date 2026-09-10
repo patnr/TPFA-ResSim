@@ -109,7 +109,9 @@ nav.pdoc .nav-header {
     padding-left: var(--pad);
 }
 nav.pdoc .nav-title {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
     margin: .125rem 0 .875rem;
     font-size: 1.25rem;
     font-weight: 700;
@@ -117,6 +119,12 @@ nav.pdoc .nav-title {
 }
 nav.pdoc .nav-title:hover {
     color: var(--link);
+}
+/* The logo (`collage.py`) beside the title, downscaled from the file it comes as. */
+nav.pdoc .nav-logo {
+    width: 2.25rem;
+    height: auto;
+    flex: none;
 }
 nav.pdoc ul.nav-roots {
     display: flex;

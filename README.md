@@ -1,6 +1,6 @@
-# MiniRes
+<img src="logo.png" alt="The MiniRes logo" align="right" width="300"/>
 
-[![GitHub CI](https://github.com/patnr/MiniRes/actions/workflows/tests.yml/badge.svg)](https://github.com/patnr/MiniRes/actions)
+# MiniRes
 
 A 2D, two-phase, immiscible reservoir simulator
 using TPFA (two-point flux approximation).
@@ -13,7 +13,7 @@ using TPFA (two-point flux approximation).
 - **python**: easy to demo in a web browser via Colab or WASM
 - **fast**: comparable to JutulDarcy (but no waiting on JIT startup!) at equal accuracy on 2D two-phase cases
 - **reliable**: reproduces the numbers of the [Matlab code (2007)](http://folk.ntnu.no/andreas/papers/ResSimMatlab.pdf) from NTNU/Sintef by Jørg E. Aarnes, Tore Gimse, and Knut–Andreas Lie
-- extensively **tested** and **documented**
+- **tested** extensively: [![GitHub CI](https://github.com/patnr/MiniRes/actions/workflows/tests.yml/badge.svg)](https://github.com/patnr/MiniRes/actions)
 
 ![The Egg model: permeability, pressure, oil saturation, and the adjoint sensitivity of a producer's water cut](collage.png)
 
@@ -60,3 +60,7 @@ uv sync  # or: pip install -e .
 uv run pytest
 uv run ruff check
 ```
+
+## Alternative logo
+
+![The yin-yang of the `logo` example: the injector's half flooded, the front standing in the gap at the bottom](logo_yinyang.png)
