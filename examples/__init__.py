@@ -17,6 +17,12 @@ One panel per feature, drawn from their results:
   saturation equation is exactly solvable (by the Welge tangent construction),
   so here the numerical profile is compared with the truth rather than with
   ourselves, and the error is shown to vanish under grid refinement.
+- `examples.egg` is the one *validation* against an external simulator: the Egg
+  model (a channelized, 12-well benchmark reservoir), flattened from 7 layers to
+  one by vertical averaging, reproduces the water cuts and oil rates of its
+  published 3D solution (ECLIPSE 100) to within 0.01 and about 5%. Also the second
+  example in metric units, and the one with non-quadratic relative permeabilities
+  (Corey 3/4, by overriding `TPFA_ResSim.ResSim.RelPerm`).
 - `examples.inactive_cells`: an irregular reservoir on the rectangular grid --
   an outline and a sealing fault, cut out by `TPFA_ResSim.ResSim.active`.
 - `examples.aquifer`: water beyond part of the boundary, feeding a lone producer

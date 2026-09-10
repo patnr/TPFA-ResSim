@@ -12,6 +12,18 @@ should pin a tag (or commit hash) and advance it deliberately.
 
 ### Added
 
+- **The Egg model as an example**, `examples/egg.py`: the channelized, 12-well
+  benchmark reservoir of Jansen et al. (2014), realization 1, flattened from its
+  7 layers to one by vertical averaging (arithmetic mean of the permeabilities, the
+  column's pore volume, the egg's outline as `active`), in metric units, with the
+  deck's own Corey 3/4 relative permeabilities by overriding `RelPerm`/`dRelPerm`
+  (and scaling `estimate_1CFL` to their steeper fractional flow). It is the one
+  *validation* against an external simulator: the water cuts and oil rates of the
+  deck's published 3D solution (ECLIPSE 100) are reproduced to within an RMS of
+  0.01 and about 5%, which the example asserts and `tests/references.py` pins.
+  The data (`examples/egg.npz`, 73 KB) come from JutulDarcy's copy of the deck;
+  the example's docstring says how.
+
 - **Aquifers**, `TPFA_ResSim.wells.aquifer_WI` and the record key `aquifer`: an
   aquifer is a BHP-controlled "well" completed in the cells that touch it, its
   `WI` the transmissibility of their boundary face(s) -- from the cell centre to

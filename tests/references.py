@@ -14,6 +14,9 @@ Provenance:
   (`rate_scheduling` at an early commit; the rest when they were written).
 - `buildup` was re-generated when it was re-posed in metric units
   (ref `TPFA_ResSim.ResSim.cdarcy`), so its values are in bar, `perm_est` in mD.
+- `egg` is likewise in metric units (bar, m³/day). Its `rms_cut`, `rel_oil` and
+  `recovery` measure the agreement with the *external* 3D reference (ECLIPSE 100)
+  that the example asserts, so they record a validation, not just a regression.
 - `buckley_leverett` is the exception to all of the above: it does not rest on
   agreement with anything of ours -- the example itself asserts its agreement
   with the *analytic* solution. Its `welge` and `bt` values therefore double as
@@ -48,6 +51,15 @@ references = {
         p_mean = [1, 0.965, 0.93, 0.895, 0.8575, 0.8225, 0.7875, 0.75],
         p_cell = [1, 0.815102, 0.77981, 0.744795, 0.707292, 0.672291, 0.637291, 0.599791],
         p_last = [0.766962, 0.755348, 0.759947, 0.736761, 0.744617, 0.751904, 0.752602, 0.760441],
+    ),
+    "egg": dict(
+        water_cut = [0, 0.400584, 0.904169, 0.916458, 0.94293, 0.953766, 0.963697, 0.976541],
+        oil_rate = [133.1, 55.3028, 12.9544, 25.8175, 17.3779, 3.80922, 2.99147, 2.49644],
+        S_final = [0.1, 0.67079, 0.634567, 0.558405, 0.63291, 0.1, 0.57847, 0.1],
+        bhp_inj = [403.014, 400.141, 402.125, 401.246, 399.9, 402.741, 402.213, 402.962],
+        rms_cut = [0.00903723, 0.00994477, 0.0121528, 0.0108188],
+        rel_oil = [0.0416122, 0.0559242, 0.0422913, 0.0361017],
+        recovery = [0.571508, 0.590275],
     ),
     "heterogeneous": dict(
         pres_coarse = [-1.22125e-15, -0.698729, -1.02616, -1.25968, -1.4693, -1.70281, -2.03025, -2.72898],
