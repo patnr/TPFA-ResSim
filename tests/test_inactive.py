@@ -12,7 +12,7 @@ import copy
 import numpy as np
 import pytest
 
-from TPFA_ResSim import ResSim
+from minires import ResSim
 
 rng = np.random.default_rng(3)
 dt, nSteps = .02, 8

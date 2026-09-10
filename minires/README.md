@@ -1,4 +1,4 @@
-TPFA-ResSim is a
+MiniRes is a
 2D, two-phase, black-oil, immiscible
 reservoir simulator
 using TPFA (two-point flux approximation).
@@ -35,7 +35,7 @@ The quantities involved are all 2D-spatial fields, namely
   - The relative permeabilities $k_{\text{phase}}(s) \in [0, 1]$ are a *constitutive
     relation*, not data: here, Corey (power-law) curves of the saturation rescaled by
     its residual values, with adjustable exponents and end-points, quadratic by
-    default (`ResSim.fluid`, a `TPFA_ResSim.fluids.Fluid`). Need not sum to 1.
+    default (`ResSim.fluid`, a `minires.fluids.Fluid`). Need not sum to 1.
   - $\mu_{\text{phase}}$ is the phase viscosity, here constant.
 - $f(s) = \lambda_w(s) / \lambda(s) \in [0, 1]$ is the water fractional flow,
   giving $\mathbf{v}_w = f(s) \, \mathbf{v}$.
@@ -177,7 +177,7 @@ or field-like (ft, day, psi) by changing `ResSim.cdarcy`.
 
 The above is the default incompressible model, which is what the reference paper treats.
 Below we derive the so-called *slightly compressible* approximation,
-switched on by setting `TPFA_ResSim.ResSim.ct` ($c_t$) $> 0$.
+switched on by setting `minires.ResSim.ct` ($c_t$) $> 0$.
 
 ### Definition
 
@@ -233,7 +233,7 @@ rather than conjuring oil out of the produced volume.
 (Deriving each phase equation individually would instead charge the water
 $s \, (c_r + c_w) \, \phi \, \partial p / \partial t$;
 the two coincide iff $c_w = c_o$, the difference being within the $O(c_t)$ fidelity anyway.)
-Ref `TPFA_ResSim.ResSim.storage_rate`.
+Ref `minires.ResSim.storage_rate`.
 Both new terms vanish for $c_t = 0$, recovering eqns. (1) and (2) exactly.
 
 ### Consequences
@@ -271,7 +271,7 @@ with no Newton iteration on $p$, and no PVT properties
   and **pseudo-steady state** (or boundary-dominated) once it has reached
   the whole of the drainage volume, whereafter the pressure declines uniformly.
   **Well testing** is the inverse problem of inferring $\mathbf{K}$ and the skin
-  (ref `TPFA_ResSim.wells.peaceman_WI`) from a measured transient,
+  (ref `minires.wells.peaceman_WI`) from a measured transient,
   typically during the *build-up* after shutting a well in -- as `examples.buildup` does.
   By the linear approximations, **superposition holds**, in space and in time: a shut-in is a flowing well plus an
   equal and opposite one started at the shut-in, and the pressure anywhere is the

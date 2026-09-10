@@ -13,7 +13,7 @@ from typing import Any
 import numpy as np
 import pytest
 
-from TPFA_ResSim import ResSim, Wells, peaceman_WI, well_path
+from minires import ResSim, Wells, peaceman_WI, well_path
 
 rw = 1e-3
 

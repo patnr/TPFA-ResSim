@@ -1,6 +1,6 @@
 # Changelog
 
-Notable changes to `TPFA-ResSim`.
+Notable changes to `minires`.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning is semantic, but `0.x`, meaning that **minor bumps may break the API**.
 Such changes are marked **BREAKING** below.
@@ -42,7 +42,7 @@ should pin a tag (or commit hash) and advance it deliberately.
   The data (`examples/egg.npz`, 73 KB) come from JutulDarcy's copy of the deck;
   the example's docstring says how.
 
-- **Aquifers**, `TPFA_ResSim.wells.aquifer_WI` and the record key `aquifer`: an
+- **Aquifers**, `minires.wells.aquifer_WI` and the record key `aquifer`: an
   aquifer is a BHP-controlled "well" completed in the cells that touch it, its
   `WI` the transmissibility of their boundary face(s) -- from the cell centre to
   the face, so that the aquifer pressure is imposed *at* the face (a Dirichlet
@@ -74,7 +74,7 @@ should pin a tag (or commit hash) and advance it deliberately.
   contouring, on the same colour levels. `examples/inactive_cells.py`,
   `tests/test_inactive.py`. No existing result changes (the mask multiplies
   the transmissibilities by `1`, and the pin remains cell `0`).
-- **An adjoint model**, `TPFA_ResSim.tlm`, derived by hand: `linearize`
+- **An adjoint model**, `minires.tlm`, derived by hand: `linearize`
   recomputes a step of `time_stepper` (from the trajectory that `sim` returns)
   into a `Tape`, `adj_step` propagates a sensitivity back through it, and
   `adjoint` sweeps a whole trajectory, returning the gradient of an objective
@@ -143,7 +143,7 @@ should pin a tag (or commit hash) and advance it deliberately.
   pressures do not.
 - `examples/well_control.py` (rate control, BHP control, and a rate target with
   a BHP limit) and `examples/well_path.py` illustrate the above.
-- **`TPFA_ResSim.wells`**, a module of its own, holding the `Wells` dataclass
+- **`minires.wells`**, a module of its own, holding the `Wells` dataclass
   and the free functions `peaceman_WI` and `well_path`. What couples the wells
   to the fluids or to the linear system (`assemble_wells`, `realize_bhp`,
   `bhp`, `well_controls`) stays in `__init__.py`, some 400 lines lighter.
@@ -157,8 +157,20 @@ should pin a tag (or commit hash) and advance it deliberately.
 
 ### Changed
 
+- **BREAKING**: the project is **renamed to MiniRes**, so the import is now
+  `minires` (`from minires import ResSim`), the distribution `minires`, and the
+  repo <https://github.com/patnr/minires> (GitHub redirects the old URLs, so
+  existing pins keep resolving). The class names are untouched -- `ResSim`,
+  `Wells`, `Grid2D`, ... -- so downstream only the import line changes:
+  `TPFA_ResSim` -> `minires`. The old name said the discretization (which every
+  simulator uses, so it distinguished nothing) rather than what the package is,
+  was unpronounceable, and lost the search to HEC-ResSim; "TPFA" now lives in
+  the description, where it still tells specialists what the numerics are.
+  The mixed-case import `TPFA_ResSim` is gone with it (PEP 8: modules are
+  lowercase). Done before the PyPI release, so the name on PyPI is the final one.
+
 - **BREAKING**: the fluid properties are **grouped into `ResSim.fluid`**, a
-  `TPFA_ResSim.fluids.Fluid` (a small dataclass: the viscosities `vw`, `vo` and
+  `minires.fluids.Fluid` (a small dataclass: the viscosities `vw`, `vo` and
   the Corey parameters `swc`, `sor`, `nw`, `no`, `krw0`, `kro0`), so `model.vo`
   -> `model.fluid.vo`, `model.swc` -> `model.fluid.swc`, and `ResSim(vo=5,
   swc=.2)` -> `ResSim(fluid=dict(vo=5, swc=.2))` -- a `dict`, a `Fluid`, or
@@ -218,7 +230,7 @@ should pin a tag (or commit hash) and advance it deliberately.
   like the saturation, rather than grid-shaped; their `p_prev` argument is
   renamed `P`. Callers that index the pressure in 2D must reshape.
 - The **`struct-tools` dependency is dropped**. `NicePrint` is replaced by
-  `AlignedRepr` (`TPFA_ResSim._repr`), whose `repr` summarizes big arrays and
+  `AlignedRepr` (`minires._repr`), whose `repr` summarizes big arrays and
   is also the `str`. The two `DotDict`s become a `Fluxes` named tuple (still
   `V.x`/`V.y`) and the plain `dict` `_wells_now`. NB: a downstream that
   imported `struct_tools` transitively from here (HistoryMatching does) must
@@ -377,6 +389,6 @@ randomness differences), as verified by `examples/quarter_five_spot.py`.
   strictly incompressible.
 - `dac8634`: Type hints, checkable with `ty`.
 
-[0.2.0]: https://github.com/patnr/TPFA-ResSim/compare/v0.1.1...v0.2.0
-[0.1.1]: https://github.com/patnr/TPFA-ResSim/compare/v0.1.0...v0.1.1
-[0.1.0]: https://github.com/patnr/TPFA-ResSim/releases/tag/v0.1.0
+[0.2.0]: https://github.com/patnr/minires/compare/v0.1.1...v0.2.0
+[0.1.1]: https://github.com/patnr/minires/compare/v0.1.0...v0.1.1
+[0.1.0]: https://github.com/patnr/minires/releases/tag/v0.1.0

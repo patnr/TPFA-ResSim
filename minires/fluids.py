@@ -1,4 +1,4 @@
-"""The two-phase fluid, held at `TPFA_ResSim.ResSim.fluid`.
+"""The two-phase fluid, held at `minires.ResSim.fluid`.
 
 `Fluid` holds the phase viscosities and the parameters of the Corey relative
 permeability curves, and computes what the model needs of them: the mobilities
@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from TPFA_ResSim._repr import AlignedRepr
+from minires._repr import AlignedRepr
 
 
 @dataclass

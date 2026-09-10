@@ -22,16 +22,16 @@ occurs when it reaches the outlet, and thereafter the outlet saturation is read
 off $ f'(s) = 1/t_D $ (which is Welge's production forecast).
 
 **Closed form for this model.** The relative permeabilities
-(`TPFA_ResSim.fluids.Fluid.RelPerm`) being quadratic, the tangent condition can
+(`minires.fluids.Fluid.RelPerm`) being quadratic, the tangent condition can
 be solved by hand. In terms of the normalized saturation (ref
-`TPFA_ResSim.fluids.Fluid.rescale_sat`) and the endpoint mobility ratio $ M = v_o/v_w $,
+`minires.fluids.Fluid.rescale_sat`) and the endpoint mobility ratio $ M = v_o/v_w $,
 $$ S_f^* = \\frac{1}{\\sqrt{1 + M}} \\,, \\qquad
    t_D^\\mathrm{bt} = (1 - s_\\mathrm{wc} - s_\\mathrm{or})
        \\, \\frac{2 \\, (1 + M - \\sqrt{1+M})}{M \\, \\sqrt{1+M}} \\,, $$
 so for the default unit-viscosity fluids $ S_f = 1/\\sqrt{2} ≈ 0.7071 $ and
 breakthrough comes at $ 2(\\sqrt{2}-1) ≈ 0.8284 $ pore volumes injected. Below,
 the tangent is located *numerically* (from the model's own
-`TPFA_ResSim.fluids.Fluid.fractional_flow`) and asserted to agree with these -- so the check cuts both ways:
+`minires.fluids.Fluid.fractional_flow`) and asserted to agree with these -- so the check cuts both ways:
 it validates the analytic solution we then compare the simulation against.
 
 Notes on the setup:
@@ -81,8 +81,8 @@ from mpl_tools.place import freshfig
 import numpy as np
 from scipy.optimize import minimize_scalar
 
-from TPFA_ResSim import ResSim
-from TPFA_ResSim.plotting import show
+from minires import ResSim
+from minires.plotting import show
 
 ## Setup
 

@@ -1,4 +1,4 @@
-"""The adjoint of `TPFA_ResSim.ResSim.time_stepper`, derived by hand.
+"""The adjoint of `minires.ResSim.time_stepper`, derived by hand.
 
 I.e. the transpose of the Jacobian of one time step,
 $ (s^n, p^n) ↦ (s^{n+1}, p^{n+1}) $, with respect to the *state* -- and to the
@@ -6,8 +6,8 @@ parameters: $ \\log K $, and the BHP controls of the step -- applied to a
 sensitivity (`adj_step`), rather than formed (it is dense, through $A^{-1}$).
 Chained backwards along a trajectory (`adjoint`), it yields the gradient of an
 objective with respect to the initial state, `S0` and `P0` of
-`TPFA_ResSim.ResSim.sim`, to $ \\log K $, and to the BHP *schedule*,
-`TPFA_ResSim.wells.Wells.bhp`, at the cost of about one more simulation --
+`minires.ResSim.sim`, to $ \\log K $, and to the BHP *schedule*,
+`minires.wells.Wells.bhp`, at the cost of about one more simulation --
 whatever the number of parameters.
 
 `linearize` recomputes one forward step -- from the state it is given, so the
@@ -16,7 +16,7 @@ returns a `Tape` of the intermediates, about which `adj_step` transposes. The
 following checks the gradient of a final-time quantity -- the water saturation
 at the producer, $ J = S_N[i_\\mathrm{prd}] $ -- against a finite difference:
 
->>> from TPFA_ResSim import ResSim
+>>> from minires import ResSim
 >>> model = ResSim(Lx=1, Ly=1, Nx=8, Ny=8, ct=.1, cached_precond=False, wells=[
 ...     dict(xy=[0, 0], rate=+1),
 ...     dict(xy=[1, 1], rate=-.5),
@@ -76,7 +76,7 @@ The seeds are simply what the objective says they are:
   `dJ_dSS[k] = H_k.T @ (H_k @ SS[k] - y_k) / σ**2`.
 - Objectives on the well *reports* (`actual_rates`, `actual_bhp`) are not
   seedable directly: those are functions of $ (S_k, P_{k+1}) $ through the
-  well model (`TPFA_ResSim.ResSim.bhp`, `TPFA_ResSim.ResSim.realize_bhp`),
+  well model (`minires.ResSim.bhp`, `minires.ResSim.realize_bhp`),
   which must be differentiated by hand into the seeds. Not built in.
 
 The gradient with respect to $ \\log K $ has the shape of `K`, `(2, Nx, Ny)`:
@@ -115,15 +115,15 @@ $$ s ← s + \\frac{Δt}{n_T \\, |Ω|}
 
 with `Up` the $ (n_F × N) $ upwind *selector* (1 in the column of the face's
 upwind cell) and `st` the storage rate (0 if incompressible). This recasts the
-5-diagonal assemblies of `TPFA_ResSim.ResSim.TPFA` and
-`TPFA_ResSim.ResSim.upwind_diff` (which `tests/test_tlm.py` checks) on
+5-diagonal assemblies of `minires.ResSim.TPFA` and
+`minires.ResSim.upwind_diff` (which `tests/test_tlm.py` checks) on
 operators whose transposes are just `.T` -- so that the *tangent* of the step
 is a straight line of statements of three kinds, each linear in the
 perturbations: `y = M @ x` (a sparse `M` on the tape), `y = a * x` (a vector
 `a`), and `y = tape.solve(x)`, the pressure solve. `adj_step` is that tangent
 in *reverse* order, each statement transposed -- `x̄ += M.T @ ȳ`, `x̄ += a * ȳ`
 -- with the solve its own transpose, $ A $ being symmetric (that is what makes
-the TPFA system SPD, ref `TPFA_ResSim.ResSim.cached_precond`), so `Tape.solve`
+the TPFA system SPD, ref `minires.ResSim.cached_precond`), so `Tape.solve`
 serves as it is. Each line's comment names the tangent statement it
 transposes. (The tangent model itself, and the dot-product test binding the
 two to round-off, are in the git history, should a statement need
@@ -152,7 +152,7 @@ re-deriving.)
   incompressible pressure system (`TPFA` adds $ \\sum K_{00} $ to the first
   diagonal entry) fixes $ p_0 = 0 $ whatever the value, so the derivative is
   exactly zero; and the well index `Wells.WI` is a *stored* parameter
-  (`TPFA_ResSim.wells.peaceman_WI` evaluates it once, from the `K` of that
+  (`minires.wells.peaceman_WI` evaluates it once, from the `K` of that
   moment, and does not track `K` thereafter), so it is held fixed, like the
   other well parameters.
 - **Not** the other parameters: `por`, `ct`, the viscosities, the well
@@ -164,7 +164,7 @@ re-deriving.)
   *open-loop* (the default). An override that feeds the state back is not
   seen -- the controls enter as constants.
 - The **discrete decisions** are frozen at the linearization point: the
-  sub-step count `nT` (a ceiling, ref `TPFA_ResSim.ResSim.estimate_1CFL`),
+  sub-step count `nT` (a ceiling, ref `minires.ResSim.estimate_1CFL`),
   the upwind directions and the signs of the well fluxes (the `clip`s of
   `upwind_diff`). They are piecewise constant, so this is the derivative
   almost everywhere; at a switch (a face with exactly zero flux, `nT` on an
@@ -188,8 +188,8 @@ import numpy as np
 from scipy import sparse
 from scipy.sparse.linalg import splu
 
-from TPFA_ResSim._repr import AlignedRepr
-from TPFA_ResSim.core import ResSim
+from minires._repr import AlignedRepr
+from minires.core import ResSim
 
 
 class Gradient(NamedTuple):
@@ -225,7 +225,7 @@ def face_operators(model: ResSim) -> tuple:
     - `g`: `(nF,)`, the geometric factor of the transmissibilities,
       $ 2 C h_y / h_x $ resp. $ 2 C h_x / h_y $, such that `T = g / (Sum @ (1/KM))`.
 
-    >>> from TPFA_ResSim import ResSim
+    >>> from minires import ResSim
     >>> lo, hi, Grad, Sum, g = face_operators(ResSim(Nx=3, Ny=2))
     >>> lo, hi   # the 4 x-faces, then the 3 y-faces
     (array([0, 1, 2, 3, 0, 2, 4]), array([2, 3, 4, 5, 1, 3, 5]))
@@ -255,7 +255,7 @@ def face_operators(model: ResSim) -> tuple:
 
 @dataclass
 class Tape(AlignedRepr):
-    """The linearization of one step of `TPFA_ResSim.ResSim.time_stepper`.
+    """The linearization of one step of `minires.ResSim.time_stepper`.
 
     Produced by `linearize`, consumed by `adj_step`. Holds the state it was
     taken about, the step's result, and the coefficients -- sparse matrices

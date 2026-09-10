@@ -11,7 +11,7 @@ share one look: square, uniform fonts, no colorbars.
 
 - `collage.png` (the README's banner): one simulation, `examples.egg`, read left to
   right -- the permeability, the pressure it gives, the water it moves, and the
-  adjoint's sensitivity of the production to it (`TPFA_ResSim.tlm.adjoint`, run here
+  adjoint's sensitivity of the production to it (`minires.tlm.adjoint`, run here
   on the example's trajectory, since the example itself does not).
 - `collage_features.png`: one panel per feature, mostly a single axes of some
   example's figure, redrawn.
@@ -27,7 +27,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.layout_engine import ConstrainedLayoutEngine
 
-from TPFA_ResSim.tlm import adjoint
+from minires.tlm import adjoint
 
 root = Path(__file__).parent.parent
 sys.path.insert(0, str(root))  # makes `examples` importable

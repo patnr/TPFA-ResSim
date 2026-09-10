@@ -82,8 +82,8 @@ In the figures:
 from mpl_tools.place import freshfig
 import numpy as np
 
-from TPFA_ResSim import ResSim
-from TPFA_ResSim.plotting import show
+from minires import ResSim
+from minires.plotting import show
 
 ## Setup -- a 2 km square of 100 mD rock at 250 bar
 L      = 2000  # m

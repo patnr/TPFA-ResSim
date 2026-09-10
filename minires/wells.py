@@ -1,9 +1,9 @@
 """The wells: their configuration, their bookkeeping, and the well model.
 
 Everything here depends on the wells alone, on the *geometry* they sit in
-(`TPFA_ResSim.grid.Grid2D`), and -- for the well index -- on the permeability
+(`minires.grid.Grid2D`), and -- for the well index -- on the permeability
 `K`. What couples the wells to the *fluids* (the mobilities of
-`TPFA_ResSim.fluids.Fluid.RelPerm`) or to the linear system (the source field, the
+`minires.fluids.Fluid.RelPerm`) or to the linear system (the source field, the
 BHP contributions) stays with the simulator, which reads the arrays assembled
 here.
 
@@ -44,15 +44,15 @@ plot labels); the physics never groups.
 A well is either an **injector** or a **producer** -- the terminal states of the
 sources and sinks, $q$, of the governing equations.
 The two are not distinct objects here: a well is an injector or a producer
-merely by the *sign* of its rate (ref `TPFA_ResSim.wells.Wells.rates`), and
+merely by the *sign* of its rate (ref `minires.wells.Wells.rates`), and
 under BHP control not even by that, the direction being left to the pressures
-(ref `TPFA_ResSim.wells.Wells.bhp`).
+(ref `minires.wells.Wells.bhp`).
 Its **completion** is the equipment that connects the **wellbore** to the rock,
 whose interface is the **sandface**; it may be *open hole*, or cased and
 **perforated**. A well may have several completions, e.g. one per layer,
 or (here) one per grid cell traversed by the well path -- which the model
 assembles individually, grouping them back into wells only for the reporting
-(ref `TPFA_ResSim.ResSim.wells`).
+(ref `minires.ResSim.wells`).
 
 Because a wellbore (radius $r_w \\sim 0.1$ m) is orders of magnitude smaller than a
 grid block, its pressure is not resolved by the grid: the radial solution
@@ -85,10 +85,10 @@ Two things enter it, beyond $r_w$ and $\\mathbf{K}$:
   $r_e \\approx 0.2 h$ for the 5-point stencil of TPFA. Beware that the same symbol
   is used, in well testing, for the (physical) *drainage radius*.
 
-Ref `TPFA_ResSim.wells.peaceman_WI` for the formula combining these.
+Ref `minires.wells.peaceman_WI` for the formula combining these.
 
 A well is **controlled** either by prescribing its rate, or its BHP,
-the other then being an outcome (ref `TPFA_ResSim.wells.Wells.bhp`).
+the other then being an outcome (ref `minires.wells.Wells.bhp`).
 Reality is closer to the latter -- one sets a pump speed or a **choke** opening,
 and the reservoir decides the rate -- but the *rate* is what is usually planned for.
 Field practice is therefore rate control subject to a BHP *constraint*
@@ -115,7 +115,7 @@ by symmetry it suffices to simulate the *quarter five-spot*, as in the examples 
 They need not be vertical: *deviated*, *horizontal* and *multilateral* wells
 contact more rock per well, at the price of an **allocation** problem,
 namely how the total rate distributes itself among the completions
-(ref `TPFA_ResSim.wells.well_path`).
+(ref `minires.wells.well_path`).
 Later interventions to restore or improve a well are **workovers**,
 and drilling extra wells between the existing ones is **infill drilling**.
 
@@ -126,10 +126,10 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from TPFA_ResSim._repr import AlignedRepr
+from minires._repr import AlignedRepr
 
 if TYPE_CHECKING:
-    from TPFA_ResSim import ResSim
+    from minires import ResSim
 
 
 def peaceman_WI(model: "ResSim", xy: Any, rw: float, skin: float = 0.0) -> np.ndarray:
@@ -149,12 +149,12 @@ def peaceman_WI(model: "ResSim", xy: Any, rw: float, skin: float = 0.0) -> np.nd
               {(k_y/k_x)^{1/4} + (k_x/k_y)^{1/4}} \\,, $$
     which reduces to the familiar $ r_e = 0.198 \\, h $ on an isotropic,
     square grid. That constant is not a fudge factor: it is a property of
-    the 5-point stencil that `TPFA_ResSim.ResSim.TPFA` assembles, and this model
+    the 5-point stencil that `minires.ResSim.TPFA` assembles, and this model
     reproduces it (`tests/test_wells.py` recovers $ r_e / h → 0.198 $ from the
     simulated drawdown, and thereby the analytic, radial well pressure to
     within 0.2%, on grids from 16² to 64²).
 
-    >>> from TPFA_ResSim import ResSim
+    >>> from minires import ResSim
     >>> model = ResSim(Lx=1, Ly=1, Nx=32, Ny=32)
     >>> peaceman_WI(model, [[.5, .5]], rw=1e-3).round(4)
     array([3.4476])
@@ -168,7 +168,7 @@ def peaceman_WI(model: "ResSim", xy: Any, rw: float, skin: float = 0.0) -> np.nd
 
     .. note:: $ WI \\, λ_t \\, Δp $ comes out as a rate *per unit thickness*.
 
-        Ref. `TPFA_ResSim.ResSim.cdarcy`.
+        Ref. `minires.ResSim.cdarcy`.
 
     .. note:: `rw` must be given in the same length unit as `Lx`.
     """
@@ -193,7 +193,7 @@ def well_path(model: "ResSim", vertices: Any, rw: float, skin: float = 0.0) -> t
 
     - `xy`: centres of the cells that the path traverses -- i.e. a value for
       `Wells.xy`. Several completions act as a single well simply by
-      being several wells: `TPFA_ResSim.ResSim.assemble_wells` superimposes them.
+      being several wells: `minires.ResSim.assemble_wells` superimposes them.
     - `WI`: their well indices, i.e. a value for `Wells.WI`. Each is
       `peaceman_WI` for its cell, scaled by the fraction of
       that cell which the path actually traverses (so a cell merely clipped
@@ -203,7 +203,7 @@ def well_path(model: "ResSim", vertices: Any, rw: float, skin: float = 0.0) -> t
       This is the standard (static) allocation -- proportional to the well index,
       hence to both the contacted length and the local permeability.
 
-    >>> from TPFA_ResSim import ResSim
+    >>> from minires import ResSim
     >>> model = ResSim(Lx=1, Ly=1, Nx=10, Ny=10)
     >>> xy, WI, alloc = well_path(model, [[.05, .05], [.45, .05]], rw=1e-2)
     >>> xy.T[0]  # the traversed cells, in x
@@ -218,8 +218,8 @@ def well_path(model: "ResSim", vertices: Any, rw: float, skin: float = 0.0) -> t
         if the cell pressures are equal. Solving for it would make
         $ p_\\mathrm{bh} $ an extra
         unknown, i.e. a bordered linear system -- which the 5-diagonal
-        assembly of `TPFA_ResSim.ResSim.TPFA` (Listing 1) is not set up for. Use
-        `TPFA_ResSim.ResSim.well_controls` to reallocate per step, if it matters.
+        assembly of `minires.ResSim.TPFA` (Listing 1) is not set up for. Use
+        `minires.ResSim.well_controls` to reallocate per step, if it matters.
 
     .. warning:: The completions are treated as independent *vertical* wells.
 
@@ -265,13 +265,13 @@ def aquifer_WI(model: "ResSim", xy: Any, faces: str = "WESN") -> np.ndarray:
     BHP-controlled well, $ WI \\, λ_t \\, (p_\\mathrm{bh} - p) $. So an aquifer *is*
     a BHP-controlled well, completed in every cell it touches, with
     `bhp = p_aq` and this for `WI` -- and needs nothing else of the model:
-    the influx enters `TPFA_ResSim.ResSim.assemble_wells` like any well's,
+    the influx enters `minires.ResSim.assemble_wells` like any well's,
     anchors the pressure (so that, if incompressible, a lone producer is fine:
     the aquifer supplies it), is reported in `Wells.actual_rates`, and is
-    handled by the adjoint, `TPFA_ResSim.tlm`, as any BHP well is. `Wells.from_records` applies it to a
+    handled by the adjoint, `minires.tlm`, as any BHP well is. `Wells.from_records` applies it to a
     well given `aquifer=True` (or `aquifer=faces`):
 
-    >>> from TPFA_ResSim import ResSim
+    >>> from minires import ResSim
     >>> model = ResSim(Lx=1, Ly=1, Nx=4, Ny=4, wells=[
     ...     dict(name="Aq", xy=[[0, .3], [0, .5], [0, .7]], aquifer=True, bhp=2),
     ...     dict(name="P1", xy=[1, 1], rate=-1),
@@ -284,10 +284,10 @@ def aquifer_WI(model: "ResSim", xy: Any, faces: str = "WESN") -> np.ndarray:
            [-1., -1., -1.]])
 
     A cell's *boundary faces* are those across which the neighbour is inactive
-    (ref `TPFA_ResSim.ResSim.active`) or outside the grid; it must have at
+    (ref `minires.ResSim.active`) or outside the grid; it must have at
     least one, and be active itself. Each contributes the half-cell
     transmissibility, $ C \\, k \\, h_⊥ / (h_∥ / 2) $ (compare the whole-cell
-    one of `TPFA_ResSim.ResSim.TPFA`), so that the aquifer pressure is
+    one of `minires.ResSim.TPFA`), so that the aquifer pressure is
     imposed *at the face* -- a Dirichlet condition, its flux discretized as
     the interior ones are. A corner cell, with two boundary faces, gets both --
     unless `faces` (a string of compass directions) leaves one out, as it must
@@ -317,13 +317,13 @@ def aquifer_WI(model: "ResSim", xy: Any, faces: str = "WESN") -> np.ndarray:
 
 def boundary_faces(model: "ResSim", xy: Any, faces: str = "WESN") -> np.ndarray:
     """Which faces of the cells at `xy` are *boundary* faces: to an inactive
-    cell (ref `TPFA_ResSim.ResSim.active`), or to outside the grid.
+    cell (ref `minires.ResSim.active`), or to outside the grid.
 
     Boolean, `(nCells, 4)`, the columns being the directions W, E, S, N --
     of which `faces` (a string of them) selects the ones considered at all.
-    Serves `aquifer_WI`, and `TPFA_ResSim.plotting.Plot2D.plt_faces`.
+    Serves `aquifer_WI`, and `minires.plotting.Plot2D.plt_faces`.
 
-    >>> from TPFA_ResSim import ResSim
+    >>> from minires import ResSim
     >>> model = ResSim(Lx=1, Ly=1, Nx=4, Ny=4)
     >>> boundary_faces(model, [[0, 0], [0, .5], [.5, .5]]).astype(int)
     array([[1, 0, 1, 0],
@@ -342,12 +342,12 @@ def boundary_faces(model: "ResSim", xy: Any, faces: str = "WESN") -> np.ndarray:
 
 @dataclass
 class Wells(AlignedRepr):
-    """The wells of a `TPFA_ResSim.ResSim`: the flat, per-completion arrays.
+    """The wells of a `minires.ResSim`: the flat, per-completion arrays.
 
     These arrays *are* the configuration (ref `from_records`), and they are
     meant to be written to, as an ensemble or optimisation loop does:
 
-    >>> from TPFA_ResSim import ResSim
+    >>> from minires import ResSim
     >>> model = ResSim(Lx=1, Ly=1, Nx=16, Ny=16,
     ...                wells=Wells(xy=[[0, 0], [1, 1]], rates=[[1], [-1]]))
     >>> model.wells.rates = [[2], [-2]]
@@ -360,7 +360,7 @@ class Wells(AlignedRepr):
     where it is the assignment to the model that binds (and snaps) it.
 
     Ref `from_records` for the convenient, well-shaped way to configure them,
-    and `TPFA_ResSim.ResSim.wells` for the attribute that holds them.
+    and `minires.ResSim.wells` for the attribute that holds them.
     """
 
     # Dont use dataclass repr
@@ -387,7 +387,7 @@ class Wells(AlignedRepr):
     (at the well cell's fractional flow). There is no other distinction
     between injectors and producers, anywhere in the model.
     An **areal** rate, i.e. volumetric *per unit thickness* -- ref
-    `TPFA_ResSim.ResSim.cdarcy`.
+    `minires.ResSim.cdarcy`.
 
     .. note:: With `ct == 0` the rates must sum to 0 at each time index.
 
@@ -405,11 +405,11 @@ class Wells(AlignedRepr):
 
     A well whose entry is finite is **BHP-controlled** at that time. This is
     solved *simultaneously* with the pressure field (not lagged by a time step):
-    `TPFA_ResSim.ResSim.TPFA` puts $ WI λ_t $ on its diagonal and
+    `minires.ResSim.TPFA` puts $ WI λ_t $ on its diagonal and
     $ WI λ_t \\, p_\\mathrm{bh} $ on its right-hand side.
     Only once $ p $ is known is the resulting rate folded into the source field,
-    `_Q`, for the transport step -- ref `TPFA_ResSim.ResSim.assemble_wells`
-    and `TPFA_ResSim.ResSim.realize_bhp`.
+    `_Q`, for the transport step -- ref `minires.ResSim.assemble_wells`
+    and `minires.ResSim.realize_bhp`.
 
     Entries left as `nan` -- which is the default, for every well -- keep the
     well rate-controlled, per `rates`. So the two mechanisms can be mixed
@@ -423,7 +423,7 @@ class Wells(AlignedRepr):
 
         With `ct == 0` the pressure equation is otherwise a pure-Neumann
         problem: solvable only up to a constant (which
-        `TPFA_ResSim.ResSim.TPFA` pins arbitrarily, ref article p. 13), and
+        `minires.ResSim.TPFA` pins arbitrarily, ref article p. 13), and
         only if injection balances production. A single BHP
         well lifts both restrictions -- the level is then set by
         $ p_\\mathrm{bh} $, and the voidage by the well model.
@@ -431,12 +431,12 @@ class Wells(AlignedRepr):
     .. warning:: A BHP well's flow direction is *emergent*, not declared.
 
         It flows whichever way $ p_\\mathrm{bh} $ vs. its cell pressure dictates
-        (ref `TPFA_ResSim.ResSim.realize_bhp`) -- and, like any inflow, an
+        (ref `minires.ResSim.realize_bhp`) -- and, like any inflow, an
         inflow through a BHP well injects *water*. Since a reversal mid-`sim`
         may nonetheless be a surprise, a `UserWarning` is emitted when a BHP
         well's realized rate flips sign between steps of `sim`.
         Nor is there native switching of control modes (e.g. rate control with
-        a BHP limit), but `TPFA_ResSim.ResSim.well_controls` can approximate it.
+        a BHP limit), but `minires.ResSim.well_controls` can approximate it.
     """
     WI: Any = None
     """Well indices: `None`, or an array of shape `(nComp,)`, `nan` allowed.
@@ -447,12 +447,12 @@ class Wells(AlignedRepr):
     its `actual_bhp` is `nan`, and BHP control (`bhp`) unavailable.
 
     The well index is the *sub-grid* well model (ref the "Theory" section of
-    `TPFA_ResSim.wells`), relating a well's (signed) flow rate to its drawdown,
+    `minires.wells`), relating a well's (signed) flow rate to its drawdown,
     $$ q = WI \\, λ_t \\, (p_\\mathrm{bh} - p_\\mathrm{cell}) \\,,$$
-    with $ λ_t $ the total mobility (ref `TPFA_ResSim.fluids.Fluid.RelPerm`) of the
+    with $ λ_t $ the total mobility (ref `minires.fluids.Fluid.RelPerm`) of the
     well's cell. Re-arranging,
     $$ p_\\mathrm{bh} = p_\\mathrm{cell} + q / (WI \\, λ_t) \\,, $$
-    which is what `TPFA_ResSim.ResSim.bhp` computes.
+    which is what `minires.ResSim.bhp` computes.
 
     .. warning:: The drawdown is *not* a fixed offset.
 
@@ -467,10 +467,10 @@ class Wells(AlignedRepr):
     `(nComp,)` whose values index the wells, i.e. `names`.
 
     The model itself is indifferent to it: the equations are assembled per
-    *completion* (ref `TPFA_ResSim.ResSim.assemble_wells`), and the arrays --
+    *completion* (ref `minires.ResSim.assemble_wells`), and the arrays --
     `xy`, `rates`, `actual_rates`, ... -- are all indexed likewise. The grouping
     is what lets the *reporting* speak of wells nonetheless: ref
-    `rates_by_well`, and the labels of `TPFA_ResSim.plotting.Plot2D.plt_field`.
+    `rates_by_well`, and the labels of `minires.plotting.Plot2D.plt_field`.
     """
     names: Any = None
     """Names of wells (*not* completions): `None`, or a list of `nWell` strings."""
@@ -480,7 +480,7 @@ class Wells(AlignedRepr):
 
     Mostly used as a diagnostic in case of `bhp`. But even for
     rate-control it only coincides with `rates` up to broadcasting
-    and assuming `TPFA_ResSim.ResSim.well_controls` did not override it.
+    and assuming `minires.ResSim.well_controls` did not override it.
     """
     actual_bhp: Any = None
     """Like `actual_rates`, but the bottom-hole pressures.
@@ -518,7 +518,7 @@ class Wells(AlignedRepr):
         super().__setattr__(key, val)
 
     def _bind(self, grid: Any) -> None:
-        """Attach to `grid` (a `TPFA_ResSim.grid.Grid2D`, i.e. the model).
+        """Attach to `grid` (a `minires.grid.Grid2D`, i.e. the model).
 
         Whereupon the completions snap onto its nodes -- which an unbound
         `Wells`, having no grid to snap to, could not do.
@@ -585,7 +585,7 @@ class Wells(AlignedRepr):
         """Assemble the flat, per-completion arrays from one record (`dict`) per well.
 
         This is the convenient way to configure the wells, and assigning the
-        records to `TPFA_ResSim.ResSim.wells` is what applies it. Each record
+        records to `minires.ResSim.wells` is what applies it. Each record
         may specify
 
         - `xy`: the well's position, `[x, y]` -- or positions,
@@ -612,7 +612,7 @@ class Wells(AlignedRepr):
         `dict` of records names them by its keys (as `name` does otherwise), and
         the constructor takes the same thing:
 
-        >>> from TPFA_ResSim import ResSim
+        >>> from minires import ResSim
         >>> model = ResSim(Lx=1, Ly=1, Nx=16, Ny=16, wells={
         ...     "I1": dict(xy=[0, 0], rate=+1),
         ...     "P1": dict(xy=[1, 1], rate=-1, rw=1e-3),
@@ -642,7 +642,7 @@ class Wells(AlignedRepr):
         Schedules and control modes may be mixed freely across the wells: a
         constant is broadcast to the length of the longest schedule, while a
         spec that no well varies in time stays a singleton, which
-        `TPFA_ResSim.ResSim.well_controls` reads at any `k`. A BHP-controlled
+        `minires.ResSim.well_controls` reads at any `k`. A BHP-controlled
         well leaves the (ignored) `0` in `Wells.rates`, and `nan` marks the
         rate-controlled ones in `Wells.bhp` -- the conventions that the specs,
         being shared arrays, call for (ref `Wells.rates`).

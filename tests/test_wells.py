@@ -19,7 +19,7 @@ from functools import cache
 import numpy as np
 import pytest
 
-from TPFA_ResSim import ResSim, Wells, peaceman_WI, well_path
+from minires import ResSim, Wells, peaceman_WI, well_path
 
 C_A = 30.8828       # Dietz shape factor, well at the centre of a square
 e_gamma = 1.781072  # exp(Euler--Mascheroni)
@@ -567,7 +567,7 @@ def test_well_controls_switch_lags_by_a_step():
 
 
 # ---------------------------------------------------------------------------
-# The wells on a plot, i.e. their sign, ref `TPFA_ResSim.wells.Wells.signs`
+# The wells on a plot, i.e. their sign, ref `minires.wells.Wells.signs`
 # ---------------------------------------------------------------------------
 
 def test_well_signs_read_the_spec():

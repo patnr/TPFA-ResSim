@@ -47,7 +47,7 @@ import numpy.random as rnd
 import pytest
 from scipy.ndimage import uniform_filter as smooth
 
-from TPFA_ResSim import ResSim
+from minires import ResSim
 
 WELLS = [dict(xy=[0, 0], rate=+1), dict(xy=[1, 1], rate=-1)]
 
@@ -61,7 +61,7 @@ def model(vw=1.0, ct=0.0, N=32, seed=4, **kwargs):
 
 def count_factorizations(m, monkeypatch):
     """Instrument `splu` (as imported by the module) to count its calls."""
-    from TPFA_ResSim import core
+    from minires import core
 
     calls = []
     orig = core.splu

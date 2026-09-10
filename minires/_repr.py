@@ -1,4 +1,4 @@
-"""The `repr` shared by `TPFA_ResSim.ResSim` and `TPFA_ResSim.wells.Wells`."""
+"""The `repr` shared by `minires.ResSim` and `minires.wells.Wells`."""
 
 import numpy as np
 

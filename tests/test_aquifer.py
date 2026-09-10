@@ -14,7 +14,7 @@ from typing import Any
 import numpy as np
 import pytest
 
-from TPFA_ResSim import ResSim, aquifer_WI
+from minires import ResSim, aquifer_WI
 
 
 def test_pressure_is_imposed_at_the_face():

@@ -1,7 +1,7 @@
 """An irregular reservoir on the rectangular grid: an outline, and a sealing fault.
 
 The grid stays rectangular; the reservoir need not. `active`
-(ref `TPFA_ResSim.ResSim.active`) marks the cells that take part; the rest are
+(ref `minires.ResSim.active`) marks the cells that take part; the rest are
 inert -- closed off (zero flux across their faces), without equations, and
 their state carried through unchanged -- as if they were not there.
 
@@ -25,8 +25,8 @@ from mpl_tools.place import freshfig
 import numpy as np
 from scipy.ndimage import uniform_filter as smooth
 
-from TPFA_ResSim import ResSim
-from TPFA_ResSim.plotting import show
+from minires import ResSim
+from minires.plotting import show
 
 rng = np.random.default_rng(3)  # Reproducibility (the values are regression tested)
 

@@ -8,8 +8,8 @@ import pickle
 import numpy as np
 import pytest
 
-from TPFA_ResSim import Fluid, ResSim
-from TPFA_ResSim.grid import Fluxes
+from minires import Fluid, ResSim
+from minires.grid import Fluxes
 
 # The Egg model's `SWOF` table (examples/egg.py): Sw, krw, kro. Corey 3/4 with
 # end-points 0.6/0.8 on [0.2, 0.85]; the table's last row (0.9) is beyond 1 - sor,

@@ -9,11 +9,11 @@ from scipy import sparse
 from scipy.sparse.linalg import LinearOperator, cg, splu, spsolve
 from tqdm.auto import tqdm
 
-from TPFA_ResSim._repr import AlignedRepr
-from TPFA_ResSim.grid import Fluxes, Grid2D
-from TPFA_ResSim.plotting import Plot2D
-from TPFA_ResSim.fluids import Fluid
-from TPFA_ResSim.wells import Wells
+from minires._repr import AlignedRepr
+from minires.grid import Fluxes, Grid2D
+from minires.plotting import Plot2D
+from minires.fluids import Fluid
+from minires.wells import Wells
 
 
 @dataclass
@@ -74,7 +74,7 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
                 val = Fluid(**val)
         # Wells -- records (or `None`) get assembled into a `Wells`, which then
         # gets bound, whereupon it snaps its completions onto this grid.
-        # NB: the wells' own normalization is `TPFA_ResSim.wells.Wells.__setattr__`.
+        # NB: the wells' own normalization is `minires.wells.Wells.__setattr__`.
         if key == "wells":
             if not isinstance(val, Wells):
                 val = Wells.from_records(self, val)
@@ -121,12 +121,12 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
     .. note:: $C$ enters at exactly 2 sites, both of them Darcy's law.
 
         The transmissibilities of `TPFA` and the well index of
-        `TPFA_ResSim.wells.peaceman_WI`. Everything else is derivative, and
+        `minires.wells.peaceman_WI`. Everything else is derivative, and
         already consistent.
     """
 
     fluid: Any = None
-    """The two-phase fluid: a `TPFA_ResSim.fluids.Fluid`, holding the viscosities
+    """The two-phase fluid: a `minires.fluids.Fluid`, holding the viscosities
     and the Corey relative permeability parameters, and computing the mobilities
     and fractional flow from them.
 
@@ -213,7 +213,7 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
 
     Assigning a list (or `dict`) of records -- one per well -- assembles one,
     which is the convenient way to configure them; the record format is
-    documented in `TPFA_ResSim.wells.Wells.from_records`. Assigning `None`
+    documented in `minires.wells.Wells.from_records`. Assigning `None`
     empties it. A `Wells` may also be given directly, in which case it is
     *bound* to this model, whereupon its completions snap onto the grid.
 
@@ -234,7 +234,7 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
     """Num. of well *completions*, i.e. the rows of every array the model
     indexes by them -- which is what it actually solves for, the equations
     being assembled per completion.
-    Forwarded from `TPFA_ResSim.wells.Wells.nComp`.
+    Forwarded from `minires.wells.Wells.nComp`.
     """
 
     def assemble_wells(
@@ -245,7 +245,7 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
         The controls are those of `well_controls`, to which `S` and `P` (the
         state at the *start* of the step) are simply passed on.
         Rate-controlled wells enter the source/sink *field*, `_Q`, directly.
-        BHP-controlled ones (ref `TPFA_ResSim.wells.Wells.bhp`) cannot: their
+        BHP-controlled ones (ref `minires.wells.Wells.bhp`) cannot: their
         rate is not yet known. They instead enter the pressure equations in
         `TPFA`, after which `realize_bhp` folds the resulting rate into `_Q`.
         """
@@ -286,7 +286,7 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
         """Compute rates for BHP wells. Enter into `_Q` and `_wells_now["rates"]`.
 
         The rate, $ WI λ_t (p_\\mathrm{bh} - p_\\mathrm{cell}) $, is signed by
-        nature (ref the `TPFA_ResSim.wells.Wells.bhp` warning).
+        nature (ref the `minires.wells.Wells.bhp` warning).
 
         By construction of the linear system of `TPFA`, this leaves `_Q` equal
         to the *total* well flux, which is what keeps `storage_rate` -- and
@@ -322,7 +322,7 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
         """Compute the wells' controls for time `k`: `dict(rates=..., bhp=...)`.
 
         Each is a `(nComp,)` array, read off the specifications --
-        `TPFA_ResSim.wells.Wells.rates`, `TPFA_ResSim.wells.Wells.bhp` -- which
+        `minires.wells.Wells.rates`, `minires.wells.Wells.bhp` -- which
         are *open-loop*: fixed before the simulation begins. Overriding
         (patching/subclassing) this method is therefore how to do *feedback*
         control, the controls being free to depend on the state at the *start*
@@ -345,7 +345,7 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
         16
 
         But the `bhp` is here too, and with it each well's *control mode*
-        (`nan` => rate-controlled, ref `TPFA_ResSim.wells.Wells.bhp`) -- which
+        (`nan` => rate-controlled, ref `minires.wells.Wells.bhp`) -- which
         is what an approximate mode *switch* requires. For example, rate
         control with a BHP limit -- the industrial default -- wherein a
         producer holds its rate only for as long as that does not draw it
@@ -363,7 +363,7 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
         ...         return ctrl
         >>> model = Limited(Lx=1, Ly=1, Nx=16, Ny=16, ct=.1,
         ...                 wells=Wells(xy=[[.5, .5]], rates=[[-.25]]))
-        >>> from TPFA_ResSim import peaceman_WI
+        >>> from minires import peaceman_WI
         >>> model.wells.WI = peaceman_WI(model, model.wells.xy, rw=1e-3)
         >>> SS, PP = model.sim(.02, 25, np.zeros(model.Nxy),
         ...                    P0=np.ones(model.Nxy), pbar=False)
@@ -377,7 +377,7 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
 
         .. warning:: With `ct == 0` the rates must still sum to 0 at every step.
 
-            Ref `TPFA_ResSim.wells.Wells.rates`. So shutting one well requires
+            Ref `minires.wells.Wells.rates`. So shutting one well requires
             matching it on the other side -- as above.
 
         .. note:: The mode switch lags the solve by one step.
@@ -405,7 +405,7 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
     def bhp(self, S: np.ndarray, P: np.ndarray, rates: np.ndarray) -> np.ndarray:
         """Bottom-hole pressures implied by the (signed) `rates`, via the well indices.
 
-        I.e. the well model of `TPFA_ResSim.wells.Wells.WI`, solved for
+        I.e. the well model of `minires.wells.Wells.WI`, solved for
         $ p_\\mathrm{bh} $:
         the rate's sign puts an injector above, a producer below, its cell
         pressure. `nan` wherever the well index is unset.
@@ -685,7 +685,7 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
 
             Far outside the $ c_t \\, Δp \\ll 1 $ regime (ref `ct`), it may
             converge -- silently -- to a root of the residual outside $[0, 1]$:
-            the polynomial `TPFA_ResSim.fluids.Fluid.RelPerm` extends smoothly
+            the polynomial `minires.fluids.Fluid.RelPerm` extends smoothly
             beyond the unit interval, and the sub-`dt` halving only triggers on
             *non*-convergence.
             The explicit scheme

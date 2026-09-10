@@ -1,8 +1,10 @@
-[![GitHub CI](https://github.com/patnr/TPFA-ResSim/actions/workflows/tests.yml/badge.svg)](https://github.com/patnr/TPFA-ResSim/actions)
+# MiniRes
+
+[![GitHub CI](https://github.com/patnr/minires/actions/workflows/tests.yml/badge.svg)](https://github.com/patnr/minires/actions)
 
 A 2D, two-phase, immiscible reservoir simulator
 using TPFA (two-point flux approximation).
-[**Documentation**](https://patnr.github.io/TPFA-ResSim/TPFA_ResSim.html).
+[**Documentation**](https://patnr.github.io/minires/minires.html).
 
 - **small**: all of its physics fit in `core.py`'s 300 lines of code
 - **capable**: two-phase, slight compressibility, BHP control, irregular outlines and faults (inactive cells), aquifers –
@@ -18,7 +20,7 @@ using TPFA (two-point flux approximation).
 ## Examples
 
 The examples double as regression tests.
-Each has a page in the [documentation](https://patnr.github.io/TPFA-ResSim/examples.html).
+Each has a page in the [documentation](https://patnr.github.io/minires/examples.html).
 
 ![One panel per feature, from the examples](collage_features.png)
 
@@ -39,21 +41,21 @@ Requires Python `>=3.12`.
 
 
 ```sh
-pip install "TPFA-ResSim @ git+https://github.com/patnr/TPFA-ResSim.git@v0.2.0"
+pip install "minires @ git+https://github.com/patnr/minires.git@v0.2.0"
 ```
 
 or, with [uv](https://docs.astral.sh/uv/),
 
 ```sh
-uv add "TPFA-ResSim @ git+https://github.com/patnr/TPFA-ResSim.git@v0.2.0"
+uv add "minires @ git+https://github.com/patnr/minires.git@v0.2.0"
 ```
 ## Contributions
 
 To also get the examples and tests, clone instead, and install in editable mode:
 
 ```sh
-git clone https://github.com/patnr/TPFA-ResSim.git
-cd TPFA-ResSim
+git clone https://github.com/patnr/minires.git
+cd minires
 uv sync  # or: pip install -e .
 uv run pytest
 uv run ruff check

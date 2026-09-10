@@ -143,7 +143,7 @@ class Grid2D:
         assert np.all(y <= self.Ly)
         # Set upper border values to slightly interior.
         # NB: the nudge is *relative*, `Lx` being of whatever magnitude the
-        # units imply (ref `TPFA_ResSim.ResSim.cdarcy`).
+        # units imply (ref `minires.ResSim.cdarcy`).
         x = x.clip(max=self.Lx * (1 - 1e-12))
         y = y.clip(max=self.Ly * (1 - 1e-12))
         ix = np.floor(x / self.Lx * self.Nx).astype(int)

@@ -1,7 +1,7 @@
 r"""Build the docs: pdoc over the package *and* the examples, with the examples' figures.
 
 Run it from the repo root: `uv run pdoc_template/build.py` (output in `docs/`). It is
-`pdoc --math -t pdoc_template -o docs/ ./TPFA_ResSim ./examples` plus what the CLI cannot do:
+`pdoc --math -t pdoc_template -o docs/ ./minires ./examples` plus what the CLI cannot do:
 
 - pdoc imports what it documents, so it would run the examples in any case. Running them
   here first lets us save the figures each one makes, so that its page can show them
@@ -101,4 +101,4 @@ pdoc.render.configure(math=True, template_directory=here)
 pdoc.render.env.filters["to_html"] = to_html
 template_globals: dict[str, Any] = pdoc.render.env.globals
 template_globals["example_figures"] = figures
-pdoc.pdoc(root / "TPFA_ResSim", root / "examples", output_directory=out)
+pdoc.pdoc(root / "minires", root / "examples", output_directory=out)

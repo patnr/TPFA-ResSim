@@ -3,7 +3,7 @@
 No physics is illustrated here that the other examples do not; the goal is a
 picture. But it does show how little a shape costs on the rectangular grid:
 an outline is a boolean expression in the mesh coordinates, assigned to
-`TPFA_ResSim.ResSim.active` (ref `examples.inactive_cells`), holes included,
+`minires.ResSim.active` (ref `examples.inactive_cells`), holes included,
 and the wells and the aquifer are records like any other's.
 
 - **The smiley**: a disc, the smile *cut out* of it (inactive). The eyes are
@@ -13,7 +13,7 @@ and the wells and the aquifer are records like any other's.
   meet the producer -- which is set to take more than is injected, the aquifer
   supplying the rest. Set `aquifer = False` to remove it: the rates are then
   balanced, so the picture can be compared with and without. The aquifer's
-  contact is stroked in blue (`TPFA_ResSim.plotting.Plot2D.plt_faces`).
+  contact is stroked in blue (`minires.plotting.Plot2D.plt_faces`).
 - **The yin-yang**: a disc, the S-curve through it -- two semicircles of half
   its radius -- a *barrier* of inactive cells, like the fault of
   `examples.inactive_cells`, except that it stops short of the rim at the
@@ -37,9 +37,9 @@ the cells flat, up to those faces, with a pixelated outline.
 from mpl_tools.place import freshfig
 import numpy as np
 
-from TPFA_ResSim import ResSim
-from TPFA_ResSim.plotting import show
-from TPFA_ResSim.wells import boundary_faces
+from minires import ResSim
+from minires.plotting import show
+from minires.wells import boundary_faces
 
 aquifer = True  # toggle: water beyond the bottom boundary, at pressure 1
 p_aq = 1.

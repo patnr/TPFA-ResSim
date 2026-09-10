@@ -16,7 +16,7 @@ cells, with `dt` chosen for exactly 6 sub-steps.
 
 import numpy as np
 
-from TPFA_ResSim import ResSim
+from minires import ResSim
 
 N = 200
 kws: dict = dict(Lx=1, Ly=1, Nx=1, Ny=N,

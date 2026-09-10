@@ -10,7 +10,7 @@ pressure and transport equations.
 import numpy as np
 import pytest
 
-from TPFA_ResSim import ResSim, Wells
+from minires import ResSim, Wells
 
 nSteps = 10
 dt = .05

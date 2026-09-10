@@ -42,8 +42,8 @@ In the figures:
 from mpl_tools.place import freshfig
 import numpy as np
 
-from TPFA_ResSim import ResSim
-from TPFA_ResSim.plotting import show
+from minires import ResSim
+from minires.plotting import show
 
 ## Setup
 grid: dict = dict(Lx=1, Ly=1, Nx=64, Ny=64)

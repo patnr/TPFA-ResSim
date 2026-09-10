@@ -36,8 +36,8 @@ The class link sits in the <summary>: clicking the *link* navigates without togg
 {#
 The head of the sidebar, replacing pdoc's (a button to the parent module or the index,
 a logo, the search box): the title, the search box, and a pair of tabs switching between
-the two roots, `TPFA_ResSim` and `examples`, the current one marked. Nested pages
-(`TPFA_ResSim.grid`, `examples.depletion`) get the same head, so the marked tab is also
+the two roots, `minires` and `examples`, the current one marked. Nested pages
+(`minires.grid`, `examples.depletion`) get the same head, so the marked tab is also
 the way up to the root; pdoc's button is dropped. On wide screens the whole head stays
 put while the sidebar scrolls (`custom.css`).
 #}
@@ -45,7 +45,7 @@ put while the sidebar scrolls (`custom.css`).
 {% set my_root = module.modulename.split(".")[0] %}
 {% block module_list_link %}
     <div class="nav-header">
-        <a class="nav-title" href="{{ to_root }}TPFA_ResSim.html">TPFA-ResSim</a>
+        <a class="nav-title" href="{{ to_root }}minires.html">MiniRes</a>
 {% endblock %}
 {% block search_box %}
         {{ super() }}
@@ -94,7 +94,7 @@ Its page is the docstring, the figures, and the source.
 
 {% block nav_footer %}
     <footer>
-        <a href="https://github.com/patnr/TPFA-ResSim">patnr/TPFA-ResSim</a> on GitHub
+        <a href="https://github.com/patnr/minires">patnr/minires</a> on GitHub
         &middot; MIT licence
     </footer>
 {% endblock %}

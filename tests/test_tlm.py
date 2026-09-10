@@ -1,4 +1,4 @@
-"""Tests of the adjoint, `TPFA_ResSim.tlm`.
+"""Tests of the adjoint, `minires.tlm`.
 
 It is hand-derived, so the test that matters is the gradient it returns, of an
 objective of the whole trajectory, against a finite difference of that
@@ -30,8 +30,8 @@ dot-product test that bound the two to round-off, are in the git history.)
 import numpy as np
 import pytest
 
-from TPFA_ResSim import ResSim
-from TPFA_ResSim.tlm import adj_step, adjoint, face_operators, linearize
+from minires import ResSim
+from minires.tlm import adj_step, adjoint, face_operators, linearize
 
 n = 12
 dt = .0337  # not a round number, lest `dt * 1/CFL` land on an integer

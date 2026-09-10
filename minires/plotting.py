@@ -11,7 +11,7 @@ from mpl_tools import is_inline, place, place_ax
 from mpl_tools.misc import axprops
 
 if TYPE_CHECKING:
-    from TPFA_ResSim import ResSim
+    from minires import ResSim
 
 coord_type = "absolute"
 """Define scaling of `Plot2D.plt_field` axes.
@@ -89,7 +89,7 @@ class Plot2D:
         `wells` marks the completions (ref `well_scatter`): `True`, `"color"`
         (the producers coloured as in `plt_production`), or a `dict` of options
         for `well_scatter` -- where `exclude=[names]` hides the wells so named
-        (an aquifer's ring of contacts, say; ref `TPFA_ResSim.wells.aquifer_WI`).
+        (an aquifer's ring of contacts, say; ref `minires.wells.aquifer_WI`).
         """
         # Populate kwargs with fallback style
         kwargs = {**styles["default"], **styles[style], **kwargs}
@@ -189,7 +189,7 @@ class Plot2D:
                 ax.set_ylabel(f"y ({coord_type})")
 
         # Add well markers, grouped (and numbered) by the sign of their rates,
-        # ref `TPFA_ResSim.wells.Wells.signs`. The producers come first, so
+        # ref `minires.wells.Wells.signs`. The producers come first, so
         # that their numbers and colors match those of `plt_production`.
         if wells and self.wells.nComp:
             sgn = self.wells.signs
@@ -243,14 +243,14 @@ class Plot2D:
     ) -> Any:
         """Stroke the boundary faces of the cells at `xy`, onto a `plt_field`.
 
-        I.e. the faces `TPFA_ResSim.wells.boundary_faces` finds -- the contact
-        of an aquifer, say (ref `TPFA_ResSim.wells.aquifer_WI`), whose ring of
+        I.e. the faces `minires.wells.boundary_faces` finds -- the contact
+        of an aquifer, say (ref `minires.wells.aquifer_WI`), whose ring of
         well markers this replaces (hide those with `wells=dict(exclude=...)`).
         `kws` go to the `LineCollection` (`color`, `lw`, ...).
         """
         from matplotlib.collections import LineCollection
 
-        from TPFA_ResSim.wells import boundary_faces
+        from minires.wells import boundary_faces
 
         xy = np.asarray(xy, float).reshape((-1, 2))
         xy = self.sub2xy(*self.xy2sub(*xy.T)).T  # snap to the cell centres
@@ -282,7 +282,7 @@ class Plot2D:
         """Scatter-plot the wells of `ww` onto a `Plot2D.plt_field`.
 
         The marker reflects `sgn`: injector (`+1`), producer (`-1`),
-        or neutral (`0`, i.e. of undecided sign, ref `TPFA_ResSim.wells.Wells.signs`).
+        or neutral (`0`, i.e. of undecided sign, ref `minires.wells.Wells.signs`).
 
         The label, `text`, is either one string for all of them, one *per* well
         of `ww` (a list), or `False` for none.
@@ -292,8 +292,8 @@ class Plot2D:
             I.e. with `text=None`, and since `plt_field` calls this once per
             sign, the producers are numbered as `plt_production` numbers them --
             separately from the injectors, and not as in the unified
-            `TPFA_ResSim.wells.Wells.xy`. But `plt_field` supplies the names of
-            `TPFA_ResSim.wells.Wells.names`, if the wells have been given any.
+            `minires.wells.Wells.xy`. But `plt_field` supplies the names of
+            `minires.wells.Wells.names`, if the wells have been given any.
         """
         # Well coordinates
         ww = self.sub2xy(*self.xy2sub(*ww.T)).T
@@ -372,7 +372,7 @@ class Plot2D:
         """Production time series. Multiple wells in 1 axes => not ensemble compat.
 
         The curves are labelled by their index in `production`, unless `labels`
-        (e.g. a selection of `TPFA_ResSim.wells.Wells.names`) says otherwise.
+        (e.g. a selection of `minires.wells.Wells.names`) says otherwise.
         """
         hh = []
         tt = 1 + np.arange(len(production))

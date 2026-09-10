@@ -6,11 +6,11 @@ reservoir cells touching it at a rate proportional to the pressure difference
 across the boundary face. That is the law of a BHP-controlled well, so an
 aquifer *is* one: a "well" completed in every contact cell, with the aquifer
 pressure for `bhp` and, for `WI`, the transmissibility of the boundary face(s)
-of the cell -- `TPFA_ResSim.wells.aquifer_WI`, which the record key
+of the cell -- `minires.wells.aquifer_WI`, which the record key
 `aquifer=True` applies for you. Nothing else of the model is involved: the
 influx enters the equations like a well's, anchors the pressure (so that even
 an incompressible reservoir needs no injector), and is reported like a well's
-(`TPFA_ResSim.wells.Wells.actual_rates`).
+(`minires.wells.Wells.actual_rates`).
 
 Here an elliptic reservoir (ref `examples.inactive_cells`) has an aquifer
 along its western end, and a single producer to the east, on BHP control,
@@ -24,12 +24,12 @@ so that the rate is left to follow the pressures. Two aquifer models:
   $ p_i $. The influx (and hence the production) then declines exponentially,
   with time constant $ W_{ei} / (J p_i) $, $ J $ being the aquifer's total
   productivity. This is closed-loop control, implemented as a
-  `TPFA_ResSim.ResSim.well_controls` override, as in `examples.well_control`.
+  `minires.ResSim.well_controls` override, as in `examples.well_control`.
 
 In the figure: the oil saturation under the constant-pressure aquifer as the
 front advances (left), and under the Fetkovich aquifer at the end, the sweep
 having stalled as it depleted (middle) -- the aquifer's contact stroked along
-the boundary faces (`TPFA_ResSim.plotting.Plot2D.plt_faces`) in place of its
+the boundary faces (`minires.plotting.Plot2D.plt_faces`) in place of its
 ring of well markers (hidden by `wells=dict(exclude=...)`); and the influx
 rates and aquifer pressure of the two models (right).
 """
@@ -38,8 +38,8 @@ from mpl_tools.place import freshfig
 import numpy as np
 from scipy.ndimage import uniform_filter as smooth
 
-from TPFA_ResSim import ResSim
-from TPFA_ResSim.plotting import show
+from minires import ResSim
+from minires.plotting import show
 
 rng = np.random.default_rng(3)  # Reproducibility (the values are regression tested)
 

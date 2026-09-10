@@ -1,5 +1,5 @@
 [project]
-name = "TPFA-ResSim"
+name = "minires"
 version = "0.2.0"
 description = "Toy petroleum reservoir simulator using TPFA."
 authors = [{name = "patnr", email = "patrick.n.raanes@gmail.com"}]
@@ -41,7 +41,7 @@ build-backend = "uv_build"
 
 [tool.uv.build-backend]
 # The package is at the repo root (uv_build defaults to src-layout)
-module-name = "TPFA_ResSim"
+module-name = "minires"
 module-root = ""
 
 
@@ -74,6 +74,6 @@ ignore = [
 # ╚═════════╝
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = "tests --doctest-modules TPFA_ResSim"
+addopts = "tests --doctest-modules minires"
 # The examples are run (as regression tests) by tests/test_examples.py
 filterwarnings = ["ignore:Animation was deleted:UserWarning"]

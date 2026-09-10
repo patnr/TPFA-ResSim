@@ -21,7 +21,7 @@ either the exponent or `C` below.
 import numpy as np
 import pytest
 
-from TPFA_ResSim import ResSim, Wells
+from minires import ResSim, Wells
 
 # The units' SI sizes -- whence the constants under test
 DAY  = 86400.       # s

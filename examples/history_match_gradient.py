@@ -5,7 +5,7 @@ The history-matching case, in its simplest form. A *truth* permeability field
 the four producers of a five-spot, at every time step. The *prior* guess is
 homogeneous, $\\log K = 0$. The objective is the mean squared error of the
 prior's production history against the observations, and
-`TPFA_ResSim.tlm.adjoint` gives its gradient with respect to every cell's
+`minires.tlm.adjoint` gives its gradient with respect to every cell's
 $\\log K$ -- checked against a finite difference in a random direction -- for
 about the cost of one more simulation, however many cells there are. That is
 what makes gradient-based history matching feasible at all, and a few steps of
@@ -13,9 +13,9 @@ steepest descent (each with a coarse line search) are taken to show it works:
 the misfit falls, and the update goes the way of the truth.
 
 The seeds are those of a data misfit
-(ref the "Seeding" section of `TPFA_ResSim.tlm`): for each observed time and
+(ref the "Seeding" section of `minires.tlm`): for each observed time and
 producer, the residual, weighted by the derivative of the observation operator
--- here $ f_w'(s) $ in the producer's cell, via `TPFA_ResSim.fluids.Fluid.fractional_flow`.
+-- here $ f_w'(s) $ in the producer's cell, via `minires.fluids.Fluid.fractional_flow`.
 
 In the figure:
 
@@ -45,9 +45,9 @@ from mpl_tools.place import freshfig
 import numpy as np
 from scipy.ndimage import uniform_filter as smooth
 
-from TPFA_ResSim import ResSim
-from TPFA_ResSim.plotting import show
-from TPFA_ResSim.tlm import adjoint
+from minires import ResSim
+from minires.plotting import show
+from minires.tlm import adjoint
 
 rng = np.random.default_rng(1)  # Reproducibility (the values are regression tested)
 

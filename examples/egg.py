@@ -27,7 +27,7 @@ layers, are just one completion each here; the rate, per unit thickness (ref
 The deck's own quirks are kept: the water starts at $S_w = 0.1$, *below* the 0.2 at
 which it becomes mobile (so the first tenth of a pore volume injected only fills up
 the immobile saturation), and the injectors' 420 bar limit, which never binds. The
-relative permeabilities are the deck's Corey curves (`TPFA_ResSim.fluids.Fluid`): exponents 3
+relative permeabilities are the deck's Corey curves (`minires.fluids.Fluid`): exponents 3
 and 4 with end-points 0.6 and 0.8 at the residuals $ S_{wc} = 0.2 $, $ S_{or} = 0.15 $
 (the table runs on to $ S_w = 0.9 $, but nothing but water moves there). Their
 fractional flow is steeper than the quadratic default's (its maximal slope 5.65,
@@ -107,8 +107,8 @@ from pathlib import Path
 from mpl_tools.place import freshfig
 import numpy as np
 
-from TPFA_ResSim import ResSim
-from TPFA_ResSim.plotting import show
+from minires import ResSim
+from minires.plotting import show
 
 ## The data: realization 1 of the Egg ensemble (ref the module docstring)
 data = np.load(Path(__file__).with_name("egg.npz"))
@@ -147,7 +147,7 @@ Sw0 = 0.1                                           # initial water saturation
 p0 = 400                                            # initial pressure [bar]
 
 
-# The deck's `SWOF` table is Corey (ref `TPFA_ResSim.fluids.Fluid`): exponents 3 (water) and 4
+# The deck's `SWOF` table is Corey (ref `minires.fluids.Fluid`): exponents 3 (water) and 4
 # (oil), end-points 0.6 and 0.8, water immobile below Sw = 0.2 and oil below So = 0.15.
 fluid = dict(vw=1, vo=5, swc=0.2, sor=0.15, nw=3, no=4, krw0=0.6, kro0=0.8)
 

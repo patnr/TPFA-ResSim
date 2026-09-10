@@ -46,8 +46,8 @@ In the figures:
 from mpl_tools.place import freshfig
 import numpy as np
 
-from TPFA_ResSim import ResSim, well_path
-from TPFA_ResSim.plotting import show
+from minires import ResSim, well_path
+from minires.plotting import show
 
 ## Setup
 rw = 1e-3

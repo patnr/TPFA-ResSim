@@ -5,17 +5,17 @@ the corners, on BHP control (so their rates are outcomes, and the flow splits
 among them as the heterogeneous -- smoothed, log-normal -- permeability
 dictates). The objective is the water cut at the NE producer at a time index
 just after its breakthrough, while it is rising fast.
-`TPFA_ResSim.tlm.adjoint` returns its gradient with respect to every cell's
+`minires.tlm.adjoint` returns its gradient with respect to every cell's
 $\\log K$ (and the initial state) *and* with respect to every producer's BHP
 at every time step, at the cost of about one more simulation -- here each is
 checked against a finite difference in a random direction, which agrees to
 about 1e-6 (relative; the floor is set by the kinks of the discrete map, ref
-the "What is differentiated" section of `TPFA_ResSim.tlm`).
+the "What is differentiated" section of `minires.tlm`).
 
 The water cut at a producer, $ f_w(s) $ in its cell (the fraction of water in
 what it produces), is a function of the saturation there alone, so the adjoint
 is seeded by the single entry $ ∂J/∂s_k[i_\\mathrm{prd}] = f_w'(s) $ -- which
-`TPFA_ResSim.fluids.Fluid.fractional_flow` supplies.
+`minires.fluids.Fluid.fractional_flow` supplies.
 
 In the figure:
 
@@ -60,9 +60,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.ndimage import uniform_filter as smooth
 
-from TPFA_ResSim import ResSim
-from TPFA_ResSim.plotting import show
-from TPFA_ResSim.tlm import adjoint
+from minires import ResSim
+from minires.plotting import show
+from minires.tlm import adjoint
 
 rng = np.random.default_rng(1)  # Reproducibility (the values are regression tested)
 

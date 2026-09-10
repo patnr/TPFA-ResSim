@@ -23,16 +23,16 @@ One panel per feature, drawn from their results:
   one by vertical averaging, reproduces the water cuts and oil rates of its
   published 3D solution (ECLIPSE 100) to within 0.01 and about 5%. Also the second
   example in metric units, and the one with non-quadratic relative permeabilities
-  (Corey exponents 3/4 with end-points, ref `TPFA_ResSim.fluids.Fluid`).
+  (Corey exponents 3/4 with end-points, ref `minires.fluids.Fluid`).
 - `examples.inactive_cells`: an irregular reservoir on the rectangular grid --
-  an outline and a sealing fault, cut out by `TPFA_ResSim.ResSim.active`.
+  an outline and a sealing fault, cut out by `minires.ResSim.active`.
 - `examples.aquifer`: water beyond part of the boundary, feeding a lone producer
-  -- a BHP-controlled "well" in the contact cells (`TPFA_ResSim.wells.aquifer_WI`),
+  -- a BHP-controlled "well" in the contact cells (`minires.wells.aquifer_WI`),
   at constant pressure, or depleting (Fetkovich: a `well_controls` override).
 - `examples.logo`: a smiley and a yin-yang -- outlines, a hole and a barrier cut
   out by `active`, an aquifer along the bottom -- for the picture alone.
 
-These concern the *well model* (`TPFA_ResSim.wells.peaceman_WI`), i.e. the sub-grid
+These concern the *well model* (`minires.wells.peaceman_WI`), i.e. the sub-grid
 relation between a well and the (much larger) cell that holds it:
 
 - `examples.well_control`: the two ways to control a well -- prescribing its rate and
@@ -45,7 +45,7 @@ relation between a well and the (much larger) cell that holds it:
   cell, and the two ways its rate then gets divided among the completions --
   statically (in proportion to the well index) or, under BHP control, solved for.
 
-The next ones illustrate what slight compressibility (`TPFA_ResSim.ResSim.ct` > 0) brings:
+The next ones illustrate what slight compressibility (`minires.ResSim.ct` > 0) brings:
 
 - `examples.pressure_diffusion`: the pressure equation becomes parabolic, so that a
   change of rate propagates at *finite speed* (diffusivity `η = K λ / (φ ct)`),
@@ -62,7 +62,7 @@ The next ones illustrate what slight compressibility (`TPFA_ResSim.ResSim.ct` > 
   The front then advances more slowly, and by a different pattern, since some of
   the oil is instead driven by expansion.
 
-The last two illustrate the adjoint (`TPFA_ResSim.tlm`), i.e. gradients of an
+The last two illustrate the adjoint (`minires.tlm`), i.e. gradients of an
 objective wrt the initial state, the permeability field and the BHP controls, checked
 against finite differences:
 
