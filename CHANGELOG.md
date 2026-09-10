@@ -159,8 +159,11 @@ should pin a tag (or commit hash) and advance it deliberately.
 
 - **BREAKING**: the project is **renamed to MiniRes**, so the import is now
   `minires` (`from minires import ResSim`), the distribution `minires`, and the
-  repo <https://github.com/patnr/minires> (GitHub redirects the old URLs, so
-  existing pins keep resolving). The class names are untouched -- `ResSim`,
+  repo <https://github.com/patnr/MiniRes> -- CamelCase there, it being a display
+  name rather than an identifier (GitHub resolves either case, so existing pins
+  keep resolving; the docs, though, have moved to
+  <https://patnr.github.io/MiniRes/minires.html>, whose path *is* case-sensitive).
+  The class names are untouched -- `ResSim`,
   `Wells`, `Grid2D`, ... -- so downstream only the import line changes:
   `TPFA_ResSim` -> `minires`. The old name said the discretization (which every
   simulator uses, so it distinguished nothing) rather than what the package is,
@@ -389,6 +392,6 @@ randomness differences), as verified by `examples/quarter_five_spot.py`.
   strictly incompressible.
 - `dac8634`: Type hints, checkable with `ty`.
 
-[0.2.0]: https://github.com/patnr/minires/compare/v0.1.1...v0.2.0
-[0.1.1]: https://github.com/patnr/minires/compare/v0.1.0...v0.1.1
-[0.1.0]: https://github.com/patnr/minires/releases/tag/v0.1.0
+[0.2.0]: https://github.com/patnr/MiniRes/compare/v0.1.1...v0.2.0
+[0.1.1]: https://github.com/patnr/MiniRes/compare/v0.1.0...v0.1.1
+[0.1.0]: https://github.com/patnr/MiniRes/releases/tag/v0.1.0

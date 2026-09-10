@@ -51,11 +51,11 @@ dependencies = [
 # The PyPI sidebar. `Homepage` is the docs (whose index redirects to the
 # package page), not the repo, which `Repository` covers.
 [project.urls]
-Homepage = "https://patnr.github.io/minires/"
-Documentation = "https://patnr.github.io/minires/minires.html"
-Repository = "https://github.com/patnr/minires"
-Changelog = "https://github.com/patnr/minires/blob/main/CHANGELOG.md"
-Issues = "https://github.com/patnr/minires/issues"
+Homepage = "https://patnr.github.io/MiniRes/"
+Documentation = "https://patnr.github.io/MiniRes/minires.html"
+Repository = "https://github.com/patnr/MiniRes"
+Changelog = "https://github.com/patnr/MiniRes/blob/main/CHANGELOG.md"
+Issues = "https://github.com/patnr/MiniRes/issues"
 
 [dependency-groups]
 # What CI installs (`uv sync --no-default-groups --group test`, resp. `docs`).
