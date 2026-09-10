@@ -12,6 +12,24 @@ should pin a tag (or commit hash) and advance it deliberately.
 
 ### Added
 
+- **Corey relative permeabilities**, `ResSim.RelPerm`: the curves gained
+  exponents (`nw`, `no`) and end-points (`krw0`, `kro0`); the defaults are the
+  quadratic curves as before. The normalized saturation is now clipped to
+  $[0, 1]$, so a phase below its residual is immobile (an odd power would
+  otherwise make it mobile with the wrong sign; the initial water of the Egg
+  model sits below its residual). The CFL estimate of the explicit scheme
+  follows the curves: its bound is 1.5 times the maximal slope of the
+  fractional flow (its steepest chord on a fine grid), which reduces to the reference paper's
+  `3 / (1 - swc - sor)` for the default curves at equal viscosities, but is
+  larger -- as it must be -- for unequal viscosities or higher exponents. This
+  changes the sub-step counts, hence the last digits, of the examples with
+  unequal viscosities (`buckley_leverett`'s case B). The clipping also moves the
+  *implicit* scheme's results in their 4th decimal (`quarter_five_spot`), its
+  Newton iterates passing outside the unit interval, where the polynomial that
+  the Matlab code extends the curves by now differs -- within the 1e-3 Newton
+  tolerance, but no longer to the 5 decimals of the Matlab agreement, which the
+  explicit scheme keeps. Those references were regenerated. `tests/test_relperm.py`.
+
 - **The Egg model as an example**, `examples/egg.py`: the channelized, 12-well
   benchmark reservoir of Jansen et al. (2014), realization 1, flattened from its
   7 layers to one by vertical averaging (arithmetic mean of the permeabilities, the

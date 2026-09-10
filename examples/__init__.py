@@ -22,7 +22,7 @@ One panel per feature, drawn from their results:
   one by vertical averaging, reproduces the water cuts and oil rates of its
   published 3D solution (ECLIPSE 100) to within 0.01 and about 5%. Also the second
   example in metric units, and the one with non-quadratic relative permeabilities
-  (Corey 3/4, by overriding `TPFA_ResSim.ResSim.RelPerm`).
+  (Corey exponents 3/4 with end-points, ref `TPFA_ResSim.ResSim.RelPerm`).
 - `examples.inactive_cells`: an irregular reservoir on the rectangular grid --
   an outline and a sealing fault, cut out by `TPFA_ResSim.ResSim.active`.
 - `examples.aquifer`: water beyond part of the boundary, feeding a lone producer

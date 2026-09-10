@@ -27,9 +27,11 @@ layers, are just one completion each here; the rate, per unit thickness (ref
 The deck's own quirks are kept: the water starts at $S_w = 0.1$, *below* the 0.2 at
 which it becomes mobile (so the first tenth of a pore volume injected only fills up
 the immobile saturation), and the injectors' 420 bar limit, which never binds. The
-relative permeabilities are the deck's, by overriding `ResSim.RelPerm` -- ref the
-`Egg` class below, which also scales the CFL estimate to their steeper fractional
-flow.
+relative permeabilities are the deck's Corey curves (`ResSim.RelPerm`): exponents 3
+and 4 with end-points 0.6 and 0.8 at the residuals $ S_{wc} = 0.2 $, $ S_{or} = 0.15 $
+(the table runs on to $ S_w = 0.9 $, but nothing but water moves there). Their
+fractional flow is steeper than the quadratic default's (its maximal slope 5.65,
+against 3.5), which the CFL estimate follows (`ResSim.estimate_1CFL`).
 
 ## Validation
 
@@ -145,42 +147,12 @@ Sw0 = 0.1                                           # initial water saturation
 p0 = 400                                            # initial pressure [bar]
 
 
-class Egg(ResSim):
-    """`ResSim` with the Egg model's relative permeabilities, i.e. its `SWOF` table.
+# The deck's `SWOF` table is Corey (ref `ResSim.RelPerm`): exponents 3 (water) and 4
+# (oil), end-points 0.6 and 0.8, water immobile below Sw = 0.2 and oil below So = 0.15.
+corey: dict = dict(swc=0.2, sor=0.15, nw=3, no=4, krw0=0.6, kro0=0.8)
 
-    The table is Corey: $ k_{rw} = 0.75 \\, S_w^{*3} $ and $ k_{ro} = 0.8 \\, S_o^{*4} $,
-    but with *separate* normalizations -- water is immobile below $ S_w = 0.2 $ and
-    oil below $ S_o = 0.15 $, i.e. above $ S_w = 0.85 $ -- so no choice of `swc` and
-    `sor` makes the quadratic default fit. `RelPerm` is a method, so this
-    example simply overrides it (and its derivative, for the implicit scheme and
-    the adjoint). Ref `examples.buckley_leverett` for what the curves mean.
-
-    Their fractional flow is also steeper than the quadratic one -- at 1 / 5 cP,
-    $ \\max f_w' = 5.65 $, against the $ 3/(1 - S_{wc} - S_{or}) $ that
-    `estimate_1CFL` assumes -- so the CFL estimate must be scaled up as well.
-    """
-
-    swc: float = 0.2
-    sor: float = 0.15
-    dfw_max: float = 5.65
-
-    def RelPerm(self, s):
-        Sw = np.clip((s - .2) / .7, 0, 1)
-        So = np.clip((.85 - s) / .65, 0, 1)
-        return .75 * Sw**3 / self.vw, .8 * So**4 / self.vo
-
-    def dRelPerm(self, s):
-        Sw = np.clip((s - .2) / .7, 0, 1)
-        So = np.clip((.85 - s) / .65, 0, 1)
-        return 3*.75 * Sw**2 / .7 / self.vw, -4*.8 * So**3 / .65 / self.vo
-
-    def estimate_1CFL(self, pv, V, fi):
-        base = 3 / (1 - self.swc - self.sor)              # the bound the base assumes
-        return super().estimate_1CFL(pv, V, fi) * 1.5 * self.dfw_max / base
-
-
-model = Egg(Lx=Nx*h, Ly=Ny*h, Nx=Nx, Ny=Ny, cdarcy=C, K=K, por=por, active=footprint,
-            vw=1, vo=5, ct=1e-5, wells=wells)
+model = ResSim(Lx=Nx*h, Ly=Ny*h, Nx=Nx, Ny=Ny, cdarcy=C, K=K, por=por, active=footprint,
+               vw=1, vo=5, ct=1e-5, **corey, wells=wells)
 
 ## Simulate 3600 days in 30-day steps
 dt, nSteps = 30, 120

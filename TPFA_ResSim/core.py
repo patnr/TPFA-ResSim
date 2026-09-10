@@ -123,9 +123,17 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
     vo: float = 1.0
     """Viscosity for oil."""
     swc: float = 0.0
-    """Irreducible saturation, water."""
+    """Irreducible saturation, water: $ k_{rw} = 0 $ below it (ref `RelPerm`)."""
     sor: float = 0.0
-    """Irreducible saturation, oil."""
+    """Irreducible saturation, oil: $ k_{ro} = 0 $ above $ s = 1 - S_{or} $ (ref `RelPerm`)."""
+    nw: float = 2.0
+    """Corey exponent of the water relative permeability (ref `RelPerm`)."""
+    no: float = 2.0
+    """Corey exponent of the oil relative permeability (ref `RelPerm`)."""
+    krw0: float = 1.0
+    """End-point (maximal) water relative permeability, at $ s = 1 - S_{or} $ (ref `RelPerm`)."""
+    kro0: float = 1.0
+    """End-point (maximal) oil relative permeability, at $ s = S_{wc} $ (ref `RelPerm`)."""
     ct: float = 0.0
     """Total (rock + fluids) compressibility, $c_t$, as a single constant.
 
@@ -460,17 +468,38 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
 
     # RelPerm() -- listing 6
     def RelPerm(self, s: np.ndarray) -> tuple:
-        """Rel. permeabilities of oil and water. Return as mobilities (perm/viscocity)."""
-        S = self.rescale_sat(s)
-        Mw = S**2 / self.vw  # Water mobility
-        Mo = (1 - S) ** 2 / self.vo  # Oil mobility
+        """Rel. permeabilities of water and oil. Return as mobilities (perm/viscosity).
+
+        Corey (power-law) curves of the normalized saturation $ S $ of `rescale_sat`,
+
+        $$ k_{rw} = k_{rw}^0 \\, S^{n_w} \\,, \\qquad k_{ro} = k_{ro}^0 \\, (1 - S)^{n_o} \\,,
+           \\qquad S = \\frac{s - S_{wc}}{1 - S_{wc} - S_{or}} \\,, $$
+
+        with $ S $ clipped to $[0, 1]$, so that a phase below its residual
+        saturation is immobile (rather than mobile with the wrong sign, as an odd
+        power would make it). The parameters are the fields `swc`, `sor`, `nw`,
+        `no`, `krw0`, `kro0`; the defaults give the quadratic curves of the
+        reference paper (Listing 6), $ S^2 $ and $ (1 - S)^2 $. Override this
+        method (and `dRelPerm`) for curves of another shape, e.g. tabulated.
+
+        >>> model = ResSim(Lx=1, Ly=1, Nx=1, Ny=1, swc=.2, sor=.2)
+        >>> Mw, Mo = model.RelPerm(np.array([.1, .2, .5, .8, .9]))
+        >>> Mw.round(4), Mo.round(4)
+        (array([0.  , 0.  , 0.25, 1.  , 1.  ]), array([1.  , 1.  , 0.25, 0.  , 0.  ]))
+        """
+        S = np.clip(self.rescale_sat(s), 0, 1)
+        Mw = self.krw0 * S**self.nw / self.vw  # Water mobility
+        Mo = self.kro0 * (1 - S) ** self.no / self.vo  # Oil mobility
         return Mw, Mo
 
     def dRelPerm(self, s: np.ndarray) -> tuple:
-        """Derivatives of `RelPerm`."""
+        """Derivatives of `RelPerm` wrt `s` (zero where the curves are clipped)."""
         S = self.rescale_sat(s)
-        dMw = 2 * S / self.vw / (1 - self.swc - self.sor)
-        dMo = -2 * (1 - S) / self.vo / (1 - self.swc - self.sor)
+        inside = (0 <= S) & (S <= 1)  # one-sided at the ends, as the reference code
+        S = np.clip(S, 0, 1)
+        w = 1 - self.swc - self.sor
+        dMw = np.where(inside, self.krw0 * self.nw * S ** (self.nw - 1) / w, 0) / self.vw
+        dMo = -np.where(inside, self.kro0 * self.no * (1 - S) ** (self.no - 1) / w, 0) / self.vo
         return dMw, dMo
 
     # TPFA() -- Listing 1
@@ -638,15 +667,23 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
         # NB: `storage_rate` is not counted here. In practice it is a small
         # fraction of the fluxes that are (under 20% even at `ct = 10`),
         # so the safety factor below covers it.
-        sat = self.swc + self.sor
-        cfl = 3 / (1 - sat) * flx  # NB: 3-->2 since no z-dim ?
+        # The characteristic speed is f_w'(s) times the velocity: bound it by the
+        # maximal slope of f_w -- its steepest chord over 1000 intervals of the
+        # mobile range, which undershoots the true maximum by O(1e-6), nothing
+        # against the safety factor of 1.5. For the default curves at equal
+        # viscosities this is the paper's 3 / (1 - swc - sor) (Listing 8), which
+        # steeper curves (unequal viscosities, higher Corey exponents) would exceed.
+        ss = np.linspace(self.swc, 1 - self.sor, 1001)
+        Mw, Mo = self.RelPerm(ss)
+        dfw_max = np.abs(np.diff(Mw / (Mw + Mo))).max() / (ss[1] - ss[0])
+        cfl = 1.5 * dfw_max * flx
         # NB: the ceiling is nudged down by a relative epsilon, so that a `dt`
         # sitting *on* an integer multiple of the CFL limit (as the examples'
         # round numbers tend to) does not gain a whole extra sub-step from the
         # last bits of the linear solve -- which differ across platforms and
         # library versions, and would make the results irreproducible.
-        # The CFL estimate carries a safety factor of 3, so shaving 1e-9 off it
-        # cannot cost stability.
+        # The safety factor covers the shaving, the chord's undershoot, and the
+        # storage rate.
         return cfl * (1 - 1e-9)
 
     # Upstream() -- listing 8
