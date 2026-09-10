@@ -1,4 +1,4 @@
-"""Pressure buildup after shut-in -- a "well test". **In metric units.**
+"""Primary depletion, then pressure buildup after shut-in -- a "well test". **In metric units.**
 
 The producer flows for a while, and is then shut in (rate set to 0).
 The pressure then *builds up*, asymptotically towards the average pressure,
@@ -6,6 +6,11 @@ which is now constant since nothing enters or leaves the (closed) reservoir.
 
 Everything here is a consequence of `ct > 0`:
 
+- The flow period is *primary depletion*: production **without injection**.
+  Impossible with `ct = 0` (the rates must balance, ref `Wells.rates`); with
+  `ct > 0` the deficit is drawn from *storage*, i.e. from the expansion of the
+  rock and fluids as the pressure drops -- at exactly the rate that material
+  balance dictates, $ dp̄/dt = -q / (c_t V_p) $ ($V_p$ = pore volume; asserted below).
 - Monitor points further from the well respond later
   (and, after shut-in, keep declining for a while before turning around:
   they have not yet "heard" that the well was shut).
@@ -18,9 +23,10 @@ defined up to a constant, ref `examples.pressure_diffusion`) instantly
 becomes uniform. NB: since `ct = 0` demands balanced rates, that run needs an
 active injector, whose rate is switched off at the same time.
 
-As in `examples.depletion`, no water is present, so `S = 0` throughout --
-and, likewise, every pressure plotted here is a *cell* pressure, not a wellbore
-one; ref that example's note on the well model.
+No water is present, so `S = 0` throughout -- effectively a single-phase
+example, the lone producer being (rates being signed) the only well there is.
+Every pressure plotted here is a *cell* pressure, not a wellbore one: for the
+latter, give the well an `rw`, ref `examples.well_control`.
 
 ## Units
 
@@ -58,7 +64,8 @@ In the figures:
   the well (r = 0) has dropped by 12 bar, the r = 1000 m point has barely moved.
   After the shut-in the near-well pressure recovers at once, whereas the
   distant points keep *declining* for a while before turning around: they have
-  not yet heard of it. All then converge on $\\bar{p}$ (dashed), now constant.
+  not yet heard of it. All then converge on $\\bar{p}$ (dashed), which falls
+  along the material-balance line while the well flows, and is constant after.
 - "time series" (middle): for `ct > 0` the drawdown decays smoothly over the
   remainder of the run. For `ct = 0` it is a rectangle: rate on, rate off,
   and nothing in between.
@@ -67,8 +74,9 @@ In the figures:
   from both sides: at early times the cell average has not yet resolved the
   transient, and at late times (dotted) the closed boundary ends the radial
   regime. Hence the 4%.
-- "pressure": the depression cone filling in -- the sharp, near-well part
-  first, the broad remainder last.
+- "pressure": the depression cone, growing while the well flows (the first two
+  panels), then filling in -- the sharp, near-well part first, the broad
+  remainder last. The colour scale is shared.
 """
 
 from mpl_tools.place import freshfig
@@ -136,7 +144,8 @@ fig, (ax1, ax2, ax3) = freshfig("Buildup -- time series", ncols=3, figsize=(14, 
 for r in [0, 200, 500, 1000]:
     i = model.xy2ind(L/2 + r, L/2)
     ax1.plot(tt, PP[:, i], label=f"r = {r} m")  # r = 0 is the well's cell
-ax1.plot(tt, p_mean, "k--", lw=1, label="Mean, $\\bar{p}$")
+ax1.plot(tt, p_mean, "k--", lw=1,
+         label="Mean, $\\bar{p}$: $p_i - qt/(c_t V_p)$, then constant")
 ax1.axvline(kShut*dt, c="k", lw=1, alpha=.4)
 ax1.annotate("shut-in", (kShut*dt, PP.min()), fontsize="small",
              xytext=(4, 0), textcoords="offset points")
@@ -162,17 +171,22 @@ ax3.set(title="Well test: $dp / d\\ln t$", xlabel=f"Time{unit_t}", xscale="log",
 ax3.legend(fontsize="small")
 fig.tight_layout()
 
-## Plot: the depression cone filling in
-fig, axs = freshfig("Buildup -- pressure", ncols=4, sharex=True, sharey=True,
-                    figsize=(11, 3.2))
+## Plot: the depression cone growing, then filling in
+fig, axs = freshfig("Buildup -- pressure", ncols=5, sharex=True, sharey=True,
+                    figsize=(13.5, 3.2))
 kws: dict = dict(levels=np.linspace(PP.min(), p_i, 21), cmap="viridis",
                  colorbar=False, finalize=False, wells=dict(size=.4))
-for i, (ax, k) in enumerate(zip(axs, [kShut, kShut + 2, kShut + 10, nSteps])):
+snapshots = [kShut // 6, kShut, kShut + 2, kShut + 10, nSteps]
+for i, (ax, k) in enumerate(zip(axs, snapshots)):
     cc = model.plt_field(ax, PP[k], **kws, labels=(i == 0),
-                         title=f"t = {k*dt:.1f} day")
+                         title=f"t = {k*dt:.1f} day" + (" (shut-in)" if k == kShut else ""))
 fig.colorbar(cc, ax=axs, shrink=.5, label=f"p{unit_p}")
 
-# After shut-in, the average pressure is constant (nothing enters or leaves) ...
+# While the well flows, the average pressure declines exactly as material
+# balance dictates (see also `tests/test_compressible.py`) ...
+Vp = L*L*por  # pore volume (areal, like `q`)
+assert np.allclose(p_mean[:kShut + 1], p_i - q*tt[:kShut + 1]/(ct*Vp))
+# ... and after shut-in it is constant (nothing enters or leaves) ...
 assert np.allclose(p_mean[kShut:], p_mean[kShut])
 # ... and the pressure equilibrates towards it: by the end of the run, the
 # spread has decayed to less than 1% of what it was at shut-in.

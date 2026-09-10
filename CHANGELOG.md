@@ -162,6 +162,19 @@ should pin a tag (or commit hash) and advance it deliberately.
   imported `struct_tools` transitively from here (HistoryMatching does) must
   add it to its own requirements.
 
+- **Fewer examples** (13 -> 10), the overlapping ones folded together:
+  `rate_scheduling` is now the scheduled-rates variant of `quarter_five_spot`
+  (replacing its doubled-rate run, which showed nothing the base case did not);
+  `depletion` is split between `buildup` (whose flow period *is* a primary
+  depletion: it gains the material-balance assertion and a pre-shut-in
+  snapshot of the growing cone) and `well_control` (whose drawdown diagnostic
+  now shows the transient and boundary-dominated regimes, on a log time axis
+  with the $r^2/η$ marker); and `heterogeneous` is dropped, its content -- a
+  log-normal permeability and the pressure it gives -- being the first two
+  panels of the README banner already. The feature collage gains an
+  inactive-cells panel in the freed slot. The reference values carry over
+  unchanged (the scheduled run is the very same run).
+
 ### Fixed
 
 - **`Ny = 1` runs** used to raise `ValueError: offset array contains duplicate

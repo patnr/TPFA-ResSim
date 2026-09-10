@@ -6,7 +6,7 @@ wells being plain source terms. Instead we verify against *analytic* well
 testing theory -- which happens to be possible here, and rather sharply so.
 
 The setting is a single producer at the centre of a closed (no-flow) square,
-run until the flow is *boundary-dominated* (ref `examples/depletion.py`), where
+run until the flow is *boundary-dominated* (ref `examples/well_control.py`), where
 the drawdown from the average pressure is given by the pseudo-steady-state
 solution with Dietz shape factor $ C_A = 30.8828 $:
 $$ \\bar{p} - p(r) = \\frac{q}{2 π k λ_t} \\,
@@ -38,7 +38,7 @@ def depleted(N, ct=.1):
     """Deplete a closed square via a central producer; return it, past its transient.
 
     Single-phase (there is no water anywhere), so $ λ_t = M_o = 1/v_o = 1 $.
-    Cf. `examples/depletion.py`.
+    Cf. `examples/well_control.py`.
     """
     model = ResSim(Lx=1, Ly=1, Nx=N, Ny=N, ct=ct,
                    wells=Wells(xy=[[.5, .5]], rates=[[-q]]))

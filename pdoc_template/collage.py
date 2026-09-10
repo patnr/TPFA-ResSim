@@ -133,17 +133,21 @@ def features(figsize=(16, 12.6)):
     ax.legend(title="Fronts: $s$ = 0.2, 0.5, 0.8", title_fontsize="x-small",
               loc="lower right", **leg)
 
-    ## Rate scheduling
-    rs = example("rate_scheduling")
-    field(rs.model, axs[3], rs.SS[-1], "oil",
-          title=f"Scheduled injection rates (t = {rs.dt*rs.nSteps:.1f})")
+    ## Rate scheduling (the quarter five-spot's scheduled variant)
+    field(q5.model_sch, axs[3], q5.SS_sch[-1], "oil",
+          title=f"Scheduled injection rates (t = {q5.dt*q5.nSteps:.1f})")
+
+    ## Inactive cells: an irregular outline and a sealing fault
+    ic = example("inactive_cells")
+    field(ic.model, axs[4], ic.SS[-1], "oil", wells=dict(size=.5, text=False),
+          title=f"Inactive cells: outline and fault (t = {ic.dt*ic.nSteps:.2f})")
 
     ## Well paths: the sweep, and the allocation along the path
     wp = example("well_path")
-    field(wp.path, axs[4], wp.SS_path[-1], "oil", wells=dict(size=.3, text=False),
+    field(wp.path, axs[5], wp.SS_path[-1], "oil", wells=dict(size=.3, text=False),
           title=f"Well paths (t = {wp.dt*wp.nSteps:.1f})")
 
-    ax = axs[5]
+    ax = axs[6]
     ax.plot(wp.yy, wp.path.wells.actual_rates[wp.inj, -1],
             label="Rate-controlled: $w \\propto WI$")
     for k, ls in [(0, ":"), (wp.nSteps - 1, "-")]:
@@ -155,7 +159,7 @@ def features(figsize=(16, 12.6)):
 
     ## Well control: rate, BHP, and rate with a BHP limit
     wc = example("well_control")
-    ax = axs[6]
+    ax = axs[7]
     ax.plot(wc.tt, wc.prod_rate, label="Rate-controlled")
     ax.plot(wc.tt, wc.prod_bhp, label="BHP-controlled")
     ax.plot(wc.tt, wc.prod_lim, ":", lw=2, label="Rate, with a BHP limit")
@@ -167,7 +171,7 @@ def features(figsize=(16, 12.6)):
 
     ## Buildup: a well test, in metric units
     bu = example("buildup")
-    ax = axs[7]
+    ax = axs[8]
     for r in [0, 200, 500, 1000]:
         i = bu.model.xy2ind(bu.L/2 + r, bu.L/2)
         ax.plot(bu.tt, bu.PP[:, i], label=f"r = {r} m")
@@ -184,19 +188,9 @@ def features(figsize=(16, 12.6)):
     k = 3
     dP = pd.PP[k] - pd.P0
     vmax = abs(dP).max()
-    field(pd.model, axs[8], dP, cmap="RdBu_r",
+    field(pd.model, axs[9], dP, cmap="RdBu_r",
           levels=np.linspace(-vmax, vmax, 21), wells=dict(size=.4, text=False),
           title=f"Compressible: pressure diffusion (t = {k*pd.dt:.4f})")
-
-    ## Compressibility: primary depletion
-    dp = example("depletion")
-    ax = axs[9]
-    ax.plot(dp.tt, dp.p_mean, label="Mean, $\\bar{p}$")
-    ax.plot(dp.tt, dp.p_cell, label="Producer cell, $p_\\mathrm{cell}$")
-    ax.plot(dp.tt, 1 - dp.q*dp.tt/(dp.model.ct*dp.pore_volume), "k--", lw=1,
-            label="Material balance, $p_0 - q t / (c_t V_p)$")
-    ax.set(title="Primary depletion (no injection)", xlabel="Time", ylabel="p")
-    ax.legend(**leg)
 
     ## Compressibility: under-injection
     vr = example("voidage_replacement")

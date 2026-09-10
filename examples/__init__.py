@@ -10,9 +10,10 @@ One panel per feature, drawn from their results:
 
 ![One panel per feature, from the examples](collage_features.png)
 
-- `examples.heterogeneous` and `examples.quarter_five_spot` reproduce Figs. 1 and 6 of
-  the reference paper. The latter is what verifies our agreement with the Matlab codes.
-- `examples.rate_scheduling` steers the water front using time-varying injection rates.
+- `examples.quarter_five_spot` reproduces Fig. 6 of the reference paper -- this is
+  what verifies our agreement with the Matlab codes -- and then varies it: the
+  implicit transport scheme, and *scheduled* (time-varying) injection rates, which
+  steer the water front.
 - `examples.buckley_leverett` is the only *verification* among them: in 1D the
   saturation equation is exactly solvable (by the Welge tangent construction),
   so here the numerical profile is compared with the truth rather than with
@@ -27,6 +28,8 @@ relation between a well and the (much larger) cell that holds it:
   letting its pressure follow, or the reverse -- shown to be one model seen from
   either end. Also why the well model is needed at all: a well's *cell* pressure
   is a grid artefact, whereas the bottom-hole pressure derived from it is not.
+  Its setting is a lone producer depleting a closed reservoir, whose transient
+  and boundary-dominated regimes are seen in the drawdown.
 - `examples.well_path`: a well completed along a polyline rather than in a single
   cell, and the two ways its rate then gets divided among the completions --
   statically (in proportion to the well index) or, under BHP control, solved for.
@@ -38,12 +41,11 @@ The next ones illustrate what slight compressibility (`TPFA_ResSim.ResSim.ct` > 
   instead of being felt everywhere instantaneously. Also illustrates that the
   pressure level is now meaningful (anchored by `p0`), whereas the incompressible
   pressure is only defined up to a constant.
-- `examples.depletion`: production *without* injection (impossible if incompressible),
-  its transient and boundary-dominated regimes, and the resulting material-balance
-  decline, `dp̄/dt = -q / (ct Vp)`.
-- `examples.buildup`: shutting in a well, and the ensuing pressure buildup. Monitor
-  points far from the well respond late -- and keep declining after the shut-in,
-  before turning around.
+- `examples.buildup`: production *without* injection (impossible if incompressible),
+  with the resulting material-balance decline, `dp̄/dt = -q / (ct Vp)`; then
+  shutting the well in, and the ensuing pressure buildup. Monitor points far
+  from the well respond late -- and keep declining after the shut-in, before
+  turning around. Posed in metric units, and interpreted as a well test.
 - `examples.voidage_replacement`: the only *two-phase* one of these -- waterflooding
   while injecting only half of what is produced (impossible if incompressible).
   The front then advances more slowly, and by a different pattern, since some of

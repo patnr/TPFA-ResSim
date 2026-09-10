@@ -10,8 +10,9 @@ that holds it, so its cell pressure is not its wellbore pressure.
 That distinction is the first thing shown here: the cell pressure is a *grid
 artefact*, whereas the bottom-hole pressure obtained from it is not.
 
-The two modes are then contrasted on the same closed, depleting reservoir
-(cf. `examples.depletion`), where they behave quite differently:
+The two modes are then contrasted on the same closed reservoir under *primary
+depletion* -- production without injection, which only `ct > 0` allows, the
+deficit being drawn from storage -- where they behave quite differently:
 
 - at constant **rate**, the pressure declines linearly, as material balance
   dictates: $ d\\bar{p}/dt = -q / (c_t V_p) $;
@@ -33,9 +34,14 @@ exactly (to ~1e-15).
 
 In the figures:
 
-- "diagnostic": refining 32² → 64² moves the producer's cell pressure by a lot
-  (left), while the bottom-hole pressure inferred from it barely moves (right).
-  Only the latter is a property of the *well*.
+- "diagnostic": the drawdown grows throughout the *transient* -- the pressure
+  disturbance has not yet reached the closed boundary, so the reservoir behaves
+  as if infinite -- and settles once the flow is *boundary-dominated*, the
+  pressure profile then frozen in shape and merely subsiding, at about the time
+  $ r^2/η $ that the disturbance needs to reach the boundary (dotted). Refining
+  32² → 64² moves the producer's cell pressure by a lot (left), while the
+  bottom-hole pressure inferred from it barely moves (right). Only the latter
+  is a property of the *well*.
 - "modes" (left): the rate is flat by construction under rate control, and
   decays under BHP control -- as a straight line on the log axis, i.e.
   exponentially, with the analytic slope (dashed). The rate-with-a-limit case
@@ -63,7 +69,7 @@ dt, nSteps = 2e-3, 150
 tt = dt*np.arange(1, nSteps + 1)
 
 def depleter(N=32, cls=ResSim, **control):
-    """A single producer at the centre of a closed square. Cf. `examples.depletion`.
+    """A single producer at the centre of a closed square (cf. `examples.buildup`).
 
     The `control` is a `rate` and/or a `bhp`; `rw` is what gives it a well model.
     """
@@ -104,10 +110,13 @@ for N in [32, 64]:
     ax1.plot(tt, (pbar[1:] - PP[1:, model.xy2ind(*model.wells.xy[0])]), label=f"{N}²")
     ax2.plot(tt, (pbar[1:] - model.wells.actual_bhp[0]), label=f"{N}²")
 ax1.set(title="Cell drawdown, $\\bar{p} - p_\\mathrm{cell}$",
-        xlabel="Time", ylabel="$\\Delta p$")
-ax2.set(title="Bottom-hole drawdown, $\\bar{p} - p_\\mathrm{bh}$", xlabel="Time")
+        xlabel="Time", ylabel="$\\Delta p$", xscale="log")
+ax2.set(title="Bottom-hole drawdown, $\\bar{p} - p_\\mathrm{bh}$", xlabel="Time",
+        xscale="log")
+eta = 1/ct  # Diffusivity (K = por = 1, and λ = 1, there being no water)
 for ax in (ax1, ax2):
-    ax.legend(title="Grid")
+    ax.axvline(.5**2/eta, c="k", ls=":", lw=1, label="$r^2/η$, $r$ = ½ (to the boundary)")
+    ax.legend(title="Grid", fontsize="small")
 fig.tight_layout()
 
 ## Simulate: the same reservoir, under either mode of control

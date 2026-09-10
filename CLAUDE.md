@@ -65,7 +65,7 @@ is a plain top-to-bottom script whose only concession to the harness is a final
 `__digest__` dict of the values to be checked, and the guarded
 `if __name__ == "__main__": show()`. The folder's `__init__.py` is a docstring only — the
 examples' README, in effect, rendered as the `examples` page of the docs, so cross-refer
-to them as modules (`` `examples.depletion` ``), which pdoc links. Its module-level docstring
+to them as modules (`` `examples.buildup` ``), which pdoc links. Its module-level docstring
 and the figures are what an example's page shows: its members (`model`, `dt`, ...) are not. `tests/test_examples.py` runs them all with `runpy`
 (so `show()` is skipped, but the plotting *is* exercised) and compares a fingerprint of
 `__digest__` with `tests/references.py` (regenerate that table with
