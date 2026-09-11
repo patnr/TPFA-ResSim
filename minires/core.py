@@ -576,7 +576,12 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
         # NB: explicit connectivity checks of `active` (graph search; a cursory
         # pressure step) were tried and found laborious, while also refusing
         # the valid disconnected configs (each region balanced, or well-less).
-        assert np.linalg.norm(A @ P - q) <= 1e-8 * np.linalg.norm(q), (
+        # The tolerance is loose because the achievable residual degrades with
+        # the conditioning, i.e. with the permeability contrast: an ensemble of
+        # log-normal fields (HistoryMatching's, contrast up to 1e10) reaches
+        # 6e-8, so 1e-8 cried wolf on it -- while the singular case it is
+        # actually after stays 5 orders of magnitude above 1e-6.
+        assert np.linalg.norm(A @ P - q) <= 1e-6 * np.linalg.norm(q), (
             "The pressure solve failed. Is a disconnected region of `active`"
             " cells left without balanced rates (ref `active`)?"
         )
