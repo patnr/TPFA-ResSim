@@ -2,22 +2,25 @@
 
 # MiniRes
 
-A 2D, two-phase, immiscible reservoir simulator
+A simple petroleum reservoir simulator
 using TPFA (two-point flux approximation).
 [**Documentation**](https://patnr.github.io/MiniRes/minires.html).
 
-- **small**: all of its physics fit in `core.py`'s 300 lines of code
-- **capable**: two-phase, slight compressibility, BHP control, irregular outlines and faults (inactive cells), aquifers –
-  but 2D uniform grid, immiscible, isothermal, and only simple well models.
-- **adjoint** model included; verified against finite differences
-- **python**: easy to demo in a web browser via Colab or WASM
-- **fast**: comparable to JutulDarcy (but no waiting on JIT startup!) at equal accuracy on 2D two-phase cases
-- **reliable**: reproduces the numbers of the [Matlab code (2007)](http://folk.ntnu.no/andreas/papers/ResSimMatlab.pdf) from NTNU/Sintef by Jørg E. Aarnes, Tore Gimse, and Knut–Andreas Lie
-- **tested** extensively: [![GitHub CI](https://github.com/patnr/MiniRes/actions/workflows/tests.yml/badge.svg)](https://github.com/patnr/MiniRes/actions)
-
-![The Egg model: permeability, pressure, oil saturation, and the adjoint sensitivity of a producer's water cut](collage.png)
+- **Small**: all of its physics fit in `core.py`'s 400 lines of code.
+- **Capable**: two-phase, slight compressibility, BHP control, well paths, irregular outlines and faults (inactive cells), aquifers –
+  **but** 2D uniform grid, immiscible, isothermal, and simple well models and operation.
+- **Adjoint** model included; verified against finite differences.
+- **Python**: easy to demo in a web browser via Colab (backend: Google) or WASM (no backend!).
+- **Fast**: similar to [JutulDarcy's](https://github.com/sintefmath/JutulDarcy.jl) (but no JIT startup/wait) at equal accuracy on 2D two-phase cases of size $100$ – $10^5$.
+- **Reliable**: reproduces the numbers of the [Matlab code (2007)](http://folk.ntnu.no/andreas/papers/ResSimMatlab.pdf) from NTNU/Sintef by Jørg E. Aarnes, Tore Gimse, and Knut–Andreas Lie.
+  Further validated against [Buckley–Leverett's](https://patnr.github.io/MiniRes/examples/buckley_leverett.html)
+  analytic solution, ECLIPSE's numbers on the [Egg model](https://patnr.github.io/MiniRes/examples/egg.html),
+  and JutulDarcy's on [quarter five-spot](https://patnr.github.io/MiniRes/examples/quarter_five_spot.html), SPE-10, and Egg.
+- **Tested** extensively: [![GitHub CI](https://github.com/patnr/MiniRes/actions/workflows/tests.yml/badge.svg)](https://github.com/patnr/MiniRes/actions)
 
 ## Examples
+
+![The Egg model: permeability, pressure, oil saturation, and the adjoint sensitivity of a producer's water cut](collage.png)
 
 The examples double as regression tests.
 Each has a page in the [documentation](https://patnr.github.io/MiniRes/examples.html).
