@@ -103,10 +103,19 @@ nav.pdoc footer a {
 /* The head of the sidebar (`module.html.jinja2`): the title, the search box, and the
    tabs between the two roots. Its left padding restores what the negative margin takes,
    so that the tabs' row can run to the sidebar's edge and its hairline can be the head's
-   bottom edge. */
+   bottom edge; and it stays put while the entries scroll under it, taking over the
+   sidebar's top padding (negative margin, same padding) so as to cover them right up to
+   the top edge. On narrow screens, where the menu is a block at the head of the page
+   rather than a sidebar, staying put keeps the search box and the tabs in reach while a
+   long list of entries is scrolled past -- and the head is hidden along with them when
+   the menu is closed. */
 nav.pdoc .nav-header {
-    margin-left: calc(-1 * var(--pad));
-    padding-left: var(--pad);
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    margin: calc(-1 * var(--pad)) 0 0 calc(-1 * var(--pad));
+    padding: var(--pad) 0 0 var(--pad);
+    background-color: var(--pdoc-background);
 }
 nav.pdoc .nav-title {
     display: flex;
@@ -150,27 +159,23 @@ nav.pdoc ul.nav-roots li a.current {
     border-bottom-color: var(--link);
 }
 
-/* Where the sidebar scrolls on its own, the head stays put, the entries scrolling under
-   it: it takes over the sidebar's top padding (negative margin, same padding) so as to
-   cover them right up to the top edge. */
-@media (min-width: 770px) {
-    nav.pdoc .nav-header {
-        position: sticky;
-        top: 0;
-        z-index: 2;
-        margin-top: calc(-1 * var(--pad));
-        padding-top: var(--pad);
-        background-color: var(--pdoc-background);
-    }
-}
-
-/* On narrow screens pdoc hides the rest of the menu while the search box has contents
-   (`input:valid ~ *`), which the head's wrapper would otherwise defeat. Its title, like
-   pdoc's search box, keeps clear of the menu button at the top right. */
+/* The narrow-screen menu. */
 @media (max-width: 769px) {
+    /* pdoc's menu button scrolls away with the page; keep it in the corner instead,
+       so that the menu -- and with it the search box -- is reachable from anywhere on
+       a long page. Standing over the text now, it needs a ground of its own, and
+       pdoc's translucency (which the text would show through) undone. */
+    #navtoggle {
+        position: fixed;
+        background-color: var(--pdoc-background);
+        opacity: 1;
+    }
+    /* pdoc hides the rest of the menu while the search box has contents
+       (`input:valid ~ *`), which the head's wrapper would otherwise defeat. */
     nav.pdoc .nav-header:has(input[type=search]:valid) ~ * {
         display: none !important;
     }
+    /* The title, like pdoc's search box, keeps clear of the menu button, top right. */
     nav.pdoc .nav-title {
         max-width: 77%;
     }
@@ -183,6 +188,19 @@ nav.pdoc ul.nav-roots li a.current {
     max-width: 100%;
     height: auto;
     margin: 1.5rem auto;
+}
+
+/* Display equations (MathJax). A numbered one is laid out full width, with a
+   `min-width` of its own, which on a narrow screen exceeds the column and made the whole
+   *page* scroll sideways; let the equation scroll instead. (`overflow-y` must be stated,
+   and hidden: `overflow-x` alone would imply `auto`, and thus a vertical scrollbar,
+   since the MathML that MathJax keeps for screen readers -- visually hidden -- extends
+   below the box. Nothing that is drawn does.) */
+mjx-container[display="true"] {
+    min-width: 0 !important;  /* MathJax sets it inline, so only this can override it */
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
 }
 
 /* The README's headings (the `.module-info` section, the only docstring with any):
