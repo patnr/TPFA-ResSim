@@ -6,6 +6,71 @@ permeability curves, and computes what the model needs of them: the mobilities
 (`fractional_flow`), each with its derivative (`dRelPerm`, `dfractional_flow`).
 Curves of another shape (e.g. tabulated) are a subclass overriding `RelPerm` and
 `dRelPerm`.
+
+## Theory
+
+Fossil fuel hydrocarbons is sedimented, pressurized, organic material
+(mostly plants?) that used to live on the **sub-sea** continental shelves.
+**On-land** organic material turns into coal.
+⇒ Saudi-Arabia used to be sub-sea?
+The *energy* in oil & gas comes from the sun (photosynthesis),
+not the compression.
+The lightest *hydrocarbons* (methane, ethane, etc.) usually escapes quickly,
+while oils moves slowly towards the surface.
+Sometimes the geology is bends to form caps of non-permeable rock
+(ref `minires.ResSim.K`), so that the migrating hydrocarbons are trapped.
+In the *North Sea*, these reservoirs lie 1000-3000 meters below the sea bed.
+Norway is also surrounded by the *Norwegian sea*,
+and the *Barents sea*, towards Murmansk.
+
+Reservoir simulators implement porous media flow
+on upscaled geophysical parameters typically with grid blocks between 1 - 100 m.
+They usually parameterize multiphase flow.
+If only the two phases of oil and water are used it is called **black-oil**.
+A common assumption is that the flow is **immiscible**: not mixing (oil and water).
+But this does not mean that gas cannot be *dissolved* in oil.
+
+The **phases** (water, oil, gas), whose saturations sum to $1$,
+contains *components* (e.g. methane, ethane, propane),
+usually grouped as pseudo-components.
+Each phase's *mass fraction* component, $c_{phase,i}$, sums to $1$.
+Each phase has **density**, $ρ$ and **viscosity**, $μ$ (`Fluid.vw`, `Fluid.vo`),
+generally functions of the phase **pressure**,
+but usually neglected except for gas.
+The differences in pressure are named **capillary pressure**
+because they arise due to **interfacial tensions**; this model has none.
+A phase's **compressibility** is defined similar as for the rock's
+(ref `minires.ResSim.ct`, which lumps them all into one).
+Confusingly, it is also denoted with $c$, but using only a single subscript.
+
+Phases do not really mix. But in macro-scale modelling all phases
+may be present at the same location. Therefore a phase's permeability
+should depend on the saturations, to which end we introduce *relative permeability*,
+$k_{r,i} = k_{r,i}(s_g, s_o), i = g, o, w$
+a nonlinear function, yielding an (effective) permeability
+$\\mathbf{K_i} = \\mathbf{K} k_{r,i}$
+Relative permeability curves do not extend all over the interval $[0, 1]$.
+The smallest saturation where a phase is mobile is called the
+**residual saturation** (`Fluid.swc`, `Fluid.sor`).
+This *adsorption* effects may vary, and this may have important effects,
+particularly for simulation of *polymer injection*.
+The uncertainty regarding relative permeability is modest compared to
+the enormous uncertainty of the rock permeability (`minires.ResSim.K`).
+
+Everything depends on *thermodynamics*, but this is often complex and neglected,
+except perhaps for the bubble/boiling point pressures,
+which govern how much of the gas dissolves in oil.
+
+Since *compressibility* relates volumes to pressure,
+a volume must be qualified by where it is measured.
+The **formation volume factor**, $B$, is the ratio of the volume at reservoir
+conditions to that of the same mass at the surface ("stock tank"),
+and is how field rates (measured at the surface) are converted
+to the reservoir rates that a simulator works in. This model has $B = 1$.
+Related **PVT** (pressure-volume-temperature) vocabulary:
+the **bubble point** is the pressure below which gas comes out of solution;
+an oil above it is **undersaturated**, and the amount of gas it holds is the
+*solution gas-oil ratio*, $R_s$.
 """
 
 from dataclasses import dataclass

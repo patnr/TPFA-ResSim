@@ -148,8 +148,30 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
     proportion to their saturation (ref `storage_rate`). Injection and
     production then need not balance, enabling e.g. primary depletion.
 
-    Derivation, fidelity ($ c_t \\, Δp \\ll 1 $, which the voidage sets, not
-    `ct`) and vocabulary: ref the "Compressibility" section of the docs.
+    Derivation and fidelity ($ c_t \\, Δp \\ll 1 $, which the voidage sets, not
+    `ct`): ref the "Compressibility" section of the docs.
+
+    The **drive mechanism** is whatever supplies the energy that pushes the
+    hydrocarbons to the well. *Fluid and rock expansion* (a.k.a. **depletion
+    drive**), which is what $ c_t > 0 $ enables here in the absence of injection,
+    is the weakest, recovering only a few percent, because $c_t$ is so small.
+    Stronger ones are *solution gas drive*, *gas cap drive*, *water drive*
+    (aquifers, ref `minires.wells.aquifer_WI`), *gravity drainage*, and
+    *compaction drive* (which manifests as seabed subsidence).
+    Recovery is staged: **primary** production runs on the native drive.
+    Upon drilling, unless valves are in place, the pressure of the initial
+    *equilibrium* will cause a *blow out*; a new equilibrium is usually attained
+    when 20% of the hydrocarbons have been produced, which marks the end of the
+    primary production.
+    **Secondary** recovery adds *pressure support* by injecting water or gas
+    (**waterflooding** being the case simulated here);
+    **tertiary**, or **EOR** (enhanced oil recovery), alters the flow physics itself,
+    e.g. by polymer, surfactant, or CO₂ injection.
+    The **voidage replacement ratio** is the injected reservoir volume divided by the
+    produced one; $\\mathrm{VRR} = 1$ is exactly the balance, $\\sum q = 0$,
+    that the incompressible model is obliged to impose.
+    The zero-dimensional (single tank) accounting of all of the above,
+    used to estimate reserves without a grid, is called **material balance**.
     """
     cached_precond: bool = True
     """Solve the pressure system iteratively, preconditioned by a cached factorization.
@@ -177,9 +199,34 @@ class ResSim(AlignedRepr, Grid2D, Plot2D):
     # NB: the array attributes are typed `Any` since `__setattr__` normalizes
     # whatever array-like (nested lists, scalars) is assigned to them.
     K: Any = None
-    """Permeabilities (in x and y directions). Array of shape `(2, Nx, Ny)`)."""
+    """Permeabilities (in x and y directions). Array of shape `(2, Nx, Ny)`).
+
+    **Permeability**, denoted by tensor $\\mathbf{K}$, quantifies transmissibility.
+    Usually SPD -- here diagonal, $\\mathrm{diag}(K_x, K_y)$ per cell, which is
+    what the two components of the first axis are -- and correlated with `por`.
+    Among the reservoir rocks,
+    *sandstone* usually have large, well-connected pores,
+    and high permeability, *shale* is nearly impermeable,
+    like cap rock and bed rock.
+    Permeability is measured in Darcy ($≈ 10^{-12} m^2$), ref `cdarcy`.
+    A medium is called *isotropic* if $\\mathbf{K}$ is scalar.
+    Its spatial structure goes by yet more lingo: *facies* (bodies of rock of
+    like character, e.g. the *channels* of a fluvial deposit), and the *fissures*
+    and *fractures* whose conductivity dwarfs that of the rock around them.
+    Being the most uncertain of the reservoir's properties (ref `minires.fluids`),
+    it is the parameter that history matching estimates -- and the one that
+    `minires.tlm` differentiates (as $\\log \\mathbf{K}$) with respect to.
+    """
     por: Any = None
-    """Porosity; Array of shape `(Nx, Ny)`)."""
+    """Porosity; Array of shape `(Nx, Ny)`).
+
+    **Porosity**, $φ$, is the *void volume fraction*.
+    Depends on pressure, because rock is compressible.
+    *Compressibility* is the porosity's (relative) gradient wrt. pressure.
+    Usually neglected, as it is here in the pore volume (ref `pore_volume`),
+    so that $φ$ is a constant, but spatial, field; the rock's compressibility
+    enters instead through `ct`, which lumps it with the fluids'.
+    """
     active: Any = None
     """Mask of the active cells, `(Nx, Ny)`, boolean. Default: all `True`.
 

@@ -294,6 +294,14 @@ def aquifer_WI(model: "ResSim", xy: Any, faces: str = "WESN") -> np.ndarray:
     when that edge is sealed, or on a 1D strip, whose every cell is a boundary
     cell to the north and south. On a curved outline, keep them all.
 
+    **Aquifers** are beneficial in reservoirs as they act as pressure compensators.
+    Oil production ⇒ pressure decrease ⇒ aquifers expansion ⇒ pressure compensation.
+    Despite consisting of water, the expansion is generally significant
+    because the base volume is so big,
+    or the aquifer might even be connected to the ocean --
+    which is the *infinite* aquifer that a constant `bhp` here posits.
+    (The top of the water-bearing zone is the *water table*.)
+
     .. note:: The mobility is the cell's total one, $ λ_t(S) $, as for any well.
 
         Whereas a boundary face of the TPFA scheme would upwind it from the

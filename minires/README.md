@@ -264,7 +264,7 @@ with no Newton iteration on $p$, and no PVT properties
   is a matter of the voidage asked of the fluids, not of choosing `ct` small.
   Linearity again: the mean pressure declines in proportion to the *cumulative*
   voidage, whatever its distribution in space or time -- the straight line of the
-  material-balance plot (ref "Vocabulary"), by which pore volume is estimated.
+  material-balance plot (ref `minires.ResSim.ct`), by which pore volume is estimated.
 - Pressure is *transient* rather than instantaneous:
   $\sqrt{\eta t}$ is the *radius of investigation*, how far a well has "felt" after time $t$.
   Flow is called **transient** while that radius is still growing,
@@ -279,114 +279,6 @@ with no Newton iteration on $p$, and no PVT properties
   *analytical* inference method -- the line-source solution, the Horner plot, and the
   semilog-derivative plateau that `examples.buildup` reads $\mathbf{K}$ off,
   are all solutions of the *linear* diffusion equation.
-
-## Vocabulary of reservoir engineering
-
-Reservoir simulators implement porous media flow
-on upscaled geophysical parameters typically with grid blocks between 1 - 100 m.
-They usually parameterize multiphase flow.
-If only the two phases of oil and water are used it is called **black-oil**.
-A common assumption is that the flow is **immiscible**: not mixing (oil and water).
-But this does not mean that gas cannot be *dissolved* in oil.
-
-Fossil fuel hydrocarbons is sedimented, pressurized, organic material (mostly plants?)
-that used to live on the **sub-sea** continental shelves
-**On-land** organic material turns into coal.
-⇒ Saudi-Arabia used to be sub-sea?
-The *energy* in oil & gas comes from the sun (photosynthesis),
-not the compression.
-
-The lightest *hydrocarbons* (methane, ethane, etc.) usually escapes quickly,
-while oils moves slowly towards the surface.
-Sometimes the geology is bends to form caps of non-permeable rock,
-so that the migrating hydrocarbons are trapped.
-Upon drilling, unless valves are in place, the pressure of the initial
-*equilibrium* will cause a *blow out*.
-A new equilibrium is usually attained when 20% of the hydrocarbons
-have been produced, which marks the end of the *primary production*.
-In the *North Sea*, these reservoirs lie 1000-3000 meters below the sea bed.
-Norway is also surrounded by the *Norwegian sea*,
-and the *Barents sea*, towards Murmansk.
-
-**Porosity**, $\phi$, is the *void volume fraction*.
-Depends on pressure, because rock is compressible.
-*Compressibility* is the porosity's (relative) gradient wrt. pressure.
-Usually neglected, so that $\phi$ is a constant, but spatial, field.
-
-**Permeability**, denoted by tensor $\mathbf{K}$, quantifies transmissibility.
-Usually SPD, and correlated with $\phi$.
-Among the reservoir rocks,
-*sandstone* usually have large, well-connected pores,
-and high permeability, *shale* is nearly impermeable,
-like cap rock and bed rock.
-Permeability is measured in Darcy ($≈ 10^{-12} m^2$).
-A medium is called *isotropic* if $\mathbf{K}$ is scalar.
-
-The **phases** (rock, oil, gas), whose saturations sum to $1$,
-contains *components* (e.g. methane, ethane, propane),
-usually grouped as pseudo-components.
-Each phase's *mass fraction* component, $c_{phase,i}$, sums to $1$.
-Each phase has **density**, $\rho$ and **viscosity**, $\mu$,
-generally functions of the phase **pressure**,
-but usually neglected except for gas.
-The differences in pressure are named **capillary pressure**
-because they arise due to **interfacial tensions**.
-A phase's **compressibility** is defined similar as for the rock's.
-Confusingly, it is also denoted with $c$, but using only a single subscript.
-
-Phases do not really mix. But in macro-scale modelling all phases
-may be present at the same location. Therefore a phase's permeability
-should depend on the saturations, to which end we introduce *relative permeability*,
-$k_{r,i} = k_{r,i}(s_g, s_o), i = g, o, w$
-a nonlinear function, yielding an (effective) permeability
-$\mathbf{K_i} = \mathbf{K} k_{r,i}$
-Relative permeability curves do not extend all over the interval $[0, 1]$.
-The smallest saturation where a phase is mobile is called the **residual saturation**.
-This *adsorption* effects may vary, and this may have important effects,
-particularly for simulation of *polymer injection*.
-The uncertainty regarding relative permeability is modest compared to
-the enormous uncertainty of the rock permeability.
-
-Everything depends on *thermodynamics*, but this is often complex and neglected,
-except perhaps for the bubble/boiling point pressures,
-which govern how much of the gas dissolves in oil.
-
-Since *compressibility* relates volumes to pressure,
-a volume must be qualified by where it is measured.
-The **formation volume factor**, $B$, is the ratio of the volume at reservoir conditions
-to that of the same mass at the surface ("stock tank"),
-and is how field rates (measured at the surface) are converted
-to the reservoir rates that a simulator works in. This model has $B = 1$.
-Related **PVT** (pressure-volume-temperature) vocabulary:
-the **bubble point** is the pressure below which gas comes out of solution;
-an oil above it is **undersaturated**, and the amount of gas it holds is the
-*solution gas-oil ratio*, $R_s$.
-
-The **drive mechanism** is whatever supplies the energy that pushes the
-hydrocarbons to the well. *Fluid and rock expansion* (a.k.a. **depletion drive**),
-which is what $c_t > 0$ enables here in the absence of injection,
-is the weakest, recovering only a few percent, because $c_t$ is so small.
-Stronger ones are *solution gas drive*, *gas cap drive*, *water drive* (aquifers),
-*gravity drainage*, and *compaction drive* (which manifests as seabed subsidence).
-Recovery is staged: **primary** production runs on the native drive;
-**secondary** adds *pressure support* by injecting water or gas
-(**waterflooding** being the case simulated here);
-**tertiary**, or **EOR** (enhanced oil recovery), alters the flow physics itself,
-e.g. by polymer, surfactant, or CO₂ injection.
-The **voidage replacement ratio** is the injected reservoir volume divided by the
-produced one; $\mathrm{VRR} = 1$ is exactly the balance, $\sum q = 0$,
-that the incompressible model is obliged to impose.
-The zero-dimensional (single tank) accounting of all of the above,
-used to estimate reserves without a grid, is called **material balance**.
-
-**Aquifers** are beneficial in reservoirs as they act as pressure compensators.
-Oil production ⇒ pressure decrease ⇒ aquifers expansion ⇒ pressure compensation.
-Despite consisting of water, the expansion is generally significant
-because the base volume is so big,
-or the aquifer might even be connected to the ocean.
-
-Other lingo:
-water table, facies, channels, fissures, fractures.
 
 <!-- markdownlint-configure-file
 {
