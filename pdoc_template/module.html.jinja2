@@ -109,6 +109,31 @@ Its page is the docstring, the figures, and the source.
     {{ super() }}
     <script>
     (function () {
+        // Re-anchor the entry the page is opened at (the URL's fragment -- from a search
+        // result, or a link from elsewhere): the browser scrolls to it while the page is
+        // still loading, and pdoc's `scroll-behavior: smooth` makes that scroll an
+        // animation, aimed once at where the entry was when it began. But the layout
+        // settles only afterwards -- the figures are sized as they load, and MathJax
+        // typesets, its rendered math shorter than the LaTeX source it replaces -- so the
+        // entry has moved by the time the animation lands, which on the package page
+        // leaves it 600px above the top of the view: scrolled clean past. So scroll to it
+        // again on every reflow, until the reader moves for themselves (any of the
+        // gestures below, a click to unfold "View Source" included).
+        if (!window.ResizeObserver) return;
+        let theirs = false;
+        for (const ev of ["wheel", "touchstart", "keydown", "mousedown"]) {
+            addEventListener(ev, () => { theirs = true; }, { once: true, passive: true });
+        }
+        // `main` is what grows and shrinks; `body` is the viewport's height throughout.
+        // Observing calls back once straight away, which does the first anchoring.
+        new ResizeObserver(() => {
+            const el = location.hash &&
+                document.getElementById(decodeURIComponent(location.hash.slice(1)));
+            // Instantly: smooth would animate, and be outrun by the next reflow again.
+            if (el && !theirs) el.scrollIntoView({ behavior: "instant" });
+        }).observe(document.querySelector("main.pdoc"));
+    })();
+    (function () {
         // Scroll-spy: mark the sidebar link whose target was scrolled past most recently
         // (i.e. the section the reader is in), and keep that link visible in the sidebar.
         const nav = document.querySelector("nav.pdoc");
@@ -168,8 +193,11 @@ Its page is the docstring, the figures, and the source.
         }, { passive: true });
         window.addEventListener("resize", update);
         window.addEventListener("hashchange", update);
-        // The page also reflows without scrolling, e.g. as MathJax typesets.
-        if (window.ResizeObserver) new ResizeObserver(update).observe(document.body);
+        // The page also reflows without scrolling, e.g. as MathJax typesets. (Watch
+        // `main`, whose height is the content's; `body`'s is the viewport's throughout.)
+        if (window.ResizeObserver) {
+            new ResizeObserver(update).observe(document.querySelector("main.pdoc"));
+        }
         update();
     })();
     </script>
