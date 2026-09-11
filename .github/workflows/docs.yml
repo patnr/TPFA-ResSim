@@ -36,6 +36,11 @@ jobs:
       - name: Generate docs
         run: uv run --locked --no-default-groups --group docs pdoc_template/build.py
 
+      # The WASM (Pyodide) demo, into the same artifact: some 28 MB of marimo's
+      # frontend assets, which is why it is published rather than committed.
+      - name: Export the WASM notebook
+        run: uv run --locked --no-default-groups --group wasm marimo export html-wasm notebooks/interactive.py -o docs/wasm --mode run -f
+
       - name: Upload docs
         uses: actions/upload-pages-artifact@v5
         with:

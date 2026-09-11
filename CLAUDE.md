@@ -44,6 +44,7 @@ re-anchoring of the entry a page is opened at -- needed because pdoc's `scroll-b
 smooth` turns the load-time scroll to the URL's fragment into an animation aimed once at
 where that entry was when it began, which the figures being sized and MathJax typesetting
 then move out from under it, landing the reader ~600px past it), and an `index.html.jinja2` that redirects to the package page (pdoc would list the two roots there). pdoc cannot ship static assets itself, so the logo goes via `build.py`, like the figures; its own logo slot (the `nav_title` block) takes a URL configured in Python, which cannot be the page-relative one a nested page needs, so the `<img>` is in the template's sidebar head instead. Docstrings are pdoc-flavoured markdown with LaTeX math; `minires/README.md` is included into the package docstring via `.. include::`.
+- **WASM demo**: `uv run marimo export html-wasm notebooks/interactive.py -o docs/wasm --mode run -f` (the `wasm` group; run *after* the docs build, since it writes into `docs/`). Ref `notebooks/` below.
 
 The supported Python range is whatever `requires-python` in pyproject.toml says (currently `>=3.12`); the floor tracks Colab's Python so the package installs there without re-installs. CI tests 3.12–3.14 on ubuntu + macos.
 
@@ -93,5 +94,39 @@ steps, so it is the slowest example (~4 s).
 `examples/logo.py` is the odd one out: a smiley cut out by `active`, for the picture alone (a logo); its
 `aquifer` flag toggles the aquifer along the bottom (and rebalances the rates).
 `tests/test_compressible.py` and `tests/test_units.py` are different: structural/physics properties, no figures.
+
+`notebooks/` holds the two **browser demos**, deliberately *not* in `examples/`
+(whose `[!_]*.py` glob is read by both `pdoc_template/build.py` and
+`tests/test_examples.py`, neither of which can do anything with a `marimo.App`)
+and deliberately **untested**: each is a dozen lines of the API the suite already
+covers -- configure a model, `sim`, `plt_field` -- so the signal for drift is the docs
+build, not pytest. Both are linked from the root README's "Python" bullet and from
+`minires/README.md`.
+
+- `colab.ipynb` is committed **without cell outputs** (small diffs; the figures
+  appear on running it), and is opened by
+  `https://colab.research.google.com/github/patnr/MiniRes/blob/main/notebooks/colab.ipynb`.
+  It ends with `model.anim(...).to_jshtml()` in an `HTML`, which is the one thing
+  it does that the WASM one doesn't.
+- `interactive.py` is a [marimo](https://marimo.io) notebook: `uv run marimo edit
+  notebooks/interactive.py` to work on it, and `uv run marimo export html-wasm
+  notebooks/interactive.py -o docs/wasm --mode run -f` to build the WASM, which
+  `.github/workflows/docs.yml` does as a *second* step after the pdoc build, into the
+  same Pages artifact (hence <https://patnr.github.io/MiniRes/wasm/>). Its `wasm`
+  dependency group is marimo alone, kept out of `docs` (a much heavier install, and CI
+  runs the two steps under their own `--group`) but included in `dev`, so that `ty`
+  can resolve `import marimo` and the notebook can be edited locally. The export
+  writes ~28 MB in a few hundred files (marimo's frontend), which is why it is
+  published and **never committed**.
+
+Both notebooks install `minires` **from PyPI** (`micropip` cannot do `git+`), so
+they only work once the planned release is out. Verified in a real browser (2026-09-11):
+the whole stack runs in Pyodide -- scipy's SuperLU (`splu`/`spilu`/`cg`), matplotlib,
+`mpl-tools` -- at some 2-5x native, i.e. ~0.4 s per slider move for the 32² x 28 steps
+posed there (which is why it is 32², not 64²), after a ~30 s cold start to fetch
+Pyodide + scipy + matplotlib. `interactive.py` guards its `micropip` call with
+`sys.platform == "emscripten"` so that it still runs natively. Pitfall, if ever
+installing from a *wheel* instead of PyPI: the URL must be **absolute** -- a relative
+one is resolved against the worker, not the page, and micropip dies with `BadZipFile`.
 
 Don't read `todo.md`.

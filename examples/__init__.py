@@ -6,6 +6,8 @@ whose docstring says what it shows, and whose figures are reproduced on its page
 They double as regression tests: `tests/test_examples.py` runs them all
 (plotting included) and compares the output with `tests/references.py`.
 
+![Panels extracted from the examples](collage_features.png)
+
 - `examples.quarter_five_spot` reproduces Fig. 6 of the reference paper -- this is
   what verifies our agreement with the Matlab codes -- and then varies it: the
   implicit transport scheme, and *scheduled* (time-varying) injection rates, which

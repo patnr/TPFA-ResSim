@@ -1,11 +1,8 @@
 MiniRes is a
 2D, two-phase, black-oil, immiscible
 reservoir simulator
-using TPFA (two-point flux approximation).
-
-![The Egg model: permeability, pressure, oil saturation, and the adjoint sensitivity of a producer's water cut](collage.png)
-
-See `examples` for more demonstrations.
+using TPFA (two-point flux approximation)
+written in python.
 
 ## Governing equations
 

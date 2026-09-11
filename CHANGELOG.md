@@ -154,6 +154,16 @@ should pin a tag (or commit hash) and advance it deliberately.
   `tests/test_units.py` pins it across four unit systems. The default `1`
   leaves every existing result unchanged. `examples/buildup.py` is re-posed in
   metric and read as a well test.
+- **`notebooks/`**: two browser demos, both doing no more than configuring a
+  model and plotting its saturation field. `colab.ipynb` opens in
+  [Colab](https://colab.research.google.com/github/patnr/MiniRes/blob/main/notebooks/colab.ipynb)
+  (`pip install minires`, then the quarter five-spot, a field plot, and an
+  animation), and `interactive.py` is a [marimo](https://marimo.io) notebook
+  whose sliders -- the viscosity ratio and the time step -- re-run the
+  simulation, exported to WebAssembly (Pyodide) by the docs workflow and
+  published at <https://patnr.github.io/MiniRes/wasm/>: the Python runs in the
+  reader's tab, with no backend. Both install `minires` **from PyPI**, so they
+  only work once the planned release is out.
 
 ### Changed
 
