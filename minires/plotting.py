@@ -332,12 +332,12 @@ class Plot2D:
 
         # Style
         if sgn > 0:
-            c = "darkblue"
+            c = "#036dc9"
             ec = "gray"
             d = "w"
             m = "v"
         elif sgn < 0:
-            c = "k"
+            c = "#c83b03"
             ec = "gray"
             d = "w"
             m = "^"
@@ -355,7 +355,7 @@ class Plot2D:
 
         # Markers
         if dot is not False:
-            ax.plot(*ww.T, ".", c="r" if dot is True else dot, ms=3, clip_on=False)
+            ax.plot(*ww.T, ".", c="k" if dot is True else dot, ms=3, clip_on=False)
         sh = ax.scatter(
             *ww.T,
             s=(size * 26) ** 2,

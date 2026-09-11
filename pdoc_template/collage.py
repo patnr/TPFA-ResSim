@@ -15,15 +15,13 @@ panels share one look: square, uniform fonts, no colorbars.
   on the example's trajectory, since the example itself does not).
 - `collage_features.png`: one panel per feature, mostly a single axes of some
   example's figure, redrawn.
-- `logo.png` and `logo_yinyang.png`: the two pictures of `examples.logo`, on a
-  transparent ground (so that they suit either theme, the cut-out smile and barrier
-  included) and cropped to the disc. The smiley is the logo (the README's and the
-  docs sidebar's); the yin-yang is the README's alternative.
+- `logo.png`: the smiley of `examples.logo`, on a transparent ground (so that it
+  suits either theme, the cut-out smile included) and cropped to the disc. It is
+  the logo, the README's and the docs sidebar's.
 """
 
 import importlib
 import sys
-from functools import partial
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -274,30 +272,29 @@ def features(figsize=(20, 12.6)):
     return fig
 
 
-def logo(figsize=(2, 2), which="smiley"):
-    """The smiley (or the yin-yang) of `examples.logo`: the picture alone, cropped by `make`."""
+def logo(figsize=(2, 2)):
+    """The smiley of `examples.logo`: the picture alone, cropped by `make`."""
     lg = example("logo")
-    model, SS = (lg.model, lg.SS) if which == "smiley" else (lg.yy_model, lg.SS_yy)
+    model, SS = lg.model, lg.SS
     fig, ax = plt.subplots(figsize=figsize)
     field(model, ax, SS[-1], "oil", title="",
-          wells=dict(exclude=["Aq"], size=.9, text=False))
+          wells=dict(exclude=["Aq"], size=.9, text=False, dot=False))
     if "Aq" in model.wells.names:  # the smiley's, if the example has it switched on
-        # The aquifer contact (the example's last well), as thick as its lw=8 at 5 in.
+        # The aquifer contact (the example's last well), as thick as its lw=12 at 5 in.
         contact = model.wells.xy[model.wells.group == model.wells.nWell - 1]
-        model.plt_faces(ax, contact, color="darkblue", lw=8 * figsize[1] / 5)
+        model.plt_faces(ax, contact, lw=12 * figsize[1] / 5)
     ax.axis("off")
     return fig
 
 
 def make(out: Path = root, dpi: int = 100) -> list[Path]:
-    """Write the collages and the logos into `out`; return their paths."""
-    # The logos are cropped to their ink (no frame, no ground), and drawn at 1.5 times
-    # the dpi, being shown smaller than they are (~230 px) in the README and the sidebar.
+    """Write the collages and the logo into `out`; return their paths."""
+    # The logo is cropped to its ink (no frame, no ground), and drawn at 1.5 times
+    # the dpi, being shown smaller than it is (~230 px) in the README and the sidebar.
     crop: dict = dict(dpi=1.5 * dpi, transparent=True, bbox_inches="tight", pad_inches=0)
     files = []
     for name, maker, kws in [("collage", hero, {}), ("collage_features", features, {}),
-                             ("logo", logo, crop),
-                             ("logo_yinyang", partial(logo, which="yinyang"), crop)]:
+                             ("logo", logo, crop)]:
         fig = maker()
         files.append(out / f"{name}.png")
         fig.savefig(files[-1], **(dict(dpi=dpi) | kws))

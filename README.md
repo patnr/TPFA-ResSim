@@ -1,6 +1,6 @@
-<img src="logo.png" alt="The MiniRes logo" align="right" width="300"/>
-
 # MiniRes
+
+<img src="logo.png" alt="The MiniRes logo" align="right" width="300"/>
 
 A simple petroleum reservoir simulator
 using TPFA (two-point flux approximation).
@@ -63,7 +63,3 @@ uv sync  # or: pip install -e .
 uv run pytest
 uv run ruff check
 ```
-
-## Alternative logo
-
-![The yin-yang of the `logo` example: the injector's half flooded, the front standing in the gap at the bottom](logo_yinyang.png)
